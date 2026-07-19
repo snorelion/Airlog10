@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-ink-bg text-ink-body;
+  /* 한국어 단어 중간 줄바꿈 방지 */
+  word-break: keep-all;
+}
+
+/* iOS 네이티브 입력 통일 */
+input, select, textarea {
+  @apply appearance-none;
+}
+
+/* iOS 안전영역 (하단 탭바용) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}

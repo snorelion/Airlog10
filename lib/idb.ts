@@ -2,7 +2,7 @@
 // 스토어: flights(id) · aircraft(registration) · outbox(id) · meta(k)
 
 const DB_NAME = 'airlog10'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -16,6 +16,8 @@ export function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('aircraft')) db.createObjectStore('aircraft', { keyPath: 'registration' })
       if (!db.objectStoreNames.contains('outbox')) db.createObjectStore('outbox', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'k' })
+      if (!db.objectStoreNames.contains('people')) db.createObjectStore('people', { keyPath: 'name' })
+      if (!db.objectStoreNames.contains('airport_notes')) db.createObjectStore('airport_notes', { keyPath: 'ident' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)

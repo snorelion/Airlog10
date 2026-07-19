@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { addFlight, rememberAircraft, getAircraftList, getSetting } from '@/lib/store'
+import { addFlight, rememberAircraft, getAircraftList, getSetting, getFlights } from '@/lib/store'
 import { hmToMin, minToHM } from '@/lib/time'
 import Nav from '@/components/Nav'
 
@@ -119,12 +119,15 @@ export default function NewFlightPage() {
   const [error, setError] = useState('')
   const regTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 기체별 마지막 비행일 — 최근에 탄 기체(현 소속 기단)가 자동완성 맨 위로
+  const lastFlown = useRef<Map<string, string>>(new Map())
 
-  // 설정(내 이름·기본 역할) 불러와 미리 채우기
+  // 설정(내 이름·기본 역할·홈베이스) 불러와 미리 채우기 + 기체 최근 사용 지도
   useEffect(() => {
     void (async () => {
       const name = (await getSetting('pilotName')) ?? ''
       const cap = (await getSetting('defaultCapacity')) ?? ''
+      const hb = (await getSetting('homeBase')) ?? ''
       setMyName(name)
       if (cap === 'PIC' || cap === 'SIC' || cap === 'PICUS') {
         setCapacity(cap)
@@ -133,9 +136,25 @@ export default function NewFlightPage() {
           else setCrewSic(name)
         }
       }
+      if (hb) setOrigin((prev) => prev || hb)
+
+      const flights = await getFlights()
+      const map = new Map<string, string>()
+      for (const f of flights) {
+        if (!f.aircraft_reg) continue
+        const cur = map.get(f.aircraft_reg)
+        if (!cur || f.flight_date > cur) map.set(f.aircraft_reg, f.flight_date)
+      }
+      lastFlown.current = map
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function byRecency(a: { registration: string }, b: { registration: string }): number {
+    const da = lastFlown.current.get(a.registration) ?? ''
+    const db = lastFlown.current.get(b.registration) ?? ''
+    return db.localeCompare(da)
+  }
 
   // 역할 바꾸면 내 이름을 맞는 칸으로 옮김 (자동 채운 값만)
   function changeCapacity(cp: string) {
@@ -160,6 +179,7 @@ export default function NewFlightPage() {
       const list = await getAircraftList()
       const hits = list
         .filter((a) => a.registration.startsWith(term))
+        .sort(byRecency)
         .slice(0, 5)
         .map((a) => ({ registration: a.registration, type_code: a.type_code }))
       setRegHits(hits)
@@ -186,6 +206,7 @@ export default function NewFlightPage() {
       const list = await getAircraftList()
       const hits = list
         .filter((a) => (a.type_code ?? '').startsWith(term))
+        .sort(byRecency)
         .slice(0, 8)
         .map((a) => ({ registration: a.registration, type_code: a.type_code }))
       setTypeHits(hits)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
 import { computeYearly, computeByType, computeTopAirports } from '@/lib/aggregate'
 import { createClient } from '@/lib/supabase'
@@ -91,8 +92,8 @@ export default function StatsPage() {
             <h2 className="mb-2 text-sm font-semibold text-ink-sub">많이 간 공항</h2>
             <div className="space-y-1.5 rounded-2xl border border-ink-line bg-white p-4">
               {topAirports.map((a) => (
-                <div key={a.ident} className="flex items-center gap-2">
-                  <span className="w-14 font-mono text-sm font-semibold">{a.ident}</span>
+                <Link key={a.ident} href={`/airports/${a.ident}`} className="flex items-center gap-2">
+                  <span className="w-14 font-mono text-sm font-semibold text-air-600">{a.ident}</span>
                   <div className="h-4 flex-1 overflow-hidden rounded bg-ink-bg">
                     <div
                       className="h-full rounded bg-air-400"
@@ -101,8 +102,9 @@ export default function StatsPage() {
                   </div>
                   <span className="w-24 truncate text-right text-xs text-ink-sub">{names[a.ident] || ''}</span>
                   <span className="w-10 text-right text-sm font-semibold tabular-nums">{a.visits}</span>
-                </div>
+                </Link>
               ))}
+              <p className="pt-1 text-center text-[11px] text-ink-hint">공항을 누르면 상세 정보·활주로·메모가 열려요</p>
             </div>
           </section>
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getFlights, getPendingCount, getLastSyncAt, sync, onStoreChange, type Flight } from '@/lib/store'
+import { getFlights, getPendingCount, getLastSyncAt, getSetting, sync, onStoreChange, type Flight } from '@/lib/store'
 import { computeTotals, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
 import { Settings as SettingsIcon } from 'lucide-react'
@@ -13,6 +13,7 @@ export default function HomePage() {
   const [recent, setRecent] = useState<Flight[]>([])
   const [pending, setPending] = useState(0)
   const [lastSync, setLastSync] = useState<string | null>(null)
+  const [expiries, setExpiries] = useState<{ label: string; date: string; dday: number }[]>([])
   const [loaded, setLoaded] = useState(false)
 
   async function load() {
@@ -24,6 +25,25 @@ export default function HomePage() {
     setRecent(sorted.slice(0, 5))
     setPending(await getPendingCount())
     setLastSync(await getLastSyncAt())
+
+    // 자격 만료 D-day (설정에 넣어둔 것만)
+    const defs = [
+      ['medicalExpiry', '메디컬'],
+      ['englishExpiry', '영어 자격'],
+      ['recurrentExpiry', '리커런트'],
+    ] as const
+    const items: { label: string; date: string; dday: number }[] = []
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    for (const [key, label] of defs) {
+      const d = await getSetting(key)
+      if (d) {
+        const dday = Math.ceil((new Date(d + 'T00:00:00').getTime() - today.getTime()) / 86400000)
+        items.push({ label, date: d, dday })
+      }
+    }
+    items.sort((a, b) => a.dday - b.dday)
+    setExpiries(items)
     setLoaded(true)
   }
 
@@ -91,6 +111,29 @@ export default function HomePage() {
             <StatCard label="SIC" value={minToHMGrouped(totals?.sic_min ?? 0)} />
             <StatCard label="야간" value={minToHMGrouped(totals?.night_min ?? 0)} />
           </div>
+
+          {expiries.length > 0 && (
+            <div className="mt-3 rounded-2xl border border-ink-line bg-white p-4">
+              <h2 className="text-sm font-semibold text-ink-sub">자격 만료</h2>
+              <div className="mt-2 space-y-1.5">
+                {expiries.map((e) => (
+                  <div key={e.label} className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{e.label}</span>
+                    <span className="text-xs text-ink-hint">{e.date}</span>
+                    <span className={
+                      'rounded-full px-2 py-0.5 text-xs font-bold ' +
+                      (e.dday < 0 ? 'bg-red-100 text-red-700'
+                        : e.dday <= 30 ? 'bg-red-50 text-red-600'
+                        : e.dday <= 60 ? 'bg-amber-50 text-amber-600'
+                        : 'bg-ink-bg text-ink-sub')
+                    }>
+                      {e.dday < 0 ? `만료 ${-e.dday}일 지남` : `D-${e.dday}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <h2 className="mb-2 mt-6 text-sm font-semibold text-ink-sub">최근 비행</h2>
           <div className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-white">

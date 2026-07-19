@@ -58,9 +58,22 @@ export type AircraftRow = {
   type_code: string | null
 }
 
+export type Person = {
+  name: string
+  employee_no: string | null
+  notes: string | null
+}
+
+export type AirportNoteRow = {
+  ident: string
+  notes: string
+}
+
 type OutboxItem =
   | { id: string; kind: 'flight'; row: Flight }
   | { id: string; kind: 'aircraft'; row: AircraftRow }
+  | { id: string; kind: 'person'; row: Person }
+  | { id: string; kind: 'airportNote'; row: AirportNoteRow }
 
 // ── 읽기 (항상 로컬 사본) ──────────────────────────
 export async function getFlights(): Promise<Flight[]> {
@@ -115,6 +128,33 @@ export async function rememberAircraft(row: AircraftRow): Promise<void> {
   if (!row.registration) return
   await idbPut('aircraft', row)
   await idbPut('outbox', { id: 'ac:' + row.registration, kind: 'aircraft', row } satisfies OutboxItem)
+}
+
+// ── 크루(사람) 메모 ────────────────────────────────
+export async function getPeople(): Promise<Person[]> {
+  return idbGetAll<Person>('people')
+}
+
+export async function savePerson(row: Person): Promise<void> {
+  if (!row.name) return
+  await idbPut('people', row)
+  await idbPut('outbox', { id: 'p:' + row.name, kind: 'person', row } satisfies OutboxItem)
+  notify()
+  void sync()
+}
+
+// ── 공항 메모 ─────────────────────────────────────
+export async function getAirportNote(ident: string): Promise<string> {
+  const r = await idbGet<AirportNoteRow>('airport_notes', ident)
+  return r?.notes ?? ''
+}
+
+export async function saveAirportNote(ident: string, notes: string): Promise<void> {
+  const row: AirportNoteRow = { ident, notes }
+  await idbPut('airport_notes', row)
+  await idbPut('outbox', { id: 'an:' + ident, kind: 'airportNote', row } satisfies OutboxItem)
+  notify()
+  void sync()
 }
 
 // ── 동기화 ─────────────────────────────────────────
@@ -173,10 +213,20 @@ export async function sync(): Promise<boolean> {
         const { created_at, updated_at, ...rest } = item.row
         const { error } = await supabase.from('flights').upsert({ ...rest, user_id: user.id })
         if (error) throw new Error(error.message)
-      } else {
+      } else if (item.kind === 'aircraft') {
         const { error } = await supabase
           .from('aircraft')
           .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,registration' })
+        if (error) throw new Error(error.message)
+      } else if (item.kind === 'person') {
+        const { error } = await supabase
+          .from('people')
+          .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,name' })
+        if (error) throw new Error(error.message)
+      } else {
+        const { error } = await supabase
+          .from('airport_notes')
+          .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,ident' })
         if (error) throw new Error(error.message)
       }
       await idbDelete('outbox', item.id)
@@ -201,9 +251,15 @@ export async function sync(): Promise<boolean> {
     }
     await idbPut('meta', { k: 'lastPulledAt', v: maxSeen })
 
-    // 3) 항공기 목록 (작아서 전체 새로고침)
+    // 3) 항공기·크루·공항메모 (작아서 전체 새로고침)
     const { data: acData } = await supabase.from('aircraft').select('registration, type_code')
     if (acData) await idbPutMany('aircraft', acData)
+    try {
+      const { data: ppl } = await supabase.from('people').select('name, employee_no, notes')
+      if (ppl) await idbPutMany('people', ppl)
+      const { data: an } = await supabase.from('airport_notes').select('ident, notes')
+      if (an) await idbPutMany('airport_notes', an)
+    } catch {} // 003 마이그레이션 전이면 테이블이 없을 수 있음 — 조용히 넘어감
 
     await idbPut('meta', { k: 'lastSyncAt', v: new Date().toISOString() })
     notify()

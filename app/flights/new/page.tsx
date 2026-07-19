@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { addFlight, rememberAircraft, getAircraftList } from '@/lib/store'
 import { hmToMin } from '@/lib/time'
 import Nav from '@/components/Nav'
 
@@ -98,21 +99,21 @@ export default function NewFlightPage() {
   const [error, setError] = useState('')
   const regTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 등록번호 자동완성 — 내 항공기 테이블에서
+  // 등록번호 자동완성 — 로컬 사본에서 (오프라인에서도 동작)
   function searchReg(q: string) {
-    setReg(q.toUpperCase())
+    const term = q.toUpperCase()
+    setReg(term)
     if (regTimer.current) clearTimeout(regTimer.current)
     if (q.length < 2) { setRegHits([]); return }
     regTimer.current = setTimeout(async () => {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('aircraft')
-        .select('registration, type_code')
-        .ilike('registration', `${q.toUpperCase()}%`)
-        .limit(5)
-      setRegHits(data ?? [])
+      const list = await getAircraftList()
+      const hits = list
+        .filter((a) => a.registration.startsWith(term))
+        .slice(0, 5)
+        .map((a) => ({ registration: a.registration, type_code: a.type_code }))
+      setRegHits(hits)
       setRegOpen(true)
-    }, 200)
+    }, 150)
   }
 
   // OUT/IN 시각이 둘 다 있으면 블록타임 자동 계산 (자정 넘김 처리)
@@ -143,23 +144,16 @@ export default function NewFlightPage() {
     if (!date) { setError('날짜를 입력해 주세요.'); return }
     if (totalMin <= 0) { setError('비행시간을 입력해 주세요. (예: 1:15)'); return }
     setBusy(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('로그인이 풀렸어요.'); setBusy(false); return }
 
     const regUp = reg.trim().toUpperCase() || null
     const typeUp = typeCode.trim().toUpperCase() || null
 
-    // 새 등록번호면 내 항공기에 저장 → 다음부터 자동완성
+    // 오프라인 우선: 로컬 사본+보낼함에 저장 → 온라인이면 자동 업로드
     if (regUp) {
-      await supabase.from('aircraft').upsert(
-        { user_id: user.id, registration: regUp, type_code: typeUp },
-        { onConflict: 'user_id,registration', ignoreDuplicates: !typeUp }
-      )
+      await rememberAircraft({ registration: regUp, type_code: typeUp })
     }
 
-    const { error: insErr } = await supabase.from('flights').insert({
-      user_id: user.id,
+    await addFlight({
       flight_date: date,
       flight_number: flightNumber.trim() || null,
       origin: origin.trim().toUpperCase() || null,
@@ -174,23 +168,32 @@ export default function NewFlightPage() {
       picus_min: capacity === 'PICUS' ? totalMin : 0,
       night_min: hmToMin(nightHM),
       inst_actual_min: hmToMin(instHM),
+      inst_sim_min: 0,
+      xc_min: 0,
       multi_pilot_min: totalMin,
+      dual_received_min: 0,
+      dual_given_min: 0,
+      sim_min: 0,
       day_takeoffs: dayTO,
       day_landings: dayLDG,
       night_takeoffs: nightTO,
       night_landings: nightLDG,
       autolands,
+      go_arounds: 0,
+      holds: 0,
+      approaches: null,
       capacity,
       is_pf: isPf,
       crew_pic: crewPic.trim() || null,
       crew_sic: crewSic.trim() || null,
+      crew_other: null,
+      pax_count: null,
+      distance_nm: null,
       remarks: remarks.trim() || null,
       source: 'manual',
     })
     setBusy(false)
-    if (insErr) { setError('저장 실패: ' + insErr.message); return }
     router.push('/logbook')
-    router.refresh()
   }
 
   const inputCls = 'mt-1 w-full rounded-xl border border-ink-line bg-white px-3 py-2.5 outline-none focus:border-air-400'

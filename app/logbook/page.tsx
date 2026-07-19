@@ -1,31 +1,38 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createServerSupabase } from '@/lib/supabase-server'
+import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
 import { minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
 
-export const dynamic = 'force-dynamic'
-
 const PAGE_SIZE = 50
 
-export default async function LogbookPage({
-  searchParams,
-}: {
-  searchParams: { p?: string }
-}) {
-  const page = Math.max(1, parseInt(searchParams.p ?? '1', 10) || 1)
-  const from = (page - 1) * PAGE_SIZE
+export default function LogbookPage() {
+  const [flights, setFlights] = useState<Flight[]>([])
+  const [page, setPage] = useState(1)
+  const [loaded, setLoaded] = useState(false)
 
-  const supabase = createServerSupabase()
-  const { data: flights, count } = await supabase
-    .from('flights')
-    .select('id, flight_date, flight_number, origin, destination, aircraft_reg, aircraft_type, total_min, night_min, capacity, is_pf', { count: 'exact' })
-    .eq('deleted', false)
-    .order('flight_date', { ascending: false })
-    .order('created_at', { ascending: false })
-    .range(from, from + PAGE_SIZE - 1)
+  async function load() {
+    const rows = await getFlights()
+    rows.sort((a, b) =>
+      b.flight_date.localeCompare(a.flight_date) || (b.created_at ?? '').localeCompare(a.created_at ?? '')
+    )
+    setFlights(rows)
+    setLoaded(true)
+  }
 
-  const total = count ?? 0
+  useEffect(() => {
+    void load()
+    void sync().then(load)
+    return onStoreChange(() => { void load() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const total = flights.length
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const p = Math.min(page, lastPage)
+  const rows = flights.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE)
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
@@ -37,14 +44,16 @@ export default async function LogbookPage({
         </div>
       </div>
 
-      {(flights ?? []).length === 0 ? (
+      {!loaded ? (
+        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>
+      ) : rows.length === 0 ? (
         <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-sub">
           아직 기록이 없어요.{' '}
           <Link href="/import" className="text-air-600 underline">가져오기</Link>부터 시작해 보세요.
         </div>
       ) : (
         <div className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-white">
-          {(flights ?? []).map((f) => (
+          {rows.map((f) => (
             <div key={f.id} className="px-4 py-3">
               <div className="flex items-center justify-between">
                 <p className="font-semibold">
@@ -71,16 +80,16 @@ export default async function LogbookPage({
 
       {lastPage > 1 && (
         <div className="mt-4 flex items-center justify-center gap-4 text-sm">
-          {page > 1 ? (
-            <Link href={`/logbook?p=${page - 1}`} className="rounded-lg border border-ink-line bg-white px-4 py-2">
+          {p > 1 ? (
+            <button onClick={() => setPage(p - 1)} className="rounded-lg border border-ink-line bg-white px-4 py-2">
               ← 최근
-            </Link>
+            </button>
           ) : <span className="px-4 py-2 text-ink-hint">← 최근</span>}
-          <span className="text-ink-sub">{page} / {lastPage}</span>
-          {page < lastPage ? (
-            <Link href={`/logbook?p=${page + 1}`} className="rounded-lg border border-ink-line bg-white px-4 py-2">
+          <span className="text-ink-sub">{p} / {lastPage}</span>
+          {p < lastPage ? (
+            <button onClick={() => setPage(p + 1)} className="rounded-lg border border-ink-line bg-white px-4 py-2">
               과거 →
-            </Link>
+            </button>
           ) : <span className="px-4 py-2 text-ink-hint">과거 →</span>}
         </div>
       )}

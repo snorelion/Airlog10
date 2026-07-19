@@ -1,34 +1,14 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createServerSupabase } from '@/lib/supabase-server'
+import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
+import { sortChrono } from '@/lib/aggregate'
 import { minToHM, minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
 
-export const dynamic = 'force-dynamic'
-
 // 종이 로그북처럼 한 페이지 20행, 과거→현재 순
 const ROWS = 20
-
-type Row = {
-  id: string
-  flight_date: string
-  flight_number: string | null
-  aircraft_type: string | null
-  aircraft_reg: string | null
-  origin: string | null
-  destination: string | null
-  total_min: number
-  night_min: number
-  inst_actual_min: number
-  approaches: string[] | null
-  day_takeoffs: number
-  night_takeoffs: number
-  day_landings: number
-  night_landings: number
-  pic_min: number
-  sic_min: number
-  dual_received_min: number
-  remarks: string | null
-}
 
 type Sums = {
   total: number; night: number; inst: number; apch: number
@@ -40,7 +20,7 @@ function emptySums(): Sums {
   return { total: 0, night: 0, inst: 0, apch: 0, dayTO: 0, nightTO: 0, dayLDG: 0, nightLDG: 0, pic: 0, sic: 0, dual: 0 }
 }
 
-function addRow(s: Sums, f: Row) {
+function addRow(s: Sums, f: Flight) {
   s.total += f.total_min
   s.night += f.night_min
   s.inst += f.inst_actual_min
@@ -54,34 +34,29 @@ function addRow(s: Sums, f: Row) {
   s.dual += f.dual_received_min
 }
 
-export default async function LedgerPage({
-  searchParams,
-}: {
-  searchParams: { p?: string }
-}) {
-  const supabase = createServerSupabase()
+export default function LedgerPage() {
+  const [all, setAll] = useState<Flight[]>([])
+  const [page, setPage] = useState<number | null>(null) // null = 마지막 장
+  const [loaded, setLoaded] = useState(false)
 
-  // 전체 비행을 시간순으로 (Supabase 1,000행 한도 → 페이지로 나눠 읽기)
-  const all: Row[] = []
-  for (let from = 0; ; from += 1000) {
-    const { data } = await supabase
-      .from('flights')
-      .select('id, flight_date, flight_number, aircraft_type, aircraft_reg, origin, destination, total_min, night_min, inst_actual_min, approaches, day_takeoffs, night_takeoffs, day_landings, night_landings, pic_min, sic_min, dual_received_min, remarks')
-      .eq('deleted', false)
-      .order('flight_date', { ascending: true })
-      .order('created_at', { ascending: true })
-      .range(from, from + 999)
-    all.push(...((data ?? []) as Row[]))
-    if (!data || data.length < 1000) break
+  async function load() {
+    const rows = sortChrono(await getFlights())
+    setAll(rows)
+    setLoaded(true)
   }
 
+  useEffect(() => {
+    void load()
+    void sync().then(load)
+    return onStoreChange(() => { void load() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const lastPage = Math.max(1, Math.ceil(all.length / ROWS))
-  const pRaw = parseInt(searchParams.p ?? '', 10)
-  const page = isNaN(pRaw) ? lastPage : Math.min(Math.max(1, pRaw), lastPage)
-  const start = (page - 1) * ROWS
+  const p = page === null ? lastPage : Math.min(Math.max(1, page), lastPage)
+  const start = (p - 1) * ROWS
   const rows = all.slice(start, start + ROWS)
 
-  // FAA 스타일 3단 합계
   const forwarded = emptySums()
   for (const f of all.slice(0, start)) addRow(forwarded, f)
   const pageSums = emptySums()
@@ -116,11 +91,13 @@ export default async function LedgerPage({
         <h1 className="text-xl font-bold">로그북 · 장부</h1>
         <div className="flex items-center gap-3 text-sm">
           <Link href="/logbook" className="text-air-600">목록 보기</Link>
-          <span className="text-ink-hint">PAGE {page} / {lastPage}</span>
+          <span className="text-ink-hint">PAGE {p} / {lastPage}</span>
         </div>
       </div>
 
-      {all.length === 0 ? (
+      {!loaded ? (
+        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>
+      ) : all.length === 0 ? (
         <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-sub">
           아직 기록이 없어요.
         </div>
@@ -177,13 +154,13 @@ export default async function LedgerPage({
       )}
 
       <div className="mt-4 flex items-center justify-center gap-4 text-sm">
-        {page > 1 ? (
-          <Link href={`/logbook/ledger?p=${page - 1}`} className="rounded-lg border border-ink-line bg-white px-4 py-2">← 이전 장</Link>
+        {p > 1 ? (
+          <button onClick={() => setPage(p - 1)} className="rounded-lg border border-ink-line bg-white px-4 py-2">← 이전 장</button>
         ) : <span className="px-4 py-2 text-ink-hint">← 이전 장</span>}
-        <Link href={`/logbook/ledger?p=1`} className="text-xs text-ink-hint">처음</Link>
-        <Link href={`/logbook/ledger?p=${lastPage}`} className="text-xs text-ink-hint">마지막</Link>
-        {page < lastPage ? (
-          <Link href={`/logbook/ledger?p=${page + 1}`} className="rounded-lg border border-ink-line bg-white px-4 py-2">다음 장 →</Link>
+        <button onClick={() => setPage(1)} className="text-xs text-ink-hint">처음</button>
+        <button onClick={() => setPage(null)} className="text-xs text-ink-hint">마지막</button>
+        {p < lastPage ? (
+          <button onClick={() => setPage(p + 1)} className="rounded-lg border border-ink-line bg-white px-4 py-2">다음 장 →</button>
         ) : <span className="px-4 py-2 text-ink-hint">다음 장 →</span>}
       </div>
 

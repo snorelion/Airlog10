@@ -75,6 +75,18 @@ export async function decodeLogbookFile(file: File): Promise<string> {
 
 const DATE_LINE = /^\d{4}-\d{2}-\d{2}\t/
 
+// 기종 표기를 ICAO 코드로 통일 (한국 시절 표기 기준: B738/B739)
+const TYPE_NORMALIZE: Record<string, string> = {
+  '737-800': 'B738',
+  '737-800, BBJ2': 'B738',
+  '737-900': 'B739',
+  '737-900ER': 'B739',
+}
+function normType(t: string | null): string | null {
+  if (!t) return t
+  return TYPE_NORMALIZE[t] ?? t
+}
+
 function clean(s: string | undefined): string {
   let t = (s ?? '').trim()
   // LogTen은 텍스트 필드를 따옴표로 감싼다: '"OE check"' → 'OE check', '""' → ''
@@ -165,7 +177,7 @@ export function parseLogTen(text: string): ParseResult {
     }
 
     const reg = textOrNull(col(c, 'aircraft_aircraftID'))
-    const typeCode = textOrNull(col(c, 'aircraftType_type'))
+    const typeCode = normType(textOrNull(col(c, 'aircraftType_type')))
     if (reg) {
       const prev = acMap.get(reg)
       const next: ParsedAircraft = {
@@ -289,7 +301,7 @@ export function parseDynamic(text: string): ParseResult {
     }
 
     const reg = textOrNull(col(c, 'Aircraft ID'))
-    const typeCode = textOrNull(col(c, 'Aircraft Type'))
+    const typeCode = normType(textOrNull(col(c, 'Aircraft Type')))
     if (reg && !acMap.has(reg)) {
       acMap.set(reg, { registration: reg, type_code: typeCode, make: null, model: null, notes: null })
     }

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { getFlights, getAirportNote, saveAirportNote } from '@/lib/store'
+import WxCard from '@/components/WxCard'
 import Nav from '@/components/Nav'
 
 type AirportInfo = {
@@ -114,6 +115,8 @@ export default function AirportPage() {
             </div>
           </div>
         </div>
+
+        <WxCard ident={ident} />
 
         {runways.length > 0 && (
           <div className="rounded-2xl border border-ink-line bg-white p-4">

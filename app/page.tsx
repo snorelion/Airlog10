@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getFlights, getPendingCount, getLastSyncAt, getSetting, sync, onStoreChange, type Flight } from '@/lib/store'
+import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, sync, onStoreChange, type Flight } from '@/lib/store'
+import WxCard from '@/components/WxCard'
 import { computeTotals, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
 import { Settings as SettingsIcon } from 'lucide-react'
@@ -14,6 +15,9 @@ export default function HomePage() {
   const [pending, setPending] = useState(0)
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [expiries, setExpiries] = useState<{ label: string; date: string; dday: number }[]>([])
+  const [homeBase, setHomeBase] = useState('')
+  const [wxIdent, setWxIdent] = useState('')
+  const [wxQuery, setWxQuery] = useState('')
   const [loaded, setLoaded] = useState(false)
 
   async function load() {
@@ -44,6 +48,8 @@ export default function HomePage() {
     }
     items.sort((a, b) => a.dday - b.dday)
     setExpiries(items)
+    setHomeBase(((await getSetting('homeBase')) ?? '').toUpperCase())
+    setWxIdent(((await getSetting('lastWxIdent')) ?? '').toUpperCase())
     setLoaded(true)
   }
 
@@ -134,6 +140,43 @@ export default function HomePage() {
               </div>
             </div>
           )}
+
+          <div className="mt-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-ink-sub">날씨 (METAR / TAF)</h2>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const id = wxQuery.trim().toUpperCase()
+                  if (id.length >= 3) {
+                    setWxIdent(id)
+                    void setSetting('lastWxIdent', id)
+                    setWxQuery('')
+                  }
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  value={wxQuery}
+                  onChange={(e) => setWxQuery(e.target.value.toUpperCase())}
+                  placeholder="ICAO"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  className="w-20 rounded-lg border border-ink-line bg-white px-2 py-1.5 text-center font-mono text-sm uppercase outline-none focus:border-air-400"
+                />
+                <button type="submit" className="rounded-lg bg-air-600 px-3 py-1.5 text-sm font-semibold text-white">
+                  조회
+                </button>
+              </form>
+            </div>
+            {homeBase && <WxCard ident={homeBase} />}
+            {wxIdent && wxIdent !== homeBase && <WxCard ident={wxIdent} />}
+            {!homeBase && !wxIdent && (
+              <p className="rounded-2xl border border-ink-line bg-white p-4 text-sm text-ink-sub">
+                ⚙️ 설정에서 홈베이스를 넣으면 그 공항 날씨가 여기 자동으로 떠요. 다른 공항은 위에 ICAO로 조회!
+              </p>
+            )}
+          </div>
 
           <h2 className="mb-2 mt-6 text-sm font-semibold text-ink-sub">최근 비행</h2>
           <div className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-white">

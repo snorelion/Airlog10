@@ -28,10 +28,14 @@ export default function PeoplePage() {
       getSetting('pilotName'),
     ])
     const pMap = new Map(people.map((p) => [p.name, p]))
+    // 본인 제외 — 설정 이름과 부분 일치("정상인" ⊂ "정상인 Sangin Jung")도 걸러냄
+    const me = (myName ?? '').trim().toLowerCase()
+    const isMe = (nm: string) =>
+      me.length >= 2 && (nm.toLowerCase().includes(me) || me.includes(nm.toLowerCase()))
     const map = new Map<string, { flights: number; lastDate: string; pic: boolean; sic: boolean }>()
     for (const f of flights) {
       for (const [nm, isPic] of [[f.crew_pic, true], [f.crew_sic, false]] as const) {
-        if (!nm || nm === myName) continue
+        if (!nm || isMe(nm)) continue
         const e = map.get(nm) ?? { flights: 0, lastDate: '', pic: false, sic: false }
         e.flights += 1
         if (f.flight_date > e.lastDate) e.lastDate = f.flight_date

@@ -134,23 +134,29 @@ export async function sync(): Promise<boolean> {
       await idbDelete('outbox', item.id)
     }
 
-    // 2) 변경분 당겨오기 (updated_at 증분, 1,000행 한도는 루프로)
+    // 2) 변경분 당겨오기 (updated_at 증분)
+    // 주의: 대량 임포트는 수백 행이 '같은 updated_at'을 가진다 → gt(마지막 시각)으로
+    // 커서를 옮기면 같은 시각의 나머지 행을 영영 건너뛴다. 그래서 gte + range 페이징:
+    // 경계 시각 행을 중복으로 다시 받는 대신(덮어쓰기라 무해) 누락이 없다.
     const m = await idbGet<{ k: string; v: string }>('meta', 'lastPulledAt')
-    let since = m?.v ?? '1970-01-01T00:00:00Z'
-    for (;;) {
+    const since = m?.v ?? '1970-01-01T00:00:00Z'
+    let maxSeen = since
+    for (let fromRow = 0; ; fromRow += 1000) {
       const { data, error } = await supabase
         .from('flights')
         .select('*')
-        .gt('updated_at', since)
+        .gte('updated_at', since)
         .order('updated_at', { ascending: true })
-        .limit(1000)
+        .order('id', { ascending: true })
+        .range(fromRow, fromRow + 999)
       if (error) throw new Error(error.message)
       if (!data || data.length === 0) break
       await idbPutMany('flights', data)
-      since = data[data.length - 1].updated_at
-      await idbPut('meta', { k: 'lastPulledAt', v: since })
+      const last = data[data.length - 1].updated_at
+      if (last > maxSeen) maxSeen = last
       if (data.length < 1000) break
     }
+    if (maxSeen !== since) await idbPut('meta', { k: 'lastPulledAt', v: maxSeen })
 
     // 3) 항공기 목록 (작아서 전체 새로고침)
     const { data: acData } = await supabase.from('aircraft').select('registration, type_code')

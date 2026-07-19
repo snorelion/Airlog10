@@ -4,7 +4,17 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { decodeLogbookFile, parseLogbook, type ParseResult } from '@/lib/logten'
+import { addRosterFlights } from '@/lib/store'
 import { minToHMGrouped } from '@/lib/time'
+
+type RosterParse = {
+  period: { start: string; end: string }
+  flights: {
+    flight_date: string; flight_number: string; origin: string | null; destination: string | null
+    std: string | null; sta: string | null; aircraft_type: string | null; overnight: boolean
+  }[]
+  stats: { flights: number; offDays: number; standbyDays: number }
+}
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
 
@@ -15,6 +25,51 @@ export default function ImportPage() {
   const [imported, setImported] = useState(0)
   const [skipped, setSkipped] = useState(0)
   const [error, setError] = useState('')
+  const [roster, setRoster] = useState<RosterParse | null>(null)
+  const [rosterBusy, setRosterBusy] = useState(false)
+  const [rosterMsg, setRosterMsg] = useState('')
+
+  async function onRosterFile(e: React.ChangeEvent<HTMLInputElement>) {
+    setRosterMsg('')
+    setRoster(null)
+    const file = e.target.files?.[0]
+    if (!file) return
+    setRosterBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/roster/parse', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '로스터를 읽지 못했어요.')
+      setRoster(data as RosterParse)
+    } catch (err) {
+      setRosterMsg('⚠️ ' + (err instanceof Error ? err.message : String(err)))
+    }
+    setRosterBusy(false)
+  }
+
+  async function registerRoster() {
+    if (!roster) return
+    setRosterBusy(true)
+    try {
+      const n = await addRosterFlights(
+        roster.flights.map((f) => ({
+          flight_date: f.flight_date,
+          flight_number: f.flight_number,
+          origin: f.origin,
+          destination: f.destination,
+          std: f.std,
+          sta: f.sta,
+          aircraft_type: f.aircraft_type,
+        }))
+      )
+      setRosterMsg(`✅ ${n}편 등록! 홈 화면에 "오늘의 비행"으로 떠요.`)
+      setRoster(null)
+    } catch (err) {
+      setRosterMsg('⚠️ ' + String(err))
+    }
+    setRosterBusy(false)
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     setError('')
@@ -118,10 +173,52 @@ export default function ImportPage() {
               <input type="file" accept=".txt,.tsv,.csv,text/plain" className="hidden" onChange={onFile} />
             </label>
           </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <div className="rounded-2xl border border-ink-line bg-white p-5">
+            <h2 className="font-semibold">✈️ 로스터 PDF (Lion Air)</h2>
+            <p className="mt-1 text-sm text-ink-sub">
+              Personal Crew Schedule Report PDF를 올리면 한 달 비행이 예정으로 등록되고,
+              홈에서 원탭으로 기록할 수 있어요.
+            </p>
+            {!roster ? (
+              <label className="mt-4 block">
+                <span className="inline-block cursor-pointer rounded-xl border border-air-200 bg-air-50 px-5 py-3 font-semibold text-air-800">
+                  {rosterBusy ? '읽는 중…' : '로스터 PDF 선택'}
+                </span>
+                <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={onRosterFile} />
+              </label>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <dl className="grid grid-cols-3 gap-3 text-sm">
+                  <div><dt className="text-ink-hint">비행</dt><dd className="text-lg font-bold">{roster.stats.flights}편</dd></div>
+                  <div><dt className="text-ink-hint">휴무</dt><dd className="text-lg font-bold">{roster.stats.offDays}일</dd></div>
+                  <div><dt className="text-ink-hint">스탠바이·훈련</dt><dd className="text-lg font-bold">{roster.stats.standbyDays}일</dd></div>
+                </dl>
+                <p className="text-xs text-ink-hint">{roster.period.start} ~ {roster.period.end}</p>
+                <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl bg-ink-bg p-2 text-xs">
+                  {roster.flights.slice(0, 50).map((f, i) => (
+                    <p key={i} className="font-mono">
+                      {f.flight_date.slice(5)} {f.flight_number} {f.origin}→{f.destination} {f.std}-{f.sta}{f.overnight ? '+1' : ''} {f.aircraft_type ?? ''}
+                    </p>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setRoster(null)} className="flex-1 rounded-xl border border-ink-line bg-white py-2.5 font-semibold">
+                    취소
+                  </button>
+                  <button onClick={registerRoster} disabled={rosterBusy} className="flex-1 rounded-xl bg-air-600 py-2.5 font-semibold text-white disabled:opacity-50">
+                    {roster.stats.flights}편 등록
+                  </button>
+                </div>
+              </div>
+            )}
+            {rosterMsg && <p className="mt-3 text-sm">{rosterMsg}</p>}
+          </div>
+
           <p className="text-xs text-ink-hint">
             다른 로그북 앱 형식(CSV 등)도 순차적으로 추가할 예정이에요. 안 열리는 파일이 있으면 그대로 보내주세요.
           </p>
-          {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       )}
 

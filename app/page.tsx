@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, sync, onStoreChange, type Flight } from '@/lib/store'
+import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, getRosterFlights, sync, onStoreChange, type Flight, type RosterFlight } from '@/lib/store'
 import WxCard from '@/components/WxCard'
 import { computeTotals, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
@@ -15,6 +15,7 @@ export default function HomePage() {
   const [pending, setPending] = useState(0)
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [expiries, setExpiries] = useState<{ label: string; date: string; dday: number }[]>([])
+  const [rosterCard, setRosterCard] = useState<{ label: string; flights: RosterFlight[] } | null>(null)
   const [homeBase, setHomeBase] = useState('')
   const [wxIdent, setWxIdent] = useState('')
   const [wxQuery, setWxQuery] = useState('')
@@ -50,6 +51,24 @@ export default function HomePage() {
     setExpiries(items)
     setHomeBase(((await getSetting('homeBase')) ?? '').toUpperCase())
     setWxIdent(((await getSetting('lastWxIdent')) ?? '').toUpperCase())
+
+    // 로스터 — 오늘(또는 다음 비행일)의 예정 비행
+    const roster = await getRosterFlights()
+    const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD (로컬)
+    const upcoming = roster.filter((r) => r.flight_date >= todayStr)
+    if (upcoming.length) {
+      let firstDate = upcoming[0].flight_date
+      for (const r of upcoming) if (r.flight_date < firstDate) firstDate = r.flight_date
+      const dayFlights = upcoming
+        .filter((r) => r.flight_date === firstDate)
+        .sort((a, b) => (a.std ?? '').localeCompare(b.std ?? ''))
+      setRosterCard({
+        label: firstDate === todayStr ? '오늘의 비행' : `다음 비행 · ${firstDate}`,
+        flights: dayFlights,
+      })
+    } else {
+      setRosterCard(null)
+    }
     setLoaded(true)
   }
 
@@ -117,6 +136,39 @@ export default function HomePage() {
             <StatCard label="SIC" value={minToHMGrouped(totals?.sic_min ?? 0)} />
             <StatCard label="야간" value={minToHMGrouped(totals?.night_min ?? 0)} />
           </div>
+
+          {rosterCard && (
+            <div className="mt-3 rounded-2xl border border-air-200 bg-white p-4">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-air-800">
+                🛫 {rosterCard.label}
+              </h2>
+              <div className="mt-2 divide-y divide-ink-line">
+                {rosterCard.flights.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="font-semibold">
+                        <span className="font-mono">{r.flight_number}</span>
+                        <span className="ml-2">{r.origin} → {r.destination}</span>
+                      </p>
+                      <p className="text-xs text-ink-hint">
+                        {r.std}{r.sta ? ` – ${r.sta}` : ''} {r.aircraft_type ? `· ${r.aircraft_type}` : ''}
+                      </p>
+                    </div>
+                    {r.status === 'logged' ? (
+                      <span className="text-sm font-semibold text-green-600">✓ 기록됨</span>
+                    ) : (
+                      <Link
+                        href={`/flights/new?roster=${r.id}`}
+                        className="rounded-lg bg-air-600 px-3 py-1.5 text-sm font-semibold text-white"
+                      >
+                        기록
+                      </Link>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {expiries.length > 0 && (
             <div className="mt-3 rounded-2xl border border-ink-line bg-white p-4">

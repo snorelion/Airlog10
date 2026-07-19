@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { addFlight, rememberAircraft, getAircraftList, getSetting, getFlights } from '@/lib/store'
+import { addFlight, rememberAircraft, getAircraftList, getSetting, getFlights, getRosterFlight, updateRosterStatus } from '@/lib/store'
 import { hmToMin, minToHM } from '@/lib/time'
 import Nav from '@/components/Nav'
 
@@ -117,6 +117,7 @@ export default function NewFlightPage() {
   const [remarks, setRemarks] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [rosterId, setRosterId] = useState<string | null>(null)
   const regTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 기체별 마지막 비행일 — 최근에 탄 기체(현 소속 기단)가 자동완성 맨 위로
@@ -136,7 +137,23 @@ export default function NewFlightPage() {
           else setCrewSic(name)
         }
       }
-      if (hb) setOrigin((prev) => prev || hb)
+      // 로스터에서 넘어온 경우 — 편명·구간·기종·예정시간 미리 채움
+      const rid = new URLSearchParams(window.location.search).get('roster')
+      if (rid) {
+        const r = await getRosterFlight(rid)
+        if (r) {
+          setRosterId(rid)
+          setDate(r.flight_date)
+          if (r.flight_number) setFlightNumber(r.flight_number)
+          if (r.origin) setOrigin(r.origin)
+          if (r.destination) setDestination(r.destination)
+          if (r.aircraft_type) setTypeCode(r.aircraft_type)
+          if (r.std) setOutTime(r.std)
+          if (r.sta) setInTime(r.sta)
+        }
+      } else if (hb) {
+        setOrigin((prev) => prev || hb)
+      }
 
       const flights = await getFlights()
       const map = new Map<string, string>()
@@ -307,8 +324,9 @@ export default function NewFlightPage() {
       remarks: remarks.trim() || null,
       source: 'manual',
     })
+    if (rosterId) await updateRosterStatus(rosterId, 'logged')
     setBusy(false)
-    router.push('/logbook')
+    router.push(rosterId ? '/' : '/logbook')
   }
 
   const inputCls = 'mt-1 w-full rounded-xl border border-ink-line bg-white px-3 py-2.5 outline-none focus:border-air-400'

@@ -4,7 +4,7 @@
 //  - 오프라인 저장은 outbox에 쌓였다가 온라인 복귀 시 자동 업로드
 
 import { createClient } from './supabase'
-import { idbGetAll, idbGet, idbPut, idbDelete, idbPutMany } from './idb'
+import { idbGetAll, idbGet, idbPut, idbDelete, idbPutMany, idbClear } from './idb'
 
 export type Flight = {
   id: string
@@ -69,11 +69,25 @@ export type AirportNoteRow = {
   notes: string
 }
 
+// 로스터에서 온 예정 비행 — 기록으로 확정하기 전까지 로그북 합계와 분리 보관
+export type RosterFlight = {
+  id: string
+  flight_date: string
+  flight_number: string | null
+  origin: string | null
+  destination: string | null
+  std: string | null          // 예정 출발 "HH:MM" (로컬)
+  sta: string | null          // 예정 도착
+  aircraft_type: string | null
+  status: string              // planned | logged
+}
+
 type OutboxItem =
   | { id: string; kind: 'flight'; row: Flight }
   | { id: string; kind: 'aircraft'; row: AircraftRow }
   | { id: string; kind: 'person'; row: Person }
   | { id: string; kind: 'airportNote'; row: AirportNoteRow }
+  | { id: string; kind: 'roster'; row: RosterFlight }
 
 // ── 읽기 (항상 로컬 사본) ──────────────────────────
 export async function getFlights(): Promise<Flight[]> {
@@ -135,6 +149,38 @@ export async function rememberAircraft(row: AircraftRow): Promise<void> {
   if (!row.registration) return
   await idbPut('aircraft', row)
   await idbPut('outbox', { id: 'ac:' + row.registration, kind: 'aircraft', row } satisfies OutboxItem)
+}
+
+// ── 로스터 (예정 비행) ─────────────────────────────
+export async function getRosterFlights(): Promise<RosterFlight[]> {
+  return idbGetAll<RosterFlight>('roster')
+}
+
+export async function getRosterFlight(id: string): Promise<RosterFlight | undefined> {
+  return idbGet<RosterFlight>('roster', id)
+}
+
+export async function addRosterFlights(
+  rows: Omit<RosterFlight, 'id' | 'status'>[]
+): Promise<number> {
+  for (const r of rows) {
+    const row: RosterFlight = { ...r, id: crypto.randomUUID(), status: 'planned' }
+    await idbPut('roster', row)
+    await idbPut('outbox', { id: 'r:' + row.id, kind: 'roster', row } satisfies OutboxItem)
+  }
+  notify()
+  void sync()
+  return rows.length
+}
+
+export async function updateRosterStatus(id: string, status: string): Promise<void> {
+  const row = await idbGet<RosterFlight>('roster', id)
+  if (!row) return
+  const next = { ...row, status }
+  await idbPut('roster', next)
+  await idbPut('outbox', { id: 'r:' + id, kind: 'roster', row: next } satisfies OutboxItem)
+  notify()
+  void sync()
 }
 
 // ── 크루(사람) 메모 ────────────────────────────────
@@ -212,31 +258,42 @@ export async function sync(): Promise<boolean> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return false
 
-    // 1) outbox 밀어올리기
+    // 1) outbox 밀어올리기 — 항목별 독립 처리 (하나 실패해도 나머지·pull은 계속)
     const outbox = await idbGetAll<OutboxItem>('outbox')
     for (const item of outbox) {
-      if (item.kind === 'flight') {
-        // deleted(tombstone)는 함께 올려야 삭제가 서버에 반영된다
-        const { created_at, updated_at, ...rest } = item.row
-        const { error } = await supabase.from('flights').upsert({ ...rest, user_id: user.id })
-        if (error) throw new Error(error.message)
-      } else if (item.kind === 'aircraft') {
-        const { error } = await supabase
-          .from('aircraft')
-          .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,registration' })
-        if (error) throw new Error(error.message)
-      } else if (item.kind === 'person') {
-        const { error } = await supabase
-          .from('people')
-          .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,name' })
-        if (error) throw new Error(error.message)
-      } else {
-        const { error } = await supabase
-          .from('airport_notes')
-          .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,ident' })
-        if (error) throw new Error(error.message)
+      try {
+        if (item.kind === 'flight') {
+          // deleted(tombstone)는 함께 올려야 삭제가 서버에 반영된다
+          const { created_at, updated_at, ...rest } = item.row
+          const { error } = await supabase.from('flights').upsert({ ...rest, user_id: user.id })
+          if (error) throw new Error(error.message)
+        } else if (item.kind === 'aircraft') {
+          const { error } = await supabase
+            .from('aircraft')
+            .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,registration' })
+          if (error) throw new Error(error.message)
+        } else if (item.kind === 'person') {
+          const { error } = await supabase
+            .from('people')
+            .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,name' })
+          if (error) throw new Error(error.message)
+        } else if (item.kind === 'roster') {
+          // 서버 id는 서버가 관리 — (user,날짜,편명) 기준 upsert라 재등록해도 중복 없음
+          const { id, ...rest } = item.row
+          const { error } = await supabase
+            .from('roster_flights')
+            .upsert({ ...rest, user_id: user.id }, { onConflict: 'user_id,flight_date,flight_number' })
+          if (error) throw new Error(error.message)
+        } else {
+          const { error } = await supabase
+            .from('airport_notes')
+            .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,ident' })
+          if (error) throw new Error(error.message)
+        }
+        await idbDelete('outbox', item.id)
+      } catch {
+        // 실패 항목은 outbox에 남겨 다음 동기화 때 재시도 (예: 테이블 미생성)
       }
-      await idbDelete('outbox', item.id)
     }
 
     // 2) 변경분 당겨오기 (updated_at 증분)
@@ -266,7 +323,18 @@ export async function sync(): Promise<boolean> {
       if (ppl) await idbPutMany('people', ppl)
       const { data: an } = await supabase.from('airport_notes').select('ident, notes')
       if (an) await idbPutMany('airport_notes', an)
-    } catch {} // 003 마이그레이션 전이면 테이블이 없을 수 있음 — 조용히 넘어감
+      // 로스터: 서버본으로 전체 교체 (아직 안 올라간 로컬분이 있으면 보존)
+      const { data: ro } = await supabase
+        .from('roster_flights')
+        .select('id, flight_date, flight_number, origin, destination, std, sta, aircraft_type, status')
+      if (ro) {
+        const stillPending = (await idbGetAll<OutboxItem>('outbox')).some((o) => o.kind === 'roster')
+        if (!stillPending) {
+          await idbClear('roster')
+          await idbPutMany('roster', ro)
+        }
+      }
+    } catch {} // 마이그레이션 전이면 테이블이 없을 수 있음 — 조용히 넘어감
 
     await idbPut('meta', { k: 'lastSyncAt', v: new Date().toISOString() })
     notify()

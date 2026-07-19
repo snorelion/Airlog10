@@ -2,7 +2,7 @@
 // 스토어: flights(id) · aircraft(registration) · outbox(id) · meta(k)
 
 const DB_NAME = 'airlog10'
-const DB_VERSION = 3
+const DB_VERSION = 4
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -19,6 +19,7 @@ export function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('people')) db.createObjectStore('people', { keyPath: 'name' })
       if (!db.objectStoreNames.contains('airport_notes')) db.createObjectStore('airport_notes', { keyPath: 'ident' })
       if (!db.objectStoreNames.contains('wx')) db.createObjectStore('wx', { keyPath: 'ident' })
+      if (!db.objectStoreNames.contains('roster')) db.createObjectStore('roster', { keyPath: 'id' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -52,6 +53,10 @@ export function idbPut(store: string, row: unknown): Promise<IDBValidKey> {
 
 export function idbDelete(store: string, key: string): Promise<undefined> {
   return tx(store, 'readwrite', (s) => s.delete(key) as IDBRequest<undefined>)
+}
+
+export function idbClear(store: string): Promise<undefined> {
+  return tx<undefined>(store, 'readwrite', (s) => s.clear() as IDBRequest<undefined>)
 }
 
 export function idbPutMany(store: string, rows: unknown[]): Promise<void> {

@@ -4,8 +4,22 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { addFlight, rememberAircraft, getAircraftList } from '@/lib/store'
-import { hmToMin } from '@/lib/time'
+import { hmToMin, minToHM } from '@/lib/time'
 import Nav from '@/components/Nav'
+
+// 입력 칸을 벗어나면 "105"→"1:05" 로 정돈 (비행시간·야간·실계기)
+function tidyDuration(v: string, set: (s: string) => void) {
+  const min = hmToMin(v)
+  if (v.trim() && min > 0) set(minToHM(min))
+}
+
+// 시각(OUT/IN)은 "0100"→"01:00" 로 정돈
+function tidyClock(v: string, set: (s: string) => void) {
+  const min = hmToMin(v)
+  if (!v.trim() || min <= 0) return
+  const hh = Math.floor(min / 60) % 24
+  set(`${String(hh).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`)
+}
 
 type AirportHit = { ident: string; iata: string | null; name: string | null; municipality: string | null }
 type AircraftHit = { registration: string; type_code: string | null }
@@ -260,17 +274,20 @@ export default function NewFlightPage() {
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="text-xs font-medium text-ink-sub">OUT (UTC)</label>
-            <input value={outTime} onChange={(e) => setOutTime(e.target.value)} placeholder="09:30"
+            <input value={outTime} onChange={(e) => setOutTime(e.target.value)}
+              onBlur={() => tidyClock(outTime, setOutTime)} placeholder="09:30"
               inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
             <label className="text-xs font-medium text-ink-sub">IN (UTC)</label>
-            <input value={inTime} onChange={(e) => setInTime(e.target.value)} placeholder="10:45"
+            <input value={inTime} onChange={(e) => setInTime(e.target.value)}
+              onBlur={() => tidyClock(inTime, setInTime)} placeholder="10:45"
               inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
             <label className="text-xs font-medium text-ink-sub">비행시간</label>
-            <input value={totalHM} onChange={(e) => setTotalHM(e.target.value)} placeholder="1:15"
+            <input value={totalHM} onChange={(e) => setTotalHM(e.target.value)}
+              onBlur={() => tidyDuration(totalHM, setTotalHM)} placeholder="1:15"
               inputMode="numeric" className={inputCls + ' font-mono font-semibold'} />
           </div>
         </div>
@@ -300,12 +317,14 @@ export default function NewFlightPage() {
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-ink-sub">야간</label>
-              <input value={nightHM} onChange={(e) => setNightHM(e.target.value)} placeholder="0:00"
+              <input value={nightHM} onChange={(e) => setNightHM(e.target.value)}
+                onBlur={() => tidyDuration(nightHM, setNightHM)} placeholder="0:00"
                 inputMode="numeric" className={inputCls + ' font-mono'} />
             </div>
             <div>
               <label className="text-xs font-medium text-ink-sub">실계기</label>
-              <input value={instHM} onChange={(e) => setInstHM(e.target.value)} placeholder="0:00"
+              <input value={instHM} onChange={(e) => setInstHM(e.target.value)}
+                onBlur={() => tidyDuration(instHM, setInstHM)} placeholder="0:00"
                 inputMode="numeric" className={inputCls + ' font-mono'} />
             </div>
           </div>

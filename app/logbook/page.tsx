@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
+import { getFlights, deleteFlight, sync, onStoreChange, type Flight } from '@/lib/store'
 import { minToHMGrouped } from '@/lib/time'
+import { Trash2 } from 'lucide-react'
 import Nav from '@/components/Nav'
 
 const PAGE_SIZE = 50
@@ -62,7 +63,21 @@ export default function LogbookPage() {
                     <span className="ml-2 text-xs font-normal text-ink-hint">{f.flight_number}</span>
                   )}
                 </p>
-                <p className="font-semibold tabular-nums">{minToHMGrouped(f.total_min)}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold tabular-nums">{minToHMGrouped(f.total_min)}</p>
+                  <button
+                    type="button"
+                    aria-label="기록 삭제"
+                    onClick={() => {
+                      if (window.confirm(`${f.flight_date} ${f.origin ?? '?'}→${f.destination ?? '?'} 기록을 삭제할까요?`)) {
+                        void deleteFlight(f.id)
+                      }
+                    }}
+                    className="p-1 text-ink-hint hover:text-red-500"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
               <div className="mt-0.5 flex items-center justify-between text-xs text-ink-hint">
                 <span>

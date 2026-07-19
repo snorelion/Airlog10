@@ -88,6 +88,16 @@ export async function addFlight(row: Omit<Flight, 'id' | 'deleted'>): Promise<Fl
   return flight
 }
 
+export async function deleteFlight(id: string): Promise<void> {
+  const f = await idbGet<Flight>('flights', id)
+  if (!f) return
+  const row: Flight = { ...f, deleted: true }
+  await idbPut('flights', row)
+  await idbPut('outbox', { id, kind: 'flight', row } satisfies OutboxItem)
+  notify()
+  void sync()
+}
+
 export async function rememberAircraft(row: AircraftRow): Promise<void> {
   if (!row.registration) return
   await idbPut('aircraft', row)
@@ -146,7 +156,8 @@ export async function sync(): Promise<boolean> {
     const outbox = await idbGetAll<OutboxItem>('outbox')
     for (const item of outbox) {
       if (item.kind === 'flight') {
-        const { deleted, created_at, updated_at, ...rest } = item.row
+        // deleted(tombstone)는 함께 올려야 삭제가 서버에 반영된다
+        const { created_at, updated_at, ...rest } = item.row
         const { error } = await supabase.from('flights').upsert({ ...rest, user_id: user.id })
         if (error) throw new Error(error.message)
       } else {

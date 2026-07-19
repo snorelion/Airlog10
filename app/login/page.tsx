@@ -17,18 +17,21 @@ export default function LoginPage() {
     setError('')
     setBusy(true)
     const supabase = createClient()
-    const fn =
-      mode === 'login'
-        ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({ email, password })
-    const { error } = await fn
+    const { data, error } = await (mode === 'login'
+      ? supabase.auth.signInWithPassword({ email, password })
+      : supabase.auth.signUp({ email, password }))
     setBusy(false)
     if (error) {
       setError(
         mode === 'login'
-          ? '로그인에 실패했어요. 이메일/비밀번호를 확인해 주세요.'
+          ? '로그인에 실패했어요. 이메일/비밀번호를 확인해 주세요. (' + error.message + ')'
           : '가입에 실패했어요: ' + error.message
       )
+      return
+    }
+    // 가입했지만 세션이 없으면 = Supabase "이메일 확인"이 켜져 있는 상태
+    if (!data.session) {
+      setError('가입은 됐지만 이메일 확인이 필요해요. 메일함에서 확인 링크를 눌러주세요.')
       return
     }
     router.push('/')

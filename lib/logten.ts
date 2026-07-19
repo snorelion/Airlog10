@@ -94,12 +94,14 @@ function textOrNull(s: string | undefined): string | null {
   return t && t !== '0' ? t : null
 }
 
-// "2013-06-09 14:20 +0000" / "14:20" → "HH:MM" 추출
+// "2013-06-09 14:20 +0000" / "14:20" / "0340" → "HH:MM" 추출
 function timeOrNull(s: string | undefined): string | null {
   const t = clean(s)
   if (!t) return null
   const m = t.match(/(\d{1,2}):(\d{2})/)
-  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null
+  if (m) return `${m[1].padStart(2, '0')}:${m[2]}`
+  const m2 = t.match(/^(\d{2})(\d{2})$/)
+  return m2 ? `${m2[1]}:${m2[2]}` : null
 }
 
 export function parseLogTen(text: string): ParseResult {
@@ -220,4 +222,134 @@ export function parseLogTen(text: string): ParseResult {
   }
 
   return { flights, aircraft: Array.from(acMap.values()), errors }
+}
+
+// ─────────────────────────────────────────────────────────────
+// LogTen "Dynamic Export Flights (Tab)" 형식 — 사람이 읽는 컬럼 이름
+// (Aircraft Type / Aircraft ID / Date / Flight # / From / To / Out / In …)
+// 실파일 함정: Out·In이 "0340" 형식, Approach가 "1;ILS;19R;VTBS" 형식,
+// remarks 줄바꿈으로 행이 쪼개짐(3번째 필드가 날짜인 줄만 새 레코드)
+// ─────────────────────────────────────────────────────────────
+export function parseDynamic(text: string): ParseResult {
+  const errors: string[] = []
+  const lines = text.replace(/^﻿/, '').split(/\r?\n/)
+  const header = lines[0].split('\t').map((h) => h.trim())
+  const idx: Record<string, number> = {}
+  header.forEach((h, i) => { idx[h] = i })
+
+  const records: string[][] = []
+  for (const line of lines.slice(1)) {
+    const c = line.split('\t')
+    if (c.length > 2 && /^\d{4}-\d{2}-\d{2}$/.test(c[2].trim())) {
+      records.push(c)
+    } else if (records.length && line.trim()) {
+      const last = records[records.length - 1]
+      last[last.length - 1] = (last[last.length - 1] + ' ' + line).trim()
+    }
+  }
+
+  const col = (cells: string[], name: string): string => {
+    const i = idx[name]
+    return i === undefined ? '' : clean(cells[i])
+  }
+
+  const flights: ParsedFlight[] = []
+  const acMap = new Map<string, ParsedAircraft>()
+
+  for (const c of records) {
+    const date = col(c, 'Date')
+    const picMin = hmToMin(col(c, 'PIC'))
+    const sicMin = hmToMin(col(c, 'SIC'))
+    const stuMin = hmToMin(col(c, 'STUDENT'))
+
+    let capacity: string | null = null
+    if (picMin > 0) capacity = 'PIC'
+    else if (sicMin > 0) capacity = 'SIC'
+    else if (stuMin > 0) capacity = 'STUDENT'
+
+    // "1;ILS;19R;VTBS" → "ILS 19R VTBS"
+    const apRaw = col(c, 'Approach 1')
+    let approaches: string[] | null = null
+    if (apRaw) {
+      const parts = apRaw.split(';').map((p) => p.trim()).filter(Boolean)
+      approaches = [parts.length >= 4 ? `${parts[1]} ${parts[2]} ${parts[3]}` : apRaw]
+    }
+
+    const others: string[] = []
+    const otherCols = [
+      ['Relief Crew', 'RLF'],
+      ['Relief Crew 2', 'RLF2'],
+      ['Student', 'STU'],
+      ['Observer', 'OBS'],
+      ['Purser', 'PUR'],
+    ] as const
+    for (const [name, tag] of otherCols) {
+      const v = col(c, name)
+      if (v) others.push(`${tag}:${v}`)
+    }
+
+    const reg = textOrNull(col(c, 'Aircraft ID'))
+    const typeCode = textOrNull(col(c, 'Aircraft Type'))
+    if (reg && !acMap.has(reg)) {
+      acMap.set(reg, { registration: reg, type_code: typeCode, make: null, model: null, notes: null })
+    }
+
+    const pfRaw = col(c, 'Pilot Flying')
+
+    flights.push({
+      flight_date: date,
+      flight_number: textOrNull(col(c, 'Flight #')),
+      origin: textOrNull(col(c, 'From'))?.toUpperCase() ?? null,
+      destination: textOrNull(col(c, 'To'))?.toUpperCase() ?? null,
+      out_time: timeOrNull(col(c, 'Out')),
+      in_time: timeOrNull(col(c, 'In')),
+      aircraft_reg: reg,
+      aircraft_type: typeCode,
+      total_min: hmToMin(col(c, 'Total Time')),
+      pic_min: picMin,
+      sic_min: sicMin,
+      picus_min: 0,
+      night_min: hmToMin(col(c, 'Night')),
+      inst_actual_min: hmToMin(col(c, 'Actual Inst')),
+      inst_sim_min: 0,
+      xc_min: 0,
+      multi_pilot_min: hmToMin(col(c, 'Total Time')),
+      dual_received_min: stuMin,
+      dual_given_min: 0,
+      sim_min: 0,
+      day_takeoffs: toInt(col(c, 'Day T/O')),
+      day_landings: toInt(col(c, 'Day Ldg')),
+      night_takeoffs: toInt(col(c, 'Night T/O')),
+      night_landings: toInt(col(c, 'Night Ldg')),
+      autolands: toInt(col(c, 'Autolands')),
+      go_arounds: toInt(col(c, 'Go Arounds')),
+      holds: 0,
+      approaches,
+      capacity,
+      is_pf: pfRaw === '' ? null : pfRaw === '1',
+      crew_pic: textOrNull(col(c, 'PIC/P1 Crew')),
+      crew_sic: textOrNull(col(c, 'SIC/P2 Crew')),
+      crew_other: others.length ? others.join(', ') : null,
+      pax_count: null,
+      distance_nm: null,
+      remarks: textOrNull(col(c, 'Remarks')),
+      source: 'logten',
+    })
+  }
+
+  return { flights, aircraft: Array.from(acMap.values()), errors }
+}
+
+// 형식 자동 감지 — 임포트 화면은 이 함수 하나만 쓰면 됨
+export function parseLogbook(text: string): ParseResult {
+  const head = text.slice(0, 3000)
+  if (head.includes('flight_flightDate')) return parseLogTen(text)
+  if (head.includes('Aircraft ID') && head.includes('Total Time') && head.includes('Date')) {
+    return parseDynamic(text)
+  }
+  return {
+    flights: [],
+    aircraft: [],
+    errors: ['알아볼 수 없는 형식이에요. LogTen 내보내기(.txt) 또는 Dynamic Export 파일을 올려주세요. 다른 앱 파일이면 그대로 Claude에게 보내주세요 — 형식을 추가할게요.'],
+  }
 }

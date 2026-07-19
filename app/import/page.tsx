@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { decodeLogbookFile, parseLogTen, type ParseResult } from '@/lib/logten'
+import { decodeLogbookFile, parseLogbook, type ParseResult } from '@/lib/logten'
 import { minToHMGrouped } from '@/lib/time'
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
@@ -22,7 +22,7 @@ export default function ImportPage() {
     if (!file) return
     try {
       const text = await decodeLogbookFile(file)
-      const parsed = parseLogTen(text)
+      const parsed = parseLogbook(text)
       if (!parsed.flights.length) {
         setError(parsed.errors[0] || '비행 기록을 찾지 못했어요.')
         return
@@ -105,10 +105,11 @@ export default function ImportPage() {
       {step === 'pick' && (
         <div className="space-y-4">
           <div className="rounded-2xl border border-ink-line bg-white p-5">
-            <h2 className="font-semibold">LogTen Pro 내보내기 파일</h2>
+            <h2 className="font-semibold">로그북 파일 업로드</h2>
             <p className="mt-1 text-sm text-ink-sub">
-              LogTen에서 내보낸 탭 구분 텍스트(.txt) 파일을 선택하세요.
+              LogTen Pro 내보내기 · Dynamic Export 탭 텍스트(.txt)를 지원해요.
               먼저 내용을 요약해 보여드리고, 확인 후에 저장돼요.
+              이미 있는 기록(같은 날짜·편명·구간)은 자동으로 건너뛰니 여러 파일을 올려도 안전해요.
             </p>
             <label className="mt-4 block">
               <span className="inline-block cursor-pointer rounded-xl bg-air-600 px-5 py-3 font-semibold text-white">

@@ -31,7 +31,10 @@ export default async function LogbookPage({
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">로그북</h1>
-        <p className="text-sm text-ink-hint">{total.toLocaleString()}편</p>
+        <div className="flex items-center gap-3">
+          <Link href="/logbook/ledger" className="text-sm font-medium text-air-600">장부 보기</Link>
+          <p className="text-sm text-ink-hint">{total.toLocaleString()}편</p>
+        </div>
       </div>
 
       {(flights ?? []).length === 0 ? (

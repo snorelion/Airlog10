@@ -213,7 +213,10 @@ export default function SettingsPage() {
         {saved && <p className="text-center text-sm text-green-600">저장했어요 ✓</p>}
 
         <div className="flex items-center justify-between pt-2">
-          <Link href="/people" className="text-sm font-medium text-air-600">👥 크루 목록</Link>
+          <div className="flex gap-4">
+            <Link href="/people" className="text-sm font-medium text-air-600">👥 크루 목록</Link>
+            <Link href="/import" className="text-sm font-medium text-air-600">📥 가져오기</Link>
+          </div>
           <button onClick={logout} className="text-sm text-ink-hint">로그아웃</button>
         </div>
       </div>

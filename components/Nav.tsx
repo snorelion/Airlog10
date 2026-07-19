@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, PlusCircle, BarChart3, Upload } from 'lucide-react'
+import { Home, BookOpen, PlusCircle, BarChart3, Map } from 'lucide-react'
 import clsx from 'clsx'
 
 const TABS = [
@@ -10,7 +10,7 @@ const TABS = [
   { href: '/logbook', label: '로그북', icon: BookOpen },
   { href: '/flights/new', label: '기록', icon: PlusCircle },
   { href: '/stats', label: '통계', icon: BarChart3 },
-  { href: '/import', label: '가져오기', icon: Upload },
+  { href: '/map', label: '지도', icon: Map },
 ]
 
 export default function Nav() {

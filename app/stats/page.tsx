@@ -2,11 +2,112 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
-import { computeYearly, computeByType, computeTopAirports } from '@/lib/aggregate'
+import { getFlights, getSetting, sync, onStoreChange, type Flight } from '@/lib/store'
+import { computeYearly, computeByType, computeTopAirports, computeTotals } from '@/lib/aggregate'
 import { createClient } from '@/lib/supabase'
 import { minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
+
+// 커리어 요약 공유 카드 (1080×1350 PNG) — 캔버스로 그려서 공유/저장
+async function makeShareCard(flights: Flight[], name: string): Promise<void> {
+  const totals = computeTotals(flights)
+  const airports = new Set<string>()
+  for (const f of flights) {
+    if (f.origin) airports.add(f.origin)
+    if (f.destination) airports.add(f.destination)
+  }
+  let countries = 0
+  try {
+    const coords = JSON.parse((await getSetting('airportCoords')) || '{}') as Record<string, { country?: string | null }>
+    const cs = new Set<string>()
+    for (const ident of Array.from(airports)) {
+      const c = coords[ident]?.country
+      if (c) cs.add(c)
+    }
+    countries = cs.size
+  } catch {}
+  const top = computeTopAirports(flights, 3)
+
+  const W = 1080, H = 1350
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  // 배경 — 네이비 그라데이션
+  const g = ctx.createLinearGradient(0, 0, 0, H)
+  g.addColorStop(0, '#0A2A4A')
+  g.addColorStop(1, '#061D36')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, W, H)
+
+  const SANS = "-apple-system, 'Apple SD Gothic Neo', sans-serif"
+  ctx.textBaseline = 'alphabetic'
+
+  ctx.fillStyle = '#7FB4E8'
+  ctx.font = `600 40px ${SANS}`
+  ctx.fillText('PILOT LOGBOOK', 80, 140)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.font = `800 76px ${SANS}`
+  ctx.fillText(name || 'My Career', 80, 240)
+  ctx.fillStyle = '#9DBBD8'
+  ctx.font = `400 40px ${SANS}`
+  ctx.fillText(`${totals.first_date ?? ''} ~ ${totals.last_date ?? ''}`, 80, 305)
+
+  ctx.fillStyle = '#FFC94D'
+  ctx.font = `800 170px ${SANS}`
+  ctx.fillText(minToHMGrouped(totals.total_min), 80, 540)
+  ctx.fillStyle = '#9DBBD8'
+  ctx.font = `500 44px ${SANS}`
+  ctx.fillText('TOTAL FLIGHT TIME', 80, 605)
+
+  const items: [string, string][] = [
+    [totals.flights.toLocaleString(), 'FLIGHTS'],
+    [String(airports.size), 'AIRPORTS'],
+    [String(countries), 'COUNTRIES'],
+    [minToHMGrouped(totals.night_min), 'NIGHT'],
+    [minToHMGrouped(totals.pic_min), 'PIC'],
+    [totals.landings.toLocaleString(), 'LANDINGS'],
+  ]
+  items.forEach(([val, label], i) => {
+    const col = i % 3
+    const row = Math.floor(i / 3)
+    const x = 80 + col * 320
+    const y = 760 + row * 190
+    ctx.fillStyle = '#FFFFFF'
+    ctx.font = `700 64px ${SANS}`
+    ctx.fillText(val, x, y)
+    ctx.fillStyle = '#7FB4E8'
+    ctx.font = `500 30px ${SANS}`
+    ctx.fillText(label, x, y + 45)
+  })
+
+  ctx.fillStyle = '#9DBBD8'
+  ctx.font = `500 34px ${SANS}`
+  const topText = top.map((t) => `${t.ident} ${t.visits.toLocaleString()}`).join('   ·   ')
+  ctx.fillText('TOP  ' + topText, 80, 1190)
+
+  ctx.fillStyle = '#FFFFFF'
+  ctx.font = `800 44px ${SANS}`
+  ctx.fillText('AirLog10 ✈️', 80, 1280)
+
+  const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/png'))
+  if (!blob) return
+  const file = new File([blob], 'airlog10-career.png', { type: 'image/png' })
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] })
+      return
+    } catch {}
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'airlog10-career.png'
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 export default function StatsPage() {
   const [flights, setFlights] = useState<Flight[]>([])
@@ -52,7 +153,18 @@ export default function StatsPage() {
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
-      <h1 className="mb-4 text-xl font-bold">통계</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-bold">통계</h1>
+        {flights.length > 0 && (
+          <button
+            type="button"
+            onClick={async () => makeShareCard(flights, (await getSetting('pilotName')) ?? '')}
+            className="rounded-lg bg-air-600 px-3 py-1.5 text-sm font-semibold text-white"
+          >
+            공유 카드
+          </button>
+        )}
+      </div>
 
       {!loaded ? (
         <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>

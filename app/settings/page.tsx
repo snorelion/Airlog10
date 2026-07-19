@@ -30,6 +30,22 @@ export default function SettingsPage() {
   const [v, setV] = useState<Values>({})
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [mailBusy, setMailBusy] = useState(false)
+  const [mailMsg, setMailMsg] = useState('')
+
+  async function sendCopy() {
+    setMailBusy(true)
+    setMailMsg('')
+    try {
+      const res = await fetch('/api/send-logbook', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '발송에 실패했어요.')
+      setMailMsg(`✅ ${data.to} 로 ${Number(data.flights).toLocaleString()}편 사본을 보냈어요!`)
+    } catch (err) {
+      setMailMsg('⚠️ ' + (err instanceof Error ? err.message : String(err)))
+    }
+    setMailBusy(false)
+  }
 
   function set(key: string, value: string) {
     setV((prev) => ({ ...prev, [key]: value }))
@@ -204,6 +220,11 @@ export default function SettingsPage() {
             className="mt-3 w-full rounded-xl border border-air-200 bg-air-50 py-3 font-semibold text-air-800">
             로그북 전체 CSV 다운로드
           </button>
+          <button onClick={sendCopy} disabled={mailBusy}
+            className="mt-2 w-full rounded-xl border border-ink-line bg-white py-3 font-semibold text-ink-body disabled:opacity-50">
+            {mailBusy ? '보내는 중…' : '📧 이메일로 사본 보내기'}
+          </button>
+          {mailMsg && <p className="mt-2 text-center text-sm text-ink-sub">{mailMsg}</p>}
         </div>
 
         <button onClick={save} disabled={busy}

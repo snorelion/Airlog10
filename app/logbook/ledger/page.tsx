@@ -92,6 +92,7 @@ export default function LedgerPage() {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">로그북 · 장부</h1>
         <div className="flex items-center gap-3 text-sm">
+          <Link href="/logbook/print" className="text-air-600">인쇄/PDF</Link>
           <Link href="/logbook" className="text-air-600">목록 보기</Link>
           <span className="text-ink-hint">PAGE {p} / {lastPage}</span>
         </div>

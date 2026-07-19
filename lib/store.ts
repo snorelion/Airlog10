@@ -114,6 +114,13 @@ export async function addFlight(row: Omit<Flight, 'id' | 'deleted'>): Promise<Fl
   return flight
 }
 
+export async function updateFlight(row: Flight): Promise<void> {
+  await idbPut('flights', row)
+  await idbPut('outbox', { id: row.id, kind: 'flight', row } satisfies OutboxItem)
+  notify()
+  void sync()
+}
+
 export async function deleteFlight(id: string): Promise<void> {
   const f = await idbGet<Flight>('flights', id)
   if (!f) return

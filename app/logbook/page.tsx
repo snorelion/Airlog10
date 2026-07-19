@@ -31,6 +31,7 @@ export default function LogbookPage() {
   }, [])
 
   const total = flights.length
+  const zeroCount = flights.filter((f) => f.total_min === 0).length
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const p = Math.min(page, lastPage)
   const rows = flights.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE)
@@ -44,6 +45,13 @@ export default function LogbookPage() {
           <p className="text-sm text-ink-hint">{total.toLocaleString()}편</p>
         </div>
       </div>
+
+      {loaded && zeroCount > 0 && (
+        <Link href="/logbook/fix"
+          className="mb-3 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700">
+          ⏱️ 시간이 비어 있는 기록 {zeroCount}건 — 정리하러 가기 →
+        </Link>
+      )}
 
       {!loaded ? (
         <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>

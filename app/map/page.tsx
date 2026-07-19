@@ -106,7 +106,15 @@ export default function MapPage() {
   const k = w / 1000 // 확대 배율 보정 (점·글자 크기용)
   const rBase = Math.max(2.2, 150 * k / 10)
   const fs = Math.max(6, 190 * k / 10)
-  const labeled = dots.slice(0, 8)
+  // 라벨 겹침 방지 — 방문 많은 순으로 놓되, 이미 놓인 라벨과 겹치면 건너뜀
+  const labeled: AirportDot[] = []
+  for (const d of dots.slice(0, 14)) {
+    if (labeled.length >= 8) break
+    const clash = labeled.some(
+      (l) => Math.abs(l.x - d.x) < fs * 4.6 && Math.abs(l.y - d.y) < fs * 2.0
+    )
+    if (!clash) labeled.push(d)
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-6">

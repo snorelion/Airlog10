@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { addFlight, rememberAircraft, getAircraftList } from '@/lib/store'
+import { addFlight, rememberAircraft, getAircraftList, getSetting } from '@/lib/store'
 import { hmToMin, minToHM } from '@/lib/time'
 import Nav from '@/components/Nav'
 
@@ -97,6 +97,12 @@ export default function NewFlightPage() {
   const [outTime, setOutTime] = useState('')
   const [inTime, setInTime] = useState('')
   const [totalHM, setTotalHM] = useState('')
+  const [tkoTime, setTkoTime] = useState('')
+  const [ldgTime, setLdgTime] = useState('')
+  const [flightHM, setFlightHM] = useState('')
+  const [typeHits, setTypeHits] = useState<AircraftHit[]>([])
+  const [typeOpen, setTypeOpen] = useState(false)
+  const [myName, setMyName] = useState('')
   const [capacity, setCapacity] = useState('SIC')
   const [isPf, setIsPf] = useState(false)
   const [nightHM, setNightHM] = useState('')
@@ -112,6 +118,37 @@ export default function NewFlightPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const regTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const typeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 설정(내 이름·기본 역할) 불러와 미리 채우기
+  useEffect(() => {
+    void (async () => {
+      const name = (await getSetting('pilotName')) ?? ''
+      const cap = (await getSetting('defaultCapacity')) ?? ''
+      setMyName(name)
+      if (cap === 'PIC' || cap === 'SIC' || cap === 'PICUS') {
+        setCapacity(cap)
+        if (name) {
+          if (cap === 'PIC') setCrewPic(name)
+          else setCrewSic(name)
+        }
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 역할 바꾸면 내 이름을 맞는 칸으로 옮김 (자동 채운 값만)
+  function changeCapacity(cp: string) {
+    setCapacity(cp)
+    if (!myName) return
+    if (cp === 'PIC') {
+      if (crewSic === myName) setCrewSic('')
+      if (!crewPic) setCrewPic(myName)
+    } else {
+      if (crewPic === myName) setCrewPic('')
+      if (!crewSic) setCrewSic(myName)
+    }
+  }
 
   // 등록번호 자동완성 — 로컬 사본에서 (오프라인에서도 동작)
   function searchReg(q: string) {
@@ -130,6 +167,32 @@ export default function NewFlightPage() {
     }, 150)
   }
 
+  // 등록번호 칸을 벗어날 때 아는 기체면 기종 자동 채움
+  async function fillTypeFromReg() {
+    const term = reg.trim().toUpperCase()
+    if (!term) return
+    const list = await getAircraftList()
+    const hit = list.find((a) => a.registration === term)
+    if (hit?.type_code) setTypeCode(hit.type_code)
+  }
+
+  // 기종 자동완성 — 그 기종의 기체번호를 골라 넣기
+  function searchType(q: string) {
+    const term = q.toUpperCase()
+    setTypeCode(term)
+    if (typeTimer.current) clearTimeout(typeTimer.current)
+    if (term.length < 2) { setTypeHits([]); return }
+    typeTimer.current = setTimeout(async () => {
+      const list = await getAircraftList()
+      const hits = list
+        .filter((a) => (a.type_code ?? '').startsWith(term))
+        .slice(0, 8)
+        .map((a) => ({ registration: a.registration, type_code: a.type_code }))
+      setTypeHits(hits)
+      setTypeOpen(true)
+    }, 150)
+  }
+
   // OUT/IN 시각이 둘 다 있으면 블록타임 자동 계산 (자정 넘김 처리)
   useEffect(() => {
     if (!outTime || !inTime || totalHM) return
@@ -143,6 +206,20 @@ export default function NewFlightPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outTime, inTime])
+
+  // T/O·LDG 시각이 둘 다 있으면 Flight Time 자동 계산 (자정 넘김 처리)
+  useEffect(() => {
+    if (!tkoTime || !ldgTime || flightHM) return
+    const t = hmToMin(tkoTime)
+    const l = hmToMin(ldgTime)
+    if (t === 0 && l === 0) return
+    let diff = l - t
+    if (diff < 0) diff += 24 * 60
+    if (diff > 0) {
+      setFlightHM(`${Math.floor(diff / 60)}:${String(diff % 60).padStart(2, '0')}`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tkoTime, ldgTime])
 
   // PF 켜면 이착륙 기본 1회 (전부 0일 때만)
   function togglePf(v: boolean) {
@@ -174,6 +251,9 @@ export default function NewFlightPage() {
       destination: destination.trim().toUpperCase() || null,
       out_time: outTime || null,
       in_time: inTime || null,
+      takeoff_time: tkoTime || null,
+      landing_time: ldgTime || null,
+      flight_min: hmToMin(flightHM),
       aircraft_reg: regUp,
       aircraft_type: typeUp,
       total_min: totalMin,
@@ -241,7 +321,7 @@ export default function NewFlightPage() {
               value={reg}
               onChange={(e) => searchReg(e.target.value)}
               onFocus={() => regHits.length && setRegOpen(true)}
-              onBlur={() => setTimeout(() => setRegOpen(false), 150)}
+              onBlur={() => { setTimeout(() => setRegOpen(false), 150); void fillTypeFromReg() }}
               placeholder="HS-LVL" autoCapitalize="characters" autoCorrect="off"
               className={inputCls + ' font-mono uppercase'}
             />
@@ -264,10 +344,34 @@ export default function NewFlightPage() {
               </div>
             )}
           </div>
-          <div>
+          <div className="relative">
             <label className="text-xs font-medium text-ink-sub">기종</label>
-            <input value={typeCode} onChange={(e) => setTypeCode(e.target.value.toUpperCase())}
-              placeholder="B738" autoCapitalize="characters" className={inputCls + ' font-mono uppercase'} />
+            <input
+              value={typeCode}
+              onChange={(e) => searchType(e.target.value)}
+              onFocus={() => typeHits.length && setTypeOpen(true)}
+              onBlur={() => setTimeout(() => setTypeOpen(false), 150)}
+              placeholder="B738" autoCapitalize="characters" autoCorrect="off"
+              className={inputCls + ' font-mono uppercase'}
+            />
+            {typeOpen && typeHits.length > 0 && (
+              <div className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-xl border border-ink-line bg-white shadow-lg">
+                {typeHits.map((h) => (
+                  <button
+                    type="button" key={h.registration}
+                    onMouseDown={() => {
+                      setReg(h.registration)
+                      if (h.type_code) setTypeCode(h.type_code)
+                      setTypeOpen(false)
+                    }}
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-air-50"
+                  >
+                    <span className="font-mono font-semibold">{h.registration}</span>
+                    {h.type_code && <span className="ml-2 text-ink-sub">{h.type_code}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -285,10 +389,31 @@ export default function NewFlightPage() {
               inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
-            <label className="text-xs font-medium text-ink-sub">비행시간</label>
+            <label className="text-xs font-medium text-ink-sub">블록타임 (총시간)</label>
             <input value={totalHM} onChange={(e) => setTotalHM(e.target.value)}
               onBlur={() => tidyDuration(totalHM, setTotalHM)} placeholder="1:15"
               inputMode="numeric" className={inputCls + ' font-mono font-semibold'} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-xs font-medium text-ink-sub">T/O (UTC)</label>
+            <input value={tkoTime} onChange={(e) => setTkoTime(e.target.value)}
+              onBlur={() => tidyClock(tkoTime, setTkoTime)} placeholder="09:42"
+              inputMode="numeric" className={inputCls + ' font-mono'} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-ink-sub">LDG (UTC)</label>
+            <input value={ldgTime} onChange={(e) => setLdgTime(e.target.value)}
+              onBlur={() => tidyClock(ldgTime, setLdgTime)} placeholder="10:38"
+              inputMode="numeric" className={inputCls + ' font-mono'} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-ink-sub">Flight Time</label>
+            <input value={flightHM} onChange={(e) => setFlightHM(e.target.value)}
+              onBlur={() => tidyDuration(flightHM, setFlightHM)} placeholder="0:56"
+              inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
         </div>
 
@@ -297,7 +422,7 @@ export default function NewFlightPage() {
             <div className="flex gap-1">
               {['PIC', 'SIC', 'PICUS'].map((cp) => (
                 <button
-                  key={cp} type="button" onClick={() => setCapacity(cp)}
+                  key={cp} type="button" onClick={() => changeCapacity(cp)}
                   className={
                     'rounded-lg px-3 py-1.5 text-sm font-semibold ' +
                     (capacity === cp ? 'bg-air-600 text-white' : 'bg-ink-bg text-ink-sub')

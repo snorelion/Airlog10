@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getFlights, getPendingCount, getLastSyncAt, sync, onStoreChange, type Flight } from '@/lib/store'
 import { computeTotals, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
+import { Settings as SettingsIcon } from 'lucide-react'
 import Nav from '@/components/Nav'
 
 export default function HomePage() {
@@ -41,11 +42,16 @@ export default function HomePage() {
         <div className="text-2xl font-extrabold tracking-tight text-air-800">
           Air<span className="text-air-400">Log</span>10
         </div>
-        {pending > 0 && (
-          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-            업로드 대기 {pending}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {pending > 0 && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+              업로드 대기 {pending}
+            </span>
+          )}
+          <Link href="/settings" aria-label="설정" className="p-1 text-ink-hint">
+            <SettingsIcon size={20} />
+          </Link>
+        </div>
       </header>
 
       {!loaded ? (

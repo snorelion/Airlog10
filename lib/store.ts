@@ -14,6 +14,9 @@ export type Flight = {
   destination: string | null
   out_time: string | null
   in_time: string | null
+  takeoff_time: string | null
+  landing_time: string | null
+  flight_min: number
   aircraft_reg: string | null
   aircraft_type: string | null
   total_min: number
@@ -77,6 +80,16 @@ export async function getPendingCount(): Promise<number> {
 export async function getLastSyncAt(): Promise<string | null> {
   const m = await idbGet<{ k: string; v: string }>('meta', 'lastSyncAt')
   return m?.v ?? null
+}
+
+// 간단 설정 저장 (이름·기본 역할 등) — 오프라인에서도 동작
+export async function getSetting(key: string): Promise<string | null> {
+  const m = await idbGet<{ k: string; v: string }>('meta', 'setting:' + key)
+  return m?.v ?? null
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await idbPut('meta', { k: 'setting:' + key, v: value })
 }
 
 // ── 쓰기 (오프라인 OK — outbox에 쌓임) ──────────────

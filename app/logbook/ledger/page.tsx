@@ -11,17 +11,18 @@ import Nav from '@/components/Nav'
 const ROWS = 20
 
 type Sums = {
-  total: number; night: number; inst: number; apch: number
+  total: number; flt: number; night: number; inst: number; apch: number
   dayTO: number; nightTO: number; dayLDG: number; nightLDG: number
   pic: number; sic: number; dual: number
 }
 
 function emptySums(): Sums {
-  return { total: 0, night: 0, inst: 0, apch: 0, dayTO: 0, nightTO: 0, dayLDG: 0, nightLDG: 0, pic: 0, sic: 0, dual: 0 }
+  return { total: 0, flt: 0, night: 0, inst: 0, apch: 0, dayTO: 0, nightTO: 0, dayLDG: 0, nightLDG: 0, pic: 0, sic: 0, dual: 0 }
 }
 
 function addRow(s: Sums, f: Flight) {
   s.total += f.total_min
+  s.flt += f.flight_min ?? 0
   s.night += f.night_min
   s.inst += f.inst_actual_min
   s.apch += f.approaches?.length ?? 0
@@ -72,6 +73,7 @@ export default function LedgerPage() {
       <tr className="bg-ink-bg font-semibold">
         <td colSpan={6} className={td + ' !text-right pr-2 text-[10px] tracking-wide'}>{label}</td>
         <td className={td}>{minToHMGrouped(s.total)}</td>
+        <td className={td}>{s.flt ? minToHMGrouped(s.flt) : ''}</td>
         <td className={td}>{minToHMGrouped(s.night)}</td>
         <td className={td}>{minToHMGrouped(s.inst)}</td>
         <td className={td}>{s.apch}</td>
@@ -113,6 +115,7 @@ export default function LedgerPage() {
                 <th className={th}>TO</th>
                 <th className={th}>FLT #</th>
                 <th className={th}>TOTAL</th>
+                <th className={th}>FLT</th>
                 <th className={th}>NIGHT</th>
                 <th className={th}>ACT INST</th>
                 <th className={th}>APCH</th>
@@ -134,6 +137,7 @@ export default function LedgerPage() {
                   <td className={td + ' font-mono'}>{f.destination ?? ''}</td>
                   <td className={td}>{f.flight_number ?? ''}</td>
                   <td className={td + ' font-semibold'}>{minToHM(f.total_min)}</td>
+                  <td className={td}>{f.flight_min ? minToHM(f.flight_min) : ''}</td>
                   <td className={td}>{f.night_min ? minToHM(f.night_min) : ''}</td>
                   <td className={td}>{f.inst_actual_min ? minToHM(f.inst_actual_min) : ''}</td>
                   <td className={td}>{f.approaches?.length || ''}</td>

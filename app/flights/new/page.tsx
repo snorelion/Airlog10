@@ -148,6 +148,10 @@ export default function NewFlightPage() {
   const [isPf, setIsPf] = useState(false)
   const [nightHM, setNightHM] = useState('')
   const [instHM, setInstHM] = useState('')
+  const [simHM, setSimHM] = useState('')
+  const [approaches, setApproaches] = useState<string[]>([])
+  const [apType, setApType] = useState('ILS')
+  const [apRwy, setApRwy] = useState('')
   const [dayTO, setDayTO] = useState(0)
   const [dayLDG, setDayLDG] = useState(0)
   const [nightTO, setNightTO] = useState(0)
@@ -174,7 +178,7 @@ export default function NewFlightPage() {
     return {
       date, flightNumber, origin, destination, reg, typeCode,
       outTime, inTime, totalHM, tkoTime, ldgTime, flightHM,
-      capacity, isPf, nightHM, instHM,
+      capacity, isPf, nightHM, instHM, simHM, approaches,
       dayTO, dayLDG, nightTO, nightLDG, autolands,
       crewPic, crewSic, remarks, rosterId,
     }
@@ -186,6 +190,7 @@ export default function NewFlightPage() {
     setOutTime(d.outTime); setInTime(d.inTime); setTotalHM(d.totalHM)
     setTkoTime(d.tkoTime); setLdgTime(d.ldgTime); setFlightHM(d.flightHM)
     setCapacity(d.capacity); setIsPf(d.isPf); setNightHM(d.nightHM); setInstHM(d.instHM)
+    setSimHM(d.simHM ?? ''); setApproaches(d.approaches ?? [])
     setDayTO(d.dayTO); setDayLDG(d.dayLDG); setNightTO(d.nightTO); setNightLDG(d.nightLDG)
     setAutolands(d.autolands); setCrewPic(d.crewPic); setCrewSic(d.crewSic); setRemarks(d.remarks)
     setRosterId(d.rosterId)
@@ -196,8 +201,27 @@ export default function NewFlightPage() {
     return Boolean(
       d.flightNumber || d.reg || d.outTime || d.inTime || d.totalHM ||
       d.tkoTime || d.ldgTime || d.flightHM || d.remarks || d.nightHM || d.instHM ||
+      d.simHM || (d.approaches && d.approaches.length) ||
       d.dayTO || d.dayLDG || d.nightTO || d.nightLDG || d.autolands
     )
+  }
+
+  // 리턴편 빠른 입력 — 가장 최근 비행의 구간을 뒤집어 미리 채움
+  async function fillReturnLeg() {
+    const flights = await getFlights()
+    if (!flights.length) return
+    flights.sort((a, b) =>
+      b.flight_date.localeCompare(a.flight_date) || (b.created_at ?? '').localeCompare(a.created_at ?? '')
+    )
+    const last = flights[0]
+    setDate(last.flight_date)
+    setOrigin(last.destination ?? '')
+    setDestination(last.origin ?? '')
+    setReg(last.aircraft_reg ?? '')
+    setTypeCode(last.aircraft_type ?? '')
+    if (last.capacity) setCapacity(last.capacity)
+    if (last.crew_pic) setCrewPic(last.crew_pic)
+    if (last.crew_sic) setCrewSic(last.crew_sic)
   }
 
   // 초기화: 수정 모드 → 임시저장 복원 → 로스터 프리필 → 설정 프리필 순
@@ -230,6 +254,8 @@ export default function NewFlightPage() {
           setIsPf(f.is_pf ?? false)
           setNightHM(f.night_min ? minToHM(f.night_min) : '')
           setInstHM(f.inst_actual_min ? minToHM(f.inst_actual_min) : '')
+          setSimHM(f.sim_min ? minToHM(f.sim_min) : '')
+          setApproaches(f.approaches ?? [])
           setDayTO(f.day_takeoffs); setDayLDG(f.day_landings)
           setNightTO(f.night_takeoffs); setNightLDG(f.night_landings)
           setAutolands(f.autolands)
@@ -314,7 +340,7 @@ export default function NewFlightPage() {
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, flightNumber, origin, destination, reg, typeCode, outTime, inTime, totalHM,
-      tkoTime, ldgTime, flightHM, capacity, isPf, nightHM, instHM,
+      tkoTime, ldgTime, flightHM, capacity, isPf, nightHM, instHM, simHM, approaches,
       dayTO, dayLDG, nightTO, nightLDG, autolands, crewPic, crewSic, remarks, rosterId])
 
   async function clearDraft() {
@@ -396,8 +422,12 @@ export default function NewFlightPage() {
   async function save() {
     setError('')
     const totalMin = hmToMin(totalHM)
+    const simMin = hmToMin(simHM)
     if (!date) { setError('날짜를 입력해 주세요.'); return }
-    if (totalMin <= 0) { setError('블록타임(총시간)을 입력해 주세요. (예: 1:15)'); return }
+    if (totalMin <= 0 && simMin <= 0) {
+      setError('블록타임(총시간) 또는 시뮬레이터 시간을 입력해 주세요. (예: 1:15)')
+      return
+    }
     setBusy(true)
 
     const regUp = reg.trim().toUpperCase() || null
@@ -425,6 +455,8 @@ export default function NewFlightPage() {
       picus_min: capacity === 'PICUS' ? totalMin : 0,
       night_min: hmToMin(nightHM),
       inst_actual_min: hmToMin(instHM),
+      sim_min: simMin,
+      approaches: approaches.length ? approaches : null,
       multi_pilot_min: totalMin,
       day_takeoffs: dayTO,
       day_landings: dayLDG,
@@ -472,10 +504,8 @@ export default function NewFlightPage() {
       xc_min: 0,
       dual_received_min: 0,
       dual_given_min: 0,
-      sim_min: 0,
       go_arounds: 0,
       holds: 0,
-      approaches: null,
       crew_other: null,
       pax_count: null,
       distance_nm: null,
@@ -499,7 +529,18 @@ export default function NewFlightPage() {
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
-      <h1 className="mb-2 text-xl font-bold">{editId ? '비행 수정' : '비행 기록'}</h1>
+      <div className="mb-2 flex items-center justify-between">
+        <h1 className="text-xl font-bold">{editId ? '비행 수정' : '비행 기록'}</h1>
+        {!editId && !rosterId && (
+          <button
+            type="button"
+            onClick={fillReturnLeg}
+            className="rounded-lg bg-app-accent-soft px-3 py-1.5 text-sm font-semibold text-app-accent"
+          >
+            ↩️ 리턴편 채우기
+          </button>
+        )}
+      </div>
 
       {draftRestored && !editId && (
         <div className="mb-3 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/25 dark:text-amber-200">
@@ -669,7 +710,7 @@ export default function NewFlightPage() {
             </label>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-medium text-app-sub">야간</label>
               <input value={nightHM} onChange={(e) => setNightHM(e.target.value)}
@@ -682,6 +723,12 @@ export default function NewFlightPage() {
                 onBlur={() => tidyDuration(instHM, setInstHM)} placeholder="0:00"
                 inputMode="numeric" className={inputCls + ' font-mono'} />
             </div>
+            <div>
+              <label className="text-xs font-medium text-app-sub">시뮬레이터</label>
+              <input value={simHM} onChange={(e) => setSimHM(e.target.value)}
+                onBlur={() => tidyDuration(simHM, setSimHM)} placeholder="0:00"
+                inputMode="numeric" className={inputCls + ' font-mono'} />
+            </div>
           </div>
 
           <div className="mt-3 grid grid-cols-5 gap-2">
@@ -690,6 +737,57 @@ export default function NewFlightPage() {
             <Counter label="야간이륙" value={nightTO} onChange={setNightTO} />
             <Counter label="야간착륙" value={nightLDG} onChange={setNightLDG} />
             <Counter label="오토랜드" value={autolands} onChange={setAutolands} />
+          </div>
+
+          <div className="mt-3">
+            <label className="text-xs font-medium text-app-sub">어프로치</label>
+            <div className="mt-1 flex gap-2">
+              <select
+                value={apType}
+                onChange={(e) => setApType(e.target.value)}
+                className="rounded-xl border border-app-line bg-app-surface px-3 py-2.5 font-mono text-sm outline-none focus:border-air-400"
+              >
+                {['ILS', 'RNP', 'RNAV', 'VOR', 'NDB', 'LOC', 'CAT2', 'CAT3', 'VISUAL', 'CIRCLE'].map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <input
+                value={apRwy}
+                onChange={(e) => setApRwy(e.target.value.toUpperCase())}
+                placeholder="21R"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                className="w-24 rounded-xl border border-app-line bg-app-surface px-3 py-2.5 font-mono uppercase outline-none focus:border-air-400"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const label = apRwy.trim() ? `${apType} ${apRwy.trim()}` : apType
+                  setApproaches([...approaches, label])
+                  setApRwy('')
+                }}
+                className="rounded-xl bg-app-btn px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                추가
+              </button>
+            </div>
+            {approaches.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {approaches.map((a, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 rounded-full bg-app-accent-soft px-2.5 py-1 font-mono text-xs font-semibold text-app-accent">
+                    {a}
+                    <button
+                      type="button"
+                      aria-label="어프로치 삭제"
+                      onClick={() => setApproaches(approaches.filter((_, j) => j !== i))}
+                      className="text-app-accent/70"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

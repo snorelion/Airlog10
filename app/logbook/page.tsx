@@ -15,6 +15,9 @@ export default function LogbookPage() {
   const [flights, setFlights] = useState<Flight[]>([])
   const [page, setPage] = useState(1)
   const [loaded, setLoaded] = useState(false)
+  const [query, setQuery] = useState('')
+  const [capFilter, setCapFilter] = useState<'ALL' | 'PIC' | 'SIC'>('ALL')
+  const [pfOnly, setPfOnly] = useState(false)
 
   async function load() {
     const rows = await getFlights()
@@ -32,11 +35,25 @@ export default function LogbookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const total = flights.length
-  const zeroCount = flights.filter((f) => f.total_min === 0).length
+  const zeroCount = flights.filter((f) => f.total_min === 0 && f.sim_min === 0).length
+
+  // 검색·필터 (오프라인 로컬 사본에서 즉시)
+  const q = query.trim().toUpperCase()
+  const filtered = flights.filter((f) => {
+    if (capFilter !== 'ALL' && (f.capacity ?? '') !== capFilter) return false
+    if (pfOnly && !f.is_pf) return false
+    if (!q) return true
+    const hay = [
+      f.flight_date, f.flight_number, f.origin, f.destination,
+      f.aircraft_reg, f.aircraft_type, f.crew_pic, f.crew_sic, f.remarks,
+    ].filter(Boolean).join(' ').toUpperCase()
+    return hay.includes(q)
+  })
+
+  const total = filtered.length
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const p = Math.min(page, lastPage)
-  const rows = flights.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE)
+  const rows = filtered.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE)
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
@@ -46,6 +63,38 @@ export default function LogbookPage() {
           <Link href="/logbook/ledger" className="text-sm font-medium text-app-accent">장부 보기</Link>
           <p className="text-sm text-app-hint">{total.toLocaleString()}편</p>
         </div>
+      </div>
+
+      <div className="mb-3 flex items-center gap-2">
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+          placeholder="검색: 공항·편명·기체·크루·메모"
+          className="flex-1 rounded-xl border border-app-line bg-app-surface px-3 py-2 text-sm outline-none focus:border-air-400"
+        />
+        {(['ALL', 'PIC', 'SIC'] as const).map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => { setCapFilter(c); setPage(1) }}
+            className={
+              'rounded-lg px-2.5 py-2 text-xs font-semibold ' +
+              (capFilter === c ? 'bg-app-btn text-white' : 'bg-app-surface text-app-sub border border-app-line')
+            }
+          >
+            {c === 'ALL' ? '전체' : c}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => { setPfOnly(!pfOnly); setPage(1) }}
+          className={
+            'rounded-lg px-2.5 py-2 text-xs font-semibold ' +
+            (pfOnly ? 'bg-app-btn text-white' : 'bg-app-surface text-app-sub border border-app-line')
+          }
+        >
+          PF
+        </button>
       </div>
 
       {zeroCount > 0 && (

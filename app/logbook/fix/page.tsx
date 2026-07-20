@@ -16,7 +16,7 @@ export default function FixPage() {
   async function load() {
     const flights = await getFlights()
     const zero = flights
-      .filter((f) => f.total_min === 0)
+      .filter((f) => f.total_min === 0 && f.sim_min === 0) // 시뮬 세션(블록 0)은 정상
       .sort((a, b) => a.flight_date.localeCompare(b.flight_date))
     setRows(zero)
     setLoaded(true)

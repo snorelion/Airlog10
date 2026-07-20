@@ -62,9 +62,11 @@ export async function POST() {
   const header = [
     'date', 'flight_number', 'from', 'to', 'aircraft_reg', 'aircraft_type',
     'out', 'in', 'takeoff', 'landing', 'block_time', 'flight_time',
-    'pic', 'sic', 'picus', 'night', 'actual_inst',
+    'pic', 'sic', 'picus', 'night', 'actual_inst', 'sim', 'dual_given',
     'day_takeoffs', 'day_landings', 'night_takeoffs', 'night_landings',
-    'autolands', 'capacity', 'pf', 'crew_pic', 'crew_sic', 'remarks',
+    'autolands', 'go_arounds', 'holds', 'approaches',
+    'capacity', 'pf', 'crew_pic', 'crew_sic', 'crew_other',
+    'pax_count', 'distance_nm', 'remarks',
   ]
   const lines = [header.join(',')]
   let totalMin = 0, picMin = 0, sicMin = 0, nightMin = 0, landings = 0
@@ -82,8 +84,13 @@ export async function POST() {
       (f.picus_min as number) ? minToHM(f.picus_min as number) : '',
       f.night_min ? minToHM(f.night_min) : '',
       (f.inst_actual_min as number) ? minToHM(f.inst_actual_min as number) : '',
+      (f.sim_min as number) ? minToHM(f.sim_min as number) : '',
+      (f.dual_given_min as number) ? minToHM(f.dual_given_min as number) : '',
       f.day_takeoffs, f.day_landings, f.night_takeoffs, f.night_landings,
-      f.autolands, f.capacity, f.is_pf ? 'PF' : '', f.crew_pic, f.crew_sic, f.remarks,
+      f.autolands, f.go_arounds, f.holds,
+      Array.isArray(f.approaches) ? (f.approaches as string[]).join('; ') : '',
+      f.capacity, f.is_pf ? 'PF' : '', f.crew_pic, f.crew_sic, f.crew_other,
+      f.pax_count, f.distance_nm, f.remarks,
     ].map(esc).join(','))
   }
   const csv = '﻿' + lines.join('\n')

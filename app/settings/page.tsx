@@ -110,9 +110,11 @@ export default function SettingsPage() {
     const header = [
       'date', 'flight_number', 'from', 'to', 'aircraft_reg', 'aircraft_type',
       'out', 'in', 'takeoff', 'landing', 'block_time', 'flight_time',
-      'pic', 'sic', 'picus', 'night', 'actual_inst',
+      'pic', 'sic', 'picus', 'night', 'actual_inst', 'sim', 'dual_given',
       'day_takeoffs', 'day_landings', 'night_takeoffs', 'night_landings',
-      'autolands', 'capacity', 'pf', 'crew_pic', 'crew_sic', 'remarks',
+      'autolands', 'go_arounds', 'holds', 'approaches',
+      'capacity', 'pf', 'crew_pic', 'crew_sic', 'crew_other',
+      'pax_count', 'distance_nm', 'remarks',
     ]
     const esc = (s: unknown) => {
       const t = s === null || s === undefined ? '' : String(s)
@@ -127,8 +129,11 @@ export default function SettingsPage() {
         f.pic_min ? minToHM(f.pic_min) : '', f.sic_min ? minToHM(f.sic_min) : '',
         f.picus_min ? minToHM(f.picus_min) : '', f.night_min ? minToHM(f.night_min) : '',
         f.inst_actual_min ? minToHM(f.inst_actual_min) : '',
+        f.sim_min ? minToHM(f.sim_min) : '', f.dual_given_min ? minToHM(f.dual_given_min) : '',
         f.day_takeoffs, f.day_landings, f.night_takeoffs, f.night_landings,
-        f.autolands, f.capacity, f.is_pf ? 'PF' : '', f.crew_pic, f.crew_sic, f.remarks,
+        f.autolands, f.go_arounds, f.holds, (f.approaches ?? []).join('; '),
+        f.capacity, f.is_pf ? 'PF' : '', f.crew_pic, f.crew_sic, f.crew_other,
+        f.pax_count, f.distance_nm, f.remarks,
       ].map(esc).join(','))
     }
     const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })

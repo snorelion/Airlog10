@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { addFlight, rememberAircraft, getAircraftList, getSetting, getFlights, getRosterFlight, updateRosterStatus } from '@/lib/store'
+import {
+  addFlight, updateFlight, getFlight, rememberAircraft, getAircraftList,
+  getSetting, setSetting, getFlights, getRosterFlight, updateRosterStatus, type Flight,
+} from '@/lib/store'
 import { hmToMin, minToHM } from '@/lib/time'
 import Nav from '@/components/Nav'
 
@@ -15,10 +18,43 @@ function tidyDuration(v: string, set: (s: string) => void) {
 
 // 시각(OUT/IN)은 "0100"→"01:00" 로 정돈
 function tidyClock(v: string, set: (s: string) => void) {
-  const min = hmToMin(v)
-  if (!v.trim() || min <= 0) return
-  const hh = Math.floor(min / 60) % 24
-  set(`${String(hh).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`)
+  const t = v.trim()
+  if (!t || !/^(\d{1,2}:\d{2}|\d{3,4})$/.test(t)) return
+  set(fmtClock(hmToMin(t)))
+}
+
+// "1000"·"10:00" → 분. 형식이 아니면 null ("00:00"도 유효한 0분)
+function parseClock(s: string): number | null {
+  const t = s.trim()
+  if (!/^(\d{1,2}:\d{2}|\d{3,4})$/.test(t)) return null
+  return hmToMin(t)
+}
+
+// 분 → "HH:MM" (자정 넘김은 24시간으로 감아서)
+function fmtClock(m: number): string {
+  const mm = ((m % 1440) + 1440) % 1440
+  return `${String(Math.floor(mm / 60)).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`
+}
+
+// 시각·시각·시간 3칸 연동 — 어느 칸을 고치든 나머지가 맞게 계산된다
+//  start+end → dur / start+dur → end / end+dur → start (자정 넘김 처리)
+function linkTimes(
+  edited: 'start' | 'end' | 'dur',
+  start: string, end: string, dur: string,
+  setStart: (s: string) => void, setEnd: (s: string) => void, setDur: (s: string) => void
+) {
+  const s = parseClock(start)
+  const e = parseClock(end)
+  const d = dur.trim() ? hmToMin(dur) || null : null
+  if (edited === 'dur') {
+    if (!d) return
+    if (s !== null) setEnd(fmtClock(s + d))
+    else if (e !== null) setStart(fmtClock(e - d))
+  } else {
+    if (s !== null && e !== null) setDur(minToHM(((e - s) + 1440) % 1440))
+    else if (edited === 'start' && s !== null && d) setEnd(fmtClock(s + d))
+    else if (edited === 'end' && e !== null && d) setStart(fmtClock(e - d))
+  }
 }
 
 type AirportHit = { ident: string; iata: string | null; name: string | null; municipality: string | null }
@@ -86,7 +122,7 @@ function AirportField({
 // ── 비행 입력 폼 ──────────────────────────────
 export default function NewFlightPage() {
   const router = useRouter()
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => new Date().toLocaleDateString('en-CA'))
   const [flightNumber, setFlightNumber] = useState('')
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
@@ -118,41 +154,120 @@ export default function NewFlightPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [rosterId, setRosterId] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [draftRestored, setDraftRestored] = useState(false)
+  const editOriginal = useRef<Flight | null>(null)
+  const initDone = useRef(false)
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const regTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 기체별 마지막 비행일 — 최근에 탄 기체(현 소속 기단)가 자동완성 맨 위로
   const lastFlown = useRef<Map<string, string>>(new Map())
 
-  // 설정(내 이름·기본 역할·홈베이스) 불러와 미리 채우기 + 기체 최근 사용 지도
+  // 폼 상태 묶음 (임시저장용)
+  function snapshot() {
+    return {
+      date, flightNumber, origin, destination, reg, typeCode,
+      outTime, inTime, totalHM, tkoTime, ldgTime, flightHM,
+      capacity, isPf, nightHM, instHM,
+      dayTO, dayLDG, nightTO, nightLDG, autolands,
+      crewPic, crewSic, remarks, rosterId,
+    }
+  }
+
+  function restore(d: ReturnType<typeof snapshot>) {
+    setDate(d.date); setFlightNumber(d.flightNumber); setOrigin(d.origin); setDestination(d.destination)
+    setReg(d.reg); setTypeCode(d.typeCode)
+    setOutTime(d.outTime); setInTime(d.inTime); setTotalHM(d.totalHM)
+    setTkoTime(d.tkoTime); setLdgTime(d.ldgTime); setFlightHM(d.flightHM)
+    setCapacity(d.capacity); setIsPf(d.isPf); setNightHM(d.nightHM); setInstHM(d.instHM)
+    setDayTO(d.dayTO); setDayLDG(d.dayLDG); setNightTO(d.nightTO); setNightLDG(d.nightLDG)
+    setAutolands(d.autolands); setCrewPic(d.crewPic); setCrewSic(d.crewSic); setRemarks(d.remarks)
+    setRosterId(d.rosterId)
+  }
+
+  // 초기화: 수정 모드 → 임시저장 복원 → 로스터 프리필 → 설정 프리필 순
   useEffect(() => {
     void (async () => {
-      const name = (await getSetting('pilotName')) ?? ''
-      const cap = (await getSetting('defaultCapacity')) ?? ''
-      const hb = (await getSetting('homeBase')) ?? ''
-      setMyName(name)
-      if (cap === 'PIC' || cap === 'SIC' || cap === 'PICUS') {
-        setCapacity(cap)
-        if (name) {
-          if (cap === 'PIC') setCrewPic(name)
-          else setCrewSic(name)
+      const params = new URLSearchParams(window.location.search)
+      const eid = params.get('edit')
+      const rid = params.get('roster')
+      setMyName((await getSetting('pilotName')) ?? '')
+
+      if (eid) {
+        const f = await getFlight(eid)
+        if (f) {
+          setEditId(eid)
+          editOriginal.current = f
+          setDate(f.flight_date)
+          setFlightNumber(f.flight_number ?? '')
+          setOrigin(f.origin ?? '')
+          setDestination(f.destination ?? '')
+          setReg(f.aircraft_reg ?? '')
+          setTypeCode(f.aircraft_type ?? '')
+          setOutTime(f.out_time ?? '')
+          setInTime(f.in_time ?? '')
+          setTotalHM(f.total_min ? minToHM(f.total_min) : '')
+          setTkoTime(f.takeoff_time ?? '')
+          setLdgTime(f.landing_time ?? '')
+          setFlightHM(f.flight_min ? minToHM(f.flight_min) : '')
+          setCapacity(f.capacity ?? 'SIC')
+          setIsPf(f.is_pf ?? false)
+          setNightHM(f.night_min ? minToHM(f.night_min) : '')
+          setInstHM(f.inst_actual_min ? minToHM(f.inst_actual_min) : '')
+          setDayTO(f.day_takeoffs); setDayLDG(f.day_landings)
+          setNightTO(f.night_takeoffs); setNightLDG(f.night_landings)
+          setAutolands(f.autolands)
+          setCrewPic(f.crew_pic ?? ''); setCrewSic(f.crew_sic ?? '')
+          setRemarks(f.remarks ?? '')
         }
-      }
-      // 로스터에서 넘어온 경우 — 편명·구간·기종·예정시간 미리 채움
-      const rid = new URLSearchParams(window.location.search).get('roster')
-      if (rid) {
-        const r = await getRosterFlight(rid)
-        if (r) {
-          setRosterId(rid)
-          setDate(r.flight_date)
-          if (r.flight_number) setFlightNumber(r.flight_number)
-          if (r.origin) setOrigin(r.origin)
-          if (r.destination) setDestination(r.destination)
-          if (r.aircraft_type) setTypeCode(r.aircraft_type)
-          if (r.std) setOutTime(r.std)
-          if (r.sta) setInTime(r.sta)
+      } else {
+        // 임시저장 복원 (같은 맥락일 때만: 로스터 기록이면 같은 로스터)
+        let restored = false
+        try {
+          const raw = await getSetting('flightDraft')
+          if (raw) {
+            const d = JSON.parse(raw)
+            if ((d.rosterId ?? null) === (rid ?? null)) {
+              restore(d)
+              setDraftRestored(true)
+              restored = true
+            }
+          }
+        } catch {}
+
+        if (!restored) {
+          const name = (await getSetting('pilotName')) ?? ''
+          const cap = (await getSetting('defaultCapacity')) ?? ''
+          const hb = (await getSetting('homeBase')) ?? ''
+          if (cap === 'PIC' || cap === 'SIC' || cap === 'PICUS') {
+            setCapacity(cap)
+            if (name) {
+              if (cap === 'PIC') setCrewPic(name)
+              else setCrewSic(name)
+            }
+          }
+          if (rid) {
+            const r = await getRosterFlight(rid)
+            if (r) {
+              setRosterId(rid)
+              setDate(r.flight_date)
+              if (r.flight_number) setFlightNumber(r.flight_number)
+              if (r.origin) setOrigin(r.origin)
+              if (r.destination) setDestination(r.destination)
+              if (r.aircraft_type) setTypeCode(r.aircraft_type)
+              if (r.std) setOutTime(r.std)
+              if (r.sta) setInTime(r.sta)
+              if (r.std && r.sta) {
+                const s = hmToMin(r.std)
+                const e = hmToMin(r.sta)
+                setTotalHM(minToHM(((e - s) + 1440) % 1440))
+              }
+            }
+          } else if (hb) {
+            setOrigin((prev) => prev || hb)
+          }
         }
-      } else if (hb) {
-        setOrigin((prev) => prev || hb)
       }
 
       const flights = await getFlights()
@@ -163,9 +278,26 @@ export default function NewFlightPage() {
         if (!cur || f.flight_date > cur) map.set(f.aircraft_reg, f.flight_date)
       }
       lastFlown.current = map
+      initDone.current = true
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 임시저장 — 쓰다가 닫아도 안 사라지게 (비행 중 절반만 쓰고 착륙 후 마저 쓰는 흐름)
+  useEffect(() => {
+    if (!initDone.current || editId) return
+    if (draftTimer.current) clearTimeout(draftTimer.current)
+    draftTimer.current = setTimeout(() => {
+      void setSetting('flightDraft', JSON.stringify(snapshot()))
+    }, 400)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, flightNumber, origin, destination, reg, typeCode, outTime, inTime, totalHM,
+      tkoTime, ldgTime, flightHM, capacity, isPf, nightHM, instHM,
+      dayTO, dayLDG, nightTO, nightLDG, autolands, crewPic, crewSic, remarks, rosterId])
+
+  async function clearDraft() {
+    await setSetting('flightDraft', '')
+  }
 
   function byRecency(a: { registration: string }, b: { registration: string }): number {
     const da = lastFlown.current.get(a.registration) ?? ''
@@ -231,34 +363,6 @@ export default function NewFlightPage() {
     }, 150)
   }
 
-  // OUT/IN 시각이 둘 다 있으면 블록타임 자동 계산 (자정 넘김 처리)
-  useEffect(() => {
-    if (!outTime || !inTime || totalHM) return
-    const o = hmToMin(outTime)
-    const i = hmToMin(inTime)
-    if (o === 0 && i === 0) return
-    let diff = i - o
-    if (diff < 0) diff += 24 * 60
-    if (diff > 0) {
-      setTotalHM(`${Math.floor(diff / 60)}:${String(diff % 60).padStart(2, '0')}`)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outTime, inTime])
-
-  // T/O·LDG 시각이 둘 다 있으면 Flight Time 자동 계산 (자정 넘김 처리)
-  useEffect(() => {
-    if (!tkoTime || !ldgTime || flightHM) return
-    const t = hmToMin(tkoTime)
-    const l = hmToMin(ldgTime)
-    if (t === 0 && l === 0) return
-    let diff = l - t
-    if (diff < 0) diff += 24 * 60
-    if (diff > 0) {
-      setFlightHM(`${Math.floor(diff / 60)}:${String(diff % 60).padStart(2, '0')}`)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tkoTime, ldgTime])
-
   // PF 켜면 이착륙 기본 1회 (전부 0일 때만)
   function togglePf(v: boolean) {
     setIsPf(v)
@@ -271,26 +375,25 @@ export default function NewFlightPage() {
     setError('')
     const totalMin = hmToMin(totalHM)
     if (!date) { setError('날짜를 입력해 주세요.'); return }
-    if (totalMin <= 0) { setError('비행시간을 입력해 주세요. (예: 1:15)'); return }
+    if (totalMin <= 0) { setError('블록타임(총시간)을 입력해 주세요. (예: 1:15)'); return }
     setBusy(true)
 
     const regUp = reg.trim().toUpperCase() || null
     const typeUp = typeCode.trim().toUpperCase() || null
 
-    // 오프라인 우선: 로컬 사본+보낼함에 저장 → 온라인이면 자동 업로드
     if (regUp) {
       await rememberAircraft({ registration: regUp, type_code: typeUp })
     }
 
-    await addFlight({
+    const fields = {
       flight_date: date,
       flight_number: flightNumber.trim() || null,
       origin: origin.trim().toUpperCase() || null,
       destination: destination.trim().toUpperCase() || null,
-      out_time: outTime || null,
-      in_time: inTime || null,
-      takeoff_time: tkoTime || null,
-      landing_time: ldgTime || null,
+      out_time: outTime.trim() || null,
+      in_time: inTime.trim() || null,
+      takeoff_time: tkoTime.trim() || null,
+      landing_time: ldgTime.trim() || null,
       flight_min: hmToMin(flightHM),
       aircraft_reg: regUp,
       aircraft_type: typeUp,
@@ -300,40 +403,64 @@ export default function NewFlightPage() {
       picus_min: capacity === 'PICUS' ? totalMin : 0,
       night_min: hmToMin(nightHM),
       inst_actual_min: hmToMin(instHM),
-      inst_sim_min: 0,
-      xc_min: 0,
       multi_pilot_min: totalMin,
-      dual_received_min: 0,
-      dual_given_min: 0,
-      sim_min: 0,
       day_takeoffs: dayTO,
       day_landings: dayLDG,
       night_takeoffs: nightTO,
       night_landings: nightLDG,
       autolands,
-      go_arounds: 0,
-      holds: 0,
-      approaches: null,
       capacity,
       is_pf: isPf,
       crew_pic: crewPic.trim() || null,
       crew_sic: crewSic.trim() || null,
+      remarks: remarks.trim() || null,
+    }
+
+    if (editId && editOriginal.current) {
+      await updateFlight({ ...editOriginal.current, ...fields })
+      setBusy(false)
+      router.push('/logbook')
+      return
+    }
+
+    await addFlight({
+      ...fields,
+      inst_sim_min: 0,
+      xc_min: 0,
+      dual_received_min: 0,
+      dual_given_min: 0,
+      sim_min: 0,
+      go_arounds: 0,
+      holds: 0,
+      approaches: null,
       crew_other: null,
       pax_count: null,
       distance_nm: null,
-      remarks: remarks.trim() || null,
       source: 'manual',
     })
     if (rosterId) await updateRosterStatus(rosterId, 'logged')
+    await clearDraft()
     setBusy(false)
     router.push(rosterId ? '/' : '/logbook')
+  }
+
+  async function discardDraft() {
+    await clearDraft()
+    window.location.href = '/flights/new'
   }
 
   const inputCls = 'mt-1 w-full rounded-xl border border-ink-line bg-white px-3 py-2.5 outline-none focus:border-air-400'
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
-      <h1 className="mb-4 text-xl font-bold">비행 기록</h1>
+      <h1 className="mb-2 text-xl font-bold">{editId ? '비행 수정' : '비행 기록'}</h1>
+
+      {draftRestored && !editId && (
+        <div className="mb-3 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <span>✍️ 쓰다 만 내용을 불러왔어요 (자동 임시저장)</span>
+          <button onClick={discardDraft} className="font-semibold underline">비우기</button>
+        </div>
+      )}
 
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -418,20 +545,29 @@ export default function NewFlightPage() {
           <div>
             <label className="text-xs font-medium text-ink-sub">OUT (UTC)</label>
             <input value={outTime} onChange={(e) => setOutTime(e.target.value)}
-              onBlur={() => tidyClock(outTime, setOutTime)} placeholder="09:30"
-              inputMode="numeric" className={inputCls + ' font-mono'} />
+              onBlur={() => {
+                tidyClock(outTime, setOutTime)
+                linkTimes('start', outTime, inTime, totalHM, setOutTime, setInTime, setTotalHM)
+              }}
+              placeholder="09:30" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
             <label className="text-xs font-medium text-ink-sub">IN (UTC)</label>
             <input value={inTime} onChange={(e) => setInTime(e.target.value)}
-              onBlur={() => tidyClock(inTime, setInTime)} placeholder="10:45"
-              inputMode="numeric" className={inputCls + ' font-mono'} />
+              onBlur={() => {
+                tidyClock(inTime, setInTime)
+                linkTimes('end', outTime, inTime, totalHM, setOutTime, setInTime, setTotalHM)
+              }}
+              placeholder="11:30" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
             <label className="text-xs font-medium text-ink-sub">블록타임 (총시간)</label>
             <input value={totalHM} onChange={(e) => setTotalHM(e.target.value)}
-              onBlur={() => tidyDuration(totalHM, setTotalHM)} placeholder="1:15"
-              inputMode="numeric" className={inputCls + ' font-mono font-semibold'} />
+              onBlur={() => {
+                tidyDuration(totalHM, setTotalHM)
+                linkTimes('dur', outTime, inTime, totalHM, setOutTime, setInTime, setTotalHM)
+              }}
+              placeholder="1:30" inputMode="numeric" className={inputCls + ' font-mono font-semibold'} />
           </div>
         </div>
 
@@ -439,20 +575,29 @@ export default function NewFlightPage() {
           <div>
             <label className="text-xs font-medium text-ink-sub">T/O (UTC)</label>
             <input value={tkoTime} onChange={(e) => setTkoTime(e.target.value)}
-              onBlur={() => tidyClock(tkoTime, setTkoTime)} placeholder="09:42"
-              inputMode="numeric" className={inputCls + ' font-mono'} />
+              onBlur={() => {
+                tidyClock(tkoTime, setTkoTime)
+                linkTimes('start', tkoTime, ldgTime, flightHM, setTkoTime, setLdgTime, setFlightHM)
+              }}
+              placeholder="09:42" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
             <label className="text-xs font-medium text-ink-sub">LDG (UTC)</label>
             <input value={ldgTime} onChange={(e) => setLdgTime(e.target.value)}
-              onBlur={() => tidyClock(ldgTime, setLdgTime)} placeholder="10:38"
-              inputMode="numeric" className={inputCls + ' font-mono'} />
+              onBlur={() => {
+                tidyClock(ldgTime, setLdgTime)
+                linkTimes('end', tkoTime, ldgTime, flightHM, setTkoTime, setLdgTime, setFlightHM)
+              }}
+              placeholder="11:18" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
             <label className="text-xs font-medium text-ink-sub">Flight Time</label>
             <input value={flightHM} onChange={(e) => setFlightHM(e.target.value)}
-              onBlur={() => tidyDuration(flightHM, setFlightHM)} placeholder="0:56"
-              inputMode="numeric" className={inputCls + ' font-mono'} />
+              onBlur={() => {
+                tidyDuration(flightHM, setFlightHM)
+                linkTimes('dur', tkoTime, ldgTime, flightHM, setTkoTime, setLdgTime, setFlightHM)
+              }}
+              placeholder="1:36" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
         </div>
 
@@ -523,7 +668,7 @@ export default function NewFlightPage() {
           onClick={save} disabled={busy}
           className="w-full rounded-xl bg-air-600 py-3.5 text-lg font-bold text-white disabled:opacity-50"
         >
-          {busy ? '저장 중…' : '저장'}
+          {busy ? '저장 중…' : editId ? '수정 저장' : '저장'}
         </button>
       </div>
 

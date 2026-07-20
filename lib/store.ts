@@ -95,6 +95,10 @@ export async function getFlights(): Promise<Flight[]> {
   return rows.filter((f) => !f.deleted)
 }
 
+export async function getFlight(id: string): Promise<Flight | undefined> {
+  return idbGet<Flight>('flights', id)
+}
+
 export async function getAircraftList(): Promise<AircraftRow[]> {
   return idbGetAll<AircraftRow>('aircraft')
 }
@@ -257,6 +261,16 @@ export async function sync(): Promise<boolean> {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return false
+
+    // 계정 전환 안전장치: 다른 계정으로 로그인하면 이전 계정의 로컬 사본을 비운다
+    // (이전 계정 기록이 새 계정 화면·서버에 섞이는 사고 방지)
+    const owner = await idbGet<{ k: string; v: string }>('meta', 'ownerUserId')
+    if (owner?.v && owner.v !== user.id) {
+      for (const s of ['flights', 'aircraft', 'roster', 'people', 'airport_notes', 'outbox', 'meta']) {
+        await idbClear(s)
+      }
+    }
+    await idbPut('meta', { k: 'ownerUserId', v: user.id })
 
     // 1) outbox 밀어올리기 — 항목별 독립 처리 (하나 실패해도 나머지·pull은 계속)
     const outbox = await idbGetAll<OutboxItem>('outbox')

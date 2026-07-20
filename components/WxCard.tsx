@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, X } from 'lucide-react'
 import { getCachedWx, fetchWx, wxAge, type WxRow } from '@/lib/wx'
 
 // METAR/TAF 카드 — 저장본 먼저 보여주고, 온라인이면 새로 받아 갱신.
 // 받은 것은 영구 보관되어 오프라인·다음 날에도 계속 보인다.
-export default function WxCard({ ident }: { ident: string }) {
+export default function WxCard({ ident, onClose }: { ident: string; onClose?: () => void }) {
   const [row, setRow] = useState<WxRow | null>(null)
   const [busy, setBusy] = useState(false)
   const [tried, setTried] = useState(false)
@@ -43,15 +43,22 @@ export default function WxCard({ ident }: { ident: string }) {
         <h2 className="font-semibold">
           {ident.toUpperCase()} 날씨 <span className="text-xs font-normal text-ink-hint">METAR / TAF</span>
         </h2>
-        <button
-          type="button"
-          onClick={refresh}
-          disabled={busy}
-          aria-label="새로고침"
-          className="p-1 text-ink-hint disabled:opacity-40"
-        >
-          <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={busy}
+            aria-label="새로고침"
+            className="p-1 text-ink-hint disabled:opacity-40"
+          >
+            <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
+          </button>
+          {onClose && (
+            <button type="button" onClick={onClose} aria-label="카드 닫기" className="p-1 text-ink-hint hover:text-red-500">
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {!row ? (

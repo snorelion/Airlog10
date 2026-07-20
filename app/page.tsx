@@ -6,7 +6,7 @@ import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, get
 import WxCard from '@/components/WxCard'
 import { computeTotals, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
-import { Settings as SettingsIcon } from 'lucide-react'
+import { Settings as SettingsIcon, Users } from 'lucide-react'
 import Nav from '@/components/Nav'
 
 export default function HomePage() {
@@ -17,7 +17,7 @@ export default function HomePage() {
   const [expiries, setExpiries] = useState<{ label: string; date: string; dday: number }[]>([])
   const [rosterCard, setRosterCard] = useState<{ label: string; flights: RosterFlight[] } | null>(null)
   const [homeBase, setHomeBase] = useState('')
-  const [wxIdent, setWxIdent] = useState('')
+  const [wxList, setWxList] = useState<string[]>([])
   const [wxQuery, setWxQuery] = useState('')
   const [loaded, setLoaded] = useState(false)
 
@@ -49,8 +49,17 @@ export default function HomePage() {
     }
     items.sort((a, b) => a.dday - b.dday)
     setExpiries(items)
-    setHomeBase(((await getSetting('homeBase')) ?? '').toUpperCase())
-    setWxIdent(((await getSetting('lastWxIdent')) ?? '').toUpperCase())
+    const hb = ((await getSetting('homeBase')) ?? '').toUpperCase()
+    setHomeBase(hb)
+    // 날씨 공항 목록 — 없으면 홈베이스(+예전 마지막 조회)로 시작
+    let list: string[] = []
+    try { list = JSON.parse((await getSetting('wxIdents')) || '[]') } catch {}
+    if (!list.length) {
+      const legacy = ((await getSetting('lastWxIdent')) ?? '').toUpperCase()
+      list = Array.from(new Set([hb, legacy].filter(Boolean)))
+      if (list.length) await setSetting('wxIdents', JSON.stringify(list))
+    }
+    setWxList(list)
 
     // 로스터 — 오늘(또는 다음 비행일)의 예정 비행
     const roster = await getRosterFlights()
@@ -93,6 +102,9 @@ export default function HomePage() {
               업로드 대기 {pending}
             </span>
           )}
+          <Link href="/people" aria-label="크루" className="p-1 text-ink-hint">
+            <Users size={20} />
+          </Link>
           <Link href="/settings" aria-label="설정" className="p-1 text-ink-hint">
             <SettingsIcon size={20} />
           </Link>
@@ -201,8 +213,11 @@ export default function HomePage() {
                   e.preventDefault()
                   const id = wxQuery.trim().toUpperCase()
                   if (id.length >= 3) {
-                    setWxIdent(id)
-                    void setSetting('lastWxIdent', id)
+                    setWxList((prev) => {
+                      const next = [id, ...prev.filter((x) => x !== id)]
+                      void setSetting('wxIdents', JSON.stringify(next))
+                      return next
+                    })
                     setWxQuery('')
                   }
                 }}
@@ -221,11 +236,22 @@ export default function HomePage() {
                 </button>
               </form>
             </div>
-            {homeBase && <WxCard ident={homeBase} />}
-            {wxIdent && wxIdent !== homeBase && <WxCard ident={wxIdent} />}
-            {!homeBase && !wxIdent && (
+            {wxList.map((id) => (
+              <WxCard
+                key={id}
+                ident={id}
+                onClose={() => {
+                  setWxList((prev) => {
+                    const next = prev.filter((x) => x !== id)
+                    void setSetting('wxIdents', JSON.stringify(next))
+                    return next
+                  })
+                }}
+              />
+            ))}
+            {wxList.length === 0 && (
               <p className="rounded-2xl border border-ink-line bg-white p-4 text-sm text-ink-sub">
-                ⚙️ 설정에서 홈베이스를 넣으면 그 공항 날씨가 여기 자동으로 떠요. 다른 공항은 위에 ICAO로 조회!
+                위 ICAO 칸에 공항 코드를 넣고 조회하면 날씨 카드가 쌓여요. (여러 공항 가능, ✕로 닫기)
               </p>
             )}
           </div>

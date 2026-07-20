@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { getFlights, deleteFlight, sync, onStoreChange, type Flight } from '@/lib/store'
 import { minToHMGrouped } from '@/lib/time'
 import { Trash2 } from 'lucide-react'
@@ -10,6 +11,7 @@ import Nav from '@/components/Nav'
 const PAGE_SIZE = 50
 
 export default function LogbookPage() {
+  const router = useRouter()
   const [flights, setFlights] = useState<Flight[]>([])
   const [page, setPage] = useState(1)
   const [loaded, setLoaded] = useState(false)
@@ -53,6 +55,13 @@ export default function LogbookPage() {
         </Link>
       )}
 
+      {zeroCount > 0 && (
+        <Link href="/logbook/fix"
+          className="mb-3 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">
+          ⏱️ 시간이 비어 있는 기록 {zeroCount}건 — 정리하러 가기 →
+        </Link>
+      )}
+
       {!loaded ? (
         <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>
       ) : rows.length === 0 ? (
@@ -63,7 +72,8 @@ export default function LogbookPage() {
       ) : (
         <div className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-white">
           {rows.map((f) => (
-            <div key={f.id} className="px-4 py-3">
+            <div key={f.id} className="cursor-pointer px-4 py-3"
+              onClick={() => router.push(`/flights/new?edit=${f.id}`)}>
               <div className="flex items-center justify-between">
                 <p className="font-semibold">
                   {f.origin ?? '?'} → {f.destination ?? '?'}
@@ -76,7 +86,8 @@ export default function LogbookPage() {
                   <button
                     type="button"
                     aria-label="기록 삭제"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation()
                       if (window.confirm(`${f.flight_date} ${f.origin ?? '?'}→${f.destination ?? '?'} 기록을 삭제할까요?`)) {
                         void deleteFlight(f.id)
                       }

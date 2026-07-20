@@ -34,8 +34,22 @@ export default function SettingsPage() {
   const [mailBusy, setMailBusy] = useState(false)
   const [mailMsg, setMailMsg] = useState('')
   const [theme, setTheme] = useState<Theme>('system')
+  const [lim, setLim] = useState({ l28: '100', l90: '270', l365: '1000' })
 
-  useEffect(() => { setTheme(readTheme()) }, [])
+  useEffect(() => {
+    setTheme(readTheme())
+    void (async () => {
+      setLim({
+        l28: (await getSetting('limit28')) || '100',
+        l90: (await getSetting('limit90')) || '270',
+        l365: (await getSetting('limit365')) || '1000',
+      })
+    })()
+  }, [])
+
+  function saveLimit(key: 'limit28' | 'limit90' | 'limit365', v: string) {
+    void setSetting(key, v.replace(/[^0-9]/g, ''))
+  }
 
   function changeTheme(t: Theme) {
     setTheme(t)
@@ -228,6 +242,29 @@ export default function SettingsPage() {
               <label className={labelCls}>리커런트 (시뮬레이터)</label>
               <input type="date" value={v.recurrentExpiry ?? ''} onChange={(e) => set('recurrentExpiry', e.target.value)} className={inputCls} />
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
+          <h2 className="font-semibold">비행시간 한도 (시간)</h2>
+          <p className="mt-1 text-xs text-app-hint">홈의 리밋 게이지 기준이에요. 회사 규정에 맞게 조정하세요.</p>
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            {([
+              ['l28', 'limit28', '28일'],
+              ['l90', 'limit90', '90일'],
+              ['l365', 'limit365', '12개월'],
+            ] as const).map(([sk, key, label]) => (
+              <div key={key}>
+                <label className={labelCls}>{label}</label>
+                <input
+                  value={lim[sk]}
+                  inputMode="numeric"
+                  onChange={(e) => setLim((prev) => ({ ...prev, [sk]: e.target.value }))}
+                  onBlur={(e) => saveLimit(key, e.target.value)}
+                  className={inputCls + ' text-center font-mono'}
+                />
+              </div>
+            ))}
           </div>
         </div>
 

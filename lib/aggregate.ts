@@ -69,6 +69,34 @@ export function computeTopAirports(flights: Flight[], limit = 15): { ident: stri
     .slice(0, limit)
 }
 
+// 최근 N일 굴러가는 창의 블록타임 합 (리밋 감시용)
+export function windowTotalMin(flights: Flight[], days: number, todayStr: string): number {
+  const from = new Date(todayStr + 'T00:00:00')
+  from.setDate(from.getDate() - days + 1)
+  const fromStr = from.toLocaleDateString('en-CA')
+  let sum = 0
+  for (const f of flights) {
+    if (f.flight_date >= fromStr && f.flight_date <= todayStr) sum += f.total_min
+  }
+  return sum
+}
+
+// 기량유지: 최근 90일 이착륙 횟수
+export function currency90(flights: Flight[], todayStr: string): { takeoffs: number; landings: number } {
+  const from = new Date(todayStr + 'T00:00:00')
+  from.setDate(from.getDate() - 89)
+  const fromStr = from.toLocaleDateString('en-CA')
+  let takeoffs = 0
+  let landings = 0
+  for (const f of flights) {
+    if (f.flight_date >= fromStr && f.flight_date <= todayStr) {
+      takeoffs += f.day_takeoffs + f.night_takeoffs
+      landings += f.day_landings + f.night_landings
+    }
+  }
+  return { takeoffs, landings }
+}
+
 // 시간순 정렬 (장부·목록 공용): 날짜 → 생성시각 → id
 export function sortChrono(flights: Flight[]): Flight[] {
   return [...flights].sort((a, b) =>

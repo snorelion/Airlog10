@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, getRosterFlights, sync, onStoreChange, type Flight, type RosterFlight } from '@/lib/store'
 import WxCard from '@/components/WxCard'
-import { computeTotals, type Totals } from '@/lib/aggregate'
+import { computeTotals, windowTotalMin, currency90, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
 import { Settings as SettingsIcon, Users } from 'lucide-react'
 import Nav from '@/components/Nav'
@@ -16,6 +16,8 @@ export default function HomePage() {
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [expiries, setExpiries] = useState<{ label: string; date: string; dday: number }[]>([])
   const [rosterCard, setRosterCard] = useState<{ label: string; flights: RosterFlight[] } | null>(null)
+  const [limits, setLimits] = useState<{ label: string; used: number; cap: number }[]>([])
+  const [curr, setCurr] = useState<{ takeoffs: number; landings: number } | null>(null)
   const [homeBase, setHomeBase] = useState('')
   const [wxList, setWxList] = useState<string[]>([])
   const [wxQuery, setWxQuery] = useState('')
@@ -49,6 +51,18 @@ export default function HomePage() {
     }
     items.sort((a, b) => a.dday - b.dday)
     setExpiries(items)
+
+    // 리밋 게이지 (기본 한도: 28일 100h / 90일 270h / 12개월 1,000h — 설정에서 변경)
+    const todayLocal = new Date().toLocaleDateString('en-CA')
+    const lim28 = parseInt((await getSetting('limit28')) || '100', 10)
+    const lim90 = parseInt((await getSetting('limit90')) || '270', 10)
+    const lim365 = parseInt((await getSetting('limit365')) || '1000', 10)
+    setLimits([
+      { label: '28일', used: windowTotalMin(flights, 28, todayLocal), cap: lim28 * 60 },
+      { label: '90일', used: windowTotalMin(flights, 90, todayLocal), cap: lim90 * 60 },
+      { label: '12개월', used: windowTotalMin(flights, 365, todayLocal), cap: lim365 * 60 },
+    ])
+    setCurr(currency90(flights, todayLocal))
     const hb = ((await getSetting('homeBase')) ?? '').toUpperCase()
     setHomeBase(hb)
     // 날씨 공항 목록 — 없으면 홈베이스(+예전 마지막 조회)로 시작
@@ -202,6 +216,39 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {limits.length > 0 && (
+            <div className="mt-3 rounded-2xl border border-app-line bg-app-surface p-4">
+              <h2 className="text-sm font-semibold text-app-sub">비행시간 리밋 · 기량유지</h2>
+              <div className="mt-2 space-y-2">
+                {limits.map((l) => {
+                  const pct = l.cap > 0 ? (l.used / l.cap) * 100 : 0
+                  const barColor = pct >= 95 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-app-btn'
+                  return (
+                    <div key={l.label} className="flex items-center gap-2">
+                      <span className="w-14 text-xs font-medium text-app-sub">{l.label}</span>
+                      <div className="h-3 flex-1 overflow-hidden rounded-full bg-app-bg">
+                        <div className={'h-full rounded-full ' + barColor} style={{ width: `${Math.min(100, pct)}%` }} />
+                      </div>
+                      <span className="w-32 text-right text-xs tabular-nums text-app-sub">
+                        {minToHMGrouped(l.used)} / {minToHMGrouped(l.cap)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              {curr && (
+                <p className="mt-3 text-xs text-app-hint">
+                  최근 90일 이륙 <b className="text-app-text">{curr.takeoffs}</b> · 착륙 <b className="text-app-text">{curr.landings}</b>{' '}
+                  {curr.takeoffs >= 3 && curr.landings >= 3 ? (
+                    <span className="font-semibold text-green-600 dark:text-green-400">✓ 기량유지 충족 (3회 이상)</span>
+                  ) : (
+                    <span className="font-semibold text-red-600 dark:text-red-400">⚠️ 90일 3회 미달 — 확인 필요</span>
+                  )}
+                </p>
+              )}
             </div>
           )}
 

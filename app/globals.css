@@ -2,12 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* 표면 색 변수 — 라이트 기본값. .dark가 같은 이름을 덮어써서 뒤집힌다 (BJJ-log 패턴).
+     채널값(R G B)으로 두는 이유: 이래야 bg-app-surface/70 같은 투명도가 동작한다. */
+  :root {
+    color-scheme: light;
+    --app-bg-rgb: 249 250 251;      /* 화면 배경 */
+    --app-surface-rgb: 255 255 255; /* 카드·시트 */
+    --app-line-rgb: 229 231 235;    /* 테두리 */
+    --app-text-rgb: 17 24 39;       /* 본문 */
+    --app-sub-rgb: 75 85 99;        /* 보조 */
+    --app-hint-rgb: 156 163 175;    /* 힌트·비활성 */
+    --app-accent-rgb: 27 94 158;    /* 브랜드 파랑 (air-600) */
+    --app-btn-rgb: 27 94 158;       /* 꽉 찬 파랑 버튼 */
+    --app-accent-soft-rgb: 237 245 252; /* 파랑 틴트 (air-50) */
+  }
+  /* 나이트 — 순검정이 아닌 짙은 남색 계열 (눈부심 덜하고 브랜드와 한 가족) */
+  .dark {
+    color-scheme: dark;
+    --app-bg-rgb: 11 18 32;
+    --app-surface-rgb: 19 28 46;
+    --app-line-rgb: 36 48 74;
+    --app-text-rgb: 232 237 245;
+    --app-sub-rgb: 167 180 202;
+    --app-hint-rgb: 107 122 147;
+    --app-accent-rgb: 107 166 232;  /* 어두운 배경 위에서도 또렷한 파랑 */
+    --app-btn-rgb: 28 113 196;      /* 버튼 대비 확보 */
+    --app-accent-soft-rgb: 27 51 80;
+  }
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
 
 body {
-  @apply bg-ink-bg text-ink-body;
+  @apply bg-app-bg text-app-text;
   /* 한국어 단어 중간 줄바꿈 방지 */
   word-break: keep-all;
 }

@@ -36,6 +36,11 @@ function fmtClock(m: number): string {
   return `${String(Math.floor(mm / 60)).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`
 }
 
+// 로스터 시각은 '베이스 로컬'(방콕 UTC+7) — 로그북의 OUT/IN 칸은 UTC라 변환해서 넣는다
+function localBaseToUtc(hm: string): string {
+  return fmtClock(hmToMin(hm) - 420)
+}
+
 // 시각·시각·시간 3칸 연동 — 어느 칸을 고치든 나머지가 맞게 계산된다
 //  start+end → dur / start+dur → end / end+dur → start (자정 넘김 처리)
 function linkTimes(
@@ -88,7 +93,7 @@ function AirportField({
 
   return (
     <div className="relative">
-      <label className="text-xs font-medium text-ink-sub">{label}</label>
+      <label className="text-xs font-medium text-app-sub">{label}</label>
       <input
         value={value}
         onChange={(e) => search(e.target.value)}
@@ -97,20 +102,20 @@ function AirportField({
         placeholder="ICAO/IATA"
         autoCapitalize="characters"
         autoCorrect="off"
-        className="mt-1 w-full rounded-xl border border-ink-line bg-white px-3 py-2.5 font-mono uppercase outline-none focus:border-air-400"
+        className="mt-1 w-full rounded-xl border border-app-line bg-app-surface px-3 py-2.5 font-mono uppercase outline-none focus:border-air-400"
       />
       {open && hits.length > 0 && (
-        <div className="absolute z-30 mt-1 w-72 max-w-[80vw] overflow-hidden rounded-xl border border-ink-line bg-white shadow-lg">
+        <div className="absolute z-30 mt-1 w-72 max-w-[80vw] overflow-hidden rounded-xl border border-app-line bg-app-surface shadow-lg">
           {hits.map((h) => (
             <button
               type="button"
               key={h.ident}
               onMouseDown={() => { onChange(h.ident); setOpen(false) }}
-              className="block w-full px-3 py-2 text-left text-sm hover:bg-air-50"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-app-accent-soft"
             >
               <span className="font-mono font-semibold">{h.ident}</span>
-              {h.iata && <span className="ml-1 text-ink-hint">({h.iata})</span>}
-              <span className="ml-2 text-ink-sub">{h.name ?? h.municipality ?? ''}</span>
+              {h.iata && <span className="ml-1 text-app-hint">({h.iata})</span>}
+              <span className="ml-2 text-app-sub">{h.name ?? h.municipality ?? ''}</span>
             </button>
           ))}
         </div>
@@ -270,8 +275,8 @@ export default function NewFlightPage() {
               if (r.origin) setOrigin(r.origin)
               if (r.destination) setDestination(r.destination)
               if (r.aircraft_type) setTypeCode(r.aircraft_type)
-              if (r.std) setOutTime(r.std)
-              if (r.sta) setInTime(r.sta)
+              if (r.std) setOutTime(localBaseToUtc(r.std))
+              if (r.sta) setInTime(localBaseToUtc(r.sta))
               if (r.std && r.sta) {
                 const s = hmToMin(r.std)
                 const e = hmToMin(r.sta)
@@ -306,6 +311,7 @@ export default function NewFlightPage() {
       // 빈 폼은 저장하지 않는다 (다음 방문의 이름·역할 프리필을 막지 않게)
       void setSetting('flightDraft', draftMeaningful(snap) ? JSON.stringify(snap) : '')
     }, 400)
+    return () => { if (draftTimer.current) clearTimeout(draftTimer.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, flightNumber, origin, destination, reg, typeCode, outTime, inTime, totalHM,
       tkoTime, ldgTime, flightHM, capacity, isPf, nightHM, instHM,
@@ -433,7 +439,28 @@ export default function NewFlightPage() {
     }
 
     if (editId && editOriginal.current) {
-      await updateFlight({ ...editOriginal.current, ...fields })
+      if (draftTimer.current) clearTimeout(draftTimer.current)
+      // 임포트된 기록 보호: 역할·총시간을 실제로 바꾼 경우에만 PIC/SIC/PICUS·멀티 시간을
+      // 다시 계산한다. (메모만 고쳤는데 PIC 시간이 0이 되는 사고 방지)
+      const orig = editOriginal.current
+      const roleOrTimeChanged =
+        capacity !== (orig.capacity ?? 'SIC') || totalMin !== orig.total_min
+      const mins = roleOrTimeChanged
+        ? {
+            pic_min: capacity === 'PIC' ? totalMin : 0,
+            sic_min: capacity === 'SIC' ? totalMin : 0,
+            picus_min: capacity === 'PICUS' ? totalMin : 0,
+            multi_pilot_min: totalMin,
+            capacity,
+          }
+        : {
+            pic_min: orig.pic_min,
+            sic_min: orig.sic_min,
+            picus_min: orig.picus_min,
+            multi_pilot_min: orig.multi_pilot_min,
+            capacity: orig.capacity,
+          }
+      await updateFlight({ ...orig, ...fields, ...mins })
       setBusy(false)
       router.push('/logbook')
       return
@@ -455,24 +482,27 @@ export default function NewFlightPage() {
       source: 'manual',
     })
     if (rosterId) await updateRosterStatus(rosterId, 'logged')
+    // blur가 막 예약해 둔 임시저장 타이머까지 지워야 저장 후 draft가 되살아나지 않는다
+    if (draftTimer.current) clearTimeout(draftTimer.current)
     await clearDraft()
     setBusy(false)
     router.push(rosterId ? '/' : '/logbook')
   }
 
   async function discardDraft() {
+    if (draftTimer.current) clearTimeout(draftTimer.current)
     await clearDraft()
     window.location.href = '/flights/new'
   }
 
-  const inputCls = 'mt-1 w-full rounded-xl border border-ink-line bg-white px-3 py-2.5 outline-none focus:border-air-400'
+  const inputCls = 'mt-1 w-full rounded-xl border border-app-line bg-app-surface px-3 py-2.5 outline-none focus:border-air-400'
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
       <h1 className="mb-2 text-xl font-bold">{editId ? '비행 수정' : '비행 기록'}</h1>
 
       {draftRestored && !editId && (
-        <div className="mb-3 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div className="mb-3 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/25 dark:text-amber-200">
           <span>✍️ 쓰다 만 내용을 불러왔어요 (자동 임시저장)</span>
           <button onClick={discardDraft} className="font-semibold underline">비우기</button>
         </div>
@@ -481,11 +511,11 @@ export default function NewFlightPage() {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium text-ink-sub">날짜</label>
+            <label className="text-xs font-medium text-app-sub">날짜</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className="text-xs font-medium text-ink-sub">편명</label>
+            <label className="text-xs font-medium text-app-sub">편명</label>
             <input value={flightNumber} onChange={(e) => setFlightNumber(e.target.value.toUpperCase())}
               placeholder="SL501" autoCapitalize="characters" className={inputCls + ' font-mono uppercase'} />
           </div>
@@ -498,7 +528,7 @@ export default function NewFlightPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="relative">
-            <label className="text-xs font-medium text-ink-sub">기체 등록번호</label>
+            <label className="text-xs font-medium text-app-sub">기체 등록번호</label>
             <input
               value={reg}
               onChange={(e) => searchReg(e.target.value)}
@@ -508,7 +538,7 @@ export default function NewFlightPage() {
               className={inputCls + ' font-mono uppercase'}
             />
             {regOpen && regHits.length > 0 && (
-              <div className="absolute z-30 mt-1 w-56 overflow-hidden rounded-xl border border-ink-line bg-white shadow-lg">
+              <div className="absolute z-30 mt-1 w-56 overflow-hidden rounded-xl border border-app-line bg-app-surface shadow-lg">
                 {regHits.map((h) => (
                   <button
                     type="button" key={h.registration}
@@ -517,17 +547,17 @@ export default function NewFlightPage() {
                       if (h.type_code) setTypeCode(h.type_code)
                       setRegOpen(false)
                     }}
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-air-50"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-app-accent-soft"
                   >
                     <span className="font-mono font-semibold">{h.registration}</span>
-                    {h.type_code && <span className="ml-2 text-ink-sub">{h.type_code}</span>}
+                    {h.type_code && <span className="ml-2 text-app-sub">{h.type_code}</span>}
                   </button>
                 ))}
               </div>
             )}
           </div>
           <div className="relative">
-            <label className="text-xs font-medium text-ink-sub">기종</label>
+            <label className="text-xs font-medium text-app-sub">기종</label>
             <input
               value={typeCode}
               onChange={(e) => searchType(e.target.value)}
@@ -537,7 +567,7 @@ export default function NewFlightPage() {
               className={inputCls + ' font-mono uppercase'}
             />
             {typeOpen && typeHits.length > 0 && (
-              <div className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-xl border border-ink-line bg-white shadow-lg">
+              <div className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-xl border border-app-line bg-app-surface shadow-lg">
                 {typeHits.map((h) => (
                   <button
                     type="button" key={h.registration}
@@ -546,10 +576,10 @@ export default function NewFlightPage() {
                       if (h.type_code) setTypeCode(h.type_code)
                       setTypeOpen(false)
                     }}
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-air-50"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-app-accent-soft"
                   >
                     <span className="font-mono font-semibold">{h.registration}</span>
-                    {h.type_code && <span className="ml-2 text-ink-sub">{h.type_code}</span>}
+                    {h.type_code && <span className="ml-2 text-app-sub">{h.type_code}</span>}
                   </button>
                 ))}
               </div>
@@ -559,7 +589,7 @@ export default function NewFlightPage() {
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs font-medium text-ink-sub">OUT (UTC)</label>
+            <label className="text-xs font-medium text-app-sub">OUT (UTC)</label>
             <input value={outTime} onChange={(e) => setOutTime(e.target.value)}
               onBlur={() => {
                 tidyClock(outTime, setOutTime)
@@ -568,7 +598,7 @@ export default function NewFlightPage() {
               placeholder="09:30" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
-            <label className="text-xs font-medium text-ink-sub">IN (UTC)</label>
+            <label className="text-xs font-medium text-app-sub">IN (UTC)</label>
             <input value={inTime} onChange={(e) => setInTime(e.target.value)}
               onBlur={() => {
                 tidyClock(inTime, setInTime)
@@ -577,7 +607,7 @@ export default function NewFlightPage() {
               placeholder="11:30" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
-            <label className="text-xs font-medium text-ink-sub">블록타임 (총시간)</label>
+            <label className="text-xs font-medium text-app-sub">블록타임 (총시간)</label>
             <input value={totalHM} onChange={(e) => setTotalHM(e.target.value)}
               onBlur={() => {
                 tidyDuration(totalHM, setTotalHM)
@@ -589,7 +619,7 @@ export default function NewFlightPage() {
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs font-medium text-ink-sub">T/O (UTC)</label>
+            <label className="text-xs font-medium text-app-sub">T/O (UTC)</label>
             <input value={tkoTime} onChange={(e) => setTkoTime(e.target.value)}
               onBlur={() => {
                 tidyClock(tkoTime, setTkoTime)
@@ -598,7 +628,7 @@ export default function NewFlightPage() {
               placeholder="09:42" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
-            <label className="text-xs font-medium text-ink-sub">LDG (UTC)</label>
+            <label className="text-xs font-medium text-app-sub">LDG (UTC)</label>
             <input value={ldgTime} onChange={(e) => setLdgTime(e.target.value)}
               onBlur={() => {
                 tidyClock(ldgTime, setLdgTime)
@@ -607,7 +637,7 @@ export default function NewFlightPage() {
               placeholder="11:18" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
-            <label className="text-xs font-medium text-ink-sub">Flight Time</label>
+            <label className="text-xs font-medium text-app-sub">Flight Time</label>
             <input value={flightHM} onChange={(e) => setFlightHM(e.target.value)}
               onBlur={() => {
                 tidyDuration(flightHM, setFlightHM)
@@ -617,7 +647,7 @@ export default function NewFlightPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-ink-line bg-white p-4">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <div className="flex items-center justify-between">
             <div className="flex gap-1">
               {['PIC', 'SIC', 'PICUS'].map((cp) => (
@@ -625,7 +655,7 @@ export default function NewFlightPage() {
                   key={cp} type="button" onClick={() => changeCapacity(cp)}
                   className={
                     'rounded-lg px-3 py-1.5 text-sm font-semibold ' +
-                    (capacity === cp ? 'bg-air-600 text-white' : 'bg-ink-bg text-ink-sub')
+                    (capacity === cp ? 'bg-app-btn text-white' : 'bg-app-bg text-app-sub')
                   }
                 >
                   {cp}
@@ -641,13 +671,13 @@ export default function NewFlightPage() {
 
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-ink-sub">야간</label>
+              <label className="text-xs font-medium text-app-sub">야간</label>
               <input value={nightHM} onChange={(e) => setNightHM(e.target.value)}
                 onBlur={() => tidyDuration(nightHM, setNightHM)} placeholder="0:00"
                 inputMode="numeric" className={inputCls + ' font-mono'} />
             </div>
             <div>
-              <label className="text-xs font-medium text-ink-sub">실계기</label>
+              <label className="text-xs font-medium text-app-sub">실계기</label>
               <input value={instHM} onChange={(e) => setInstHM(e.target.value)}
                 onBlur={() => tidyDuration(instHM, setInstHM)} placeholder="0:00"
                 inputMode="numeric" className={inputCls + ' font-mono'} />
@@ -665,24 +695,24 @@ export default function NewFlightPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium text-ink-sub">기장 (PIC)</label>
+            <label className="text-xs font-medium text-app-sub">기장 (PIC)</label>
             <input value={crewPic} onChange={(e) => setCrewPic(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className="text-xs font-medium text-ink-sub">부기장 (SIC)</label>
+            <label className="text-xs font-medium text-app-sub">부기장 (SIC)</label>
             <input value={crewSic} onChange={(e) => setCrewSic(e.target.value)} className={inputCls} />
           </div>
         </div>
 
         <div>
-          <label className="text-xs font-medium text-ink-sub">메모</label>
+          <label className="text-xs font-medium text-app-sub">메모</label>
           <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={2} className={inputCls} />
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           onClick={save} disabled={busy}
-          className="w-full rounded-xl bg-air-600 py-3.5 text-lg font-bold text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-app-btn py-3.5 text-lg font-bold text-white disabled:opacity-50"
         >
           {busy ? '저장 중…' : editId ? '수정 저장' : '저장'}
         </button>
@@ -695,12 +725,12 @@ export default function NewFlightPage() {
 
 function Counter({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
   return (
-    <div className="rounded-xl bg-ink-bg p-2 text-center">
-      <p className="text-[10px] text-ink-hint">{label}</p>
+    <div className="rounded-xl bg-app-bg p-2 text-center">
+      <p className="text-[10px] text-app-hint">{label}</p>
       <div className="mt-1 flex items-center justify-between">
-        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="px-1 text-lg text-ink-sub">−</button>
+        <button type="button" onClick={() => onChange(Math.max(0, value - 1))} className="px-1 text-lg text-app-sub">−</button>
         <span className="font-bold tabular-nums">{value}</span>
-        <button type="button" onClick={() => onChange(value + 1)} className="px-1 text-lg text-ink-sub">＋</button>
+        <button type="button" onClick={() => onChange(value + 1)} className="px-1 text-lg text-app-sub">＋</button>
       </div>
     </div>
   )

@@ -93,40 +93,40 @@ export default function HomePage() {
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <header className="mb-5 flex items-center justify-between">
-        <div className="text-2xl font-extrabold tracking-tight text-air-800">
+        <div className="text-2xl font-extrabold tracking-tight text-app-accent">
           Air<span className="text-air-400">Log</span>10
         </div>
         <div className="flex items-center gap-2">
           {pending > 0 && (
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
               업로드 대기 {pending}
             </span>
           )}
-          <Link href="/people" aria-label="크루" className="p-1 text-ink-hint">
+          <Link href="/people" aria-label="크루" className="p-1 text-app-hint">
             <Users size={20} />
           </Link>
-          <Link href="/settings" aria-label="설정" className="p-1 text-ink-hint">
+          <Link href="/settings" aria-label="설정" className="p-1 text-app-hint">
             <SettingsIcon size={20} />
           </Link>
         </div>
       </header>
 
       {!loaded ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">
           불러오는 중…
         </div>
       ) : empty ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-6 text-center">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-6 text-center">
           <p className="text-4xl">✈️</p>
           <h2 className="mt-3 text-lg font-bold">로그북을 시작해 볼까요?</h2>
-          <p className="mt-1 text-sm text-ink-sub">
+          <p className="mt-1 text-sm text-app-sub">
             기존 로그북 파일을 가져오거나, 첫 비행을 직접 기록해 보세요.
           </p>
           <div className="mt-5 space-y-2">
-            <Link href="/import" className="block rounded-xl bg-air-600 py-3 font-semibold text-white">
+            <Link href="/import" className="block rounded-xl bg-app-btn py-3 font-semibold text-white">
               기존 로그북 가져오기
             </Link>
-            <Link href="/flights/new" className="block rounded-xl border border-ink-line py-3 font-semibold">
+            <Link href="/flights/new" className="block rounded-xl border border-app-line py-3 font-semibold">
               비행 직접 기록하기
             </Link>
           </div>
@@ -150,11 +150,11 @@ export default function HomePage() {
           </div>
 
           {rosterCard && (
-            <div className="mt-3 rounded-2xl border border-air-200 bg-white p-4">
-              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-air-800">
+            <div className="mt-3 rounded-2xl border border-app-accent-soft bg-app-surface p-4">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-app-accent">
                 🛫 {rosterCard.label}
               </h2>
-              <div className="mt-2 divide-y divide-ink-line">
+              <div className="mt-2 divide-y divide-app-line">
                 {rosterCard.flights.map((r) => (
                   <div key={r.id} className="flex items-center justify-between py-2">
                     <div>
@@ -162,7 +162,7 @@ export default function HomePage() {
                         <span className="font-mono">{r.flight_number}</span>
                         <span className="ml-2">{r.origin} → {r.destination}</span>
                       </p>
-                      <p className="text-xs text-ink-hint">
+                      <p className="text-xs text-app-hint">
                         {r.std}{r.sta ? ` – ${r.sta}` : ''} {r.aircraft_type ? `· ${r.aircraft_type}` : ''}
                       </p>
                     </div>
@@ -171,7 +171,7 @@ export default function HomePage() {
                     ) : (
                       <Link
                         href={`/flights/new?roster=${r.id}`}
-                        className="rounded-lg bg-air-600 px-3 py-1.5 text-sm font-semibold text-white"
+                        className="rounded-lg bg-app-btn px-3 py-1.5 text-sm font-semibold text-white"
                       >
                         기록
                       </Link>
@@ -183,19 +183,19 @@ export default function HomePage() {
           )}
 
           {expiries.length > 0 && (
-            <div className="mt-3 rounded-2xl border border-ink-line bg-white p-4">
-              <h2 className="text-sm font-semibold text-ink-sub">자격 만료</h2>
+            <div className="mt-3 rounded-2xl border border-app-line bg-app-surface p-4">
+              <h2 className="text-sm font-semibold text-app-sub">자격 만료</h2>
               <div className="mt-2 space-y-1.5">
                 {expiries.map((e) => (
                   <div key={e.label} className="flex items-center justify-between text-sm">
                     <span className="font-medium">{e.label}</span>
-                    <span className="text-xs text-ink-hint">{e.date}</span>
+                    <span className="text-xs text-app-hint">{e.date}</span>
                     <span className={
                       'rounded-full px-2 py-0.5 text-xs font-bold ' +
-                      (e.dday < 0 ? 'bg-red-100 text-red-700'
-                        : e.dday <= 30 ? 'bg-red-50 text-red-600'
-                        : e.dday <= 60 ? 'bg-amber-50 text-amber-600'
-                        : 'bg-ink-bg text-ink-sub')
+                      (e.dday < 0 ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                        : e.dday <= 30 ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300'
+                        : e.dday <= 60 ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
+                        : 'bg-app-bg text-app-sub')
                     }>
                       {e.dday < 0 ? `만료 ${-e.dday}일 지남` : `D-${e.dday}`}
                     </span>
@@ -207,7 +207,7 @@ export default function HomePage() {
 
           <div className="mt-6 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-ink-sub">날씨 (METAR / TAF)</h2>
+              <h2 className="text-sm font-semibold text-app-sub">날씨 (METAR / TAF)</h2>
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
@@ -229,9 +229,9 @@ export default function HomePage() {
                   placeholder="ICAO"
                   autoCapitalize="characters"
                   autoCorrect="off"
-                  className="w-20 rounded-lg border border-ink-line bg-white px-2 py-1.5 text-center font-mono text-sm uppercase outline-none focus:border-air-400"
+                  className="w-20 rounded-lg border border-app-line bg-app-surface px-2 py-1.5 text-center font-mono text-sm uppercase outline-none focus:border-air-400"
                 />
-                <button type="submit" className="rounded-lg bg-air-600 px-3 py-1.5 text-sm font-semibold text-white">
+                <button type="submit" className="rounded-lg bg-app-btn px-3 py-1.5 text-sm font-semibold text-white">
                   조회
                 </button>
               </form>
@@ -250,22 +250,22 @@ export default function HomePage() {
               />
             ))}
             {wxList.length === 0 && (
-              <p className="rounded-2xl border border-ink-line bg-white p-4 text-sm text-ink-sub">
+              <p className="rounded-2xl border border-app-line bg-app-surface p-4 text-sm text-app-sub">
                 위 ICAO 칸에 공항 코드를 넣고 조회하면 날씨 카드가 쌓여요. (여러 공항 가능, ✕로 닫기)
               </p>
             )}
           </div>
 
-          <h2 className="mb-2 mt-6 text-sm font-semibold text-ink-sub">최근 비행</h2>
-          <div className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-white">
+          <h2 className="mb-2 mt-6 text-sm font-semibold text-app-sub">최근 비행</h2>
+          <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
             {recent.map((f) => (
               <div key={f.id} className="flex items-center justify-between px-4 py-3">
                 <div>
                   <p className="font-semibold">
                     {f.origin ?? '?'} → {f.destination ?? '?'}
-                    {f.flight_number && <span className="ml-2 text-xs font-normal text-ink-hint">{f.flight_number}</span>}
+                    {f.flight_number && <span className="ml-2 text-xs font-normal text-app-hint">{f.flight_number}</span>}
                   </p>
-                  <p className="text-xs text-ink-hint">{f.flight_date} · {f.aircraft_reg ?? ''}</p>
+                  <p className="text-xs text-app-hint">{f.flight_date} · {f.aircraft_reg ?? ''}</p>
                 </div>
                 <p className="font-semibold tabular-nums">{minToHMGrouped(f.total_min)}</p>
               </div>
@@ -273,7 +273,7 @@ export default function HomePage() {
           </div>
 
           {lastSync && (
-            <p className="mt-4 text-center text-xs text-ink-hint">
+            <p className="mt-4 text-center text-xs text-app-hint">
               마지막 동기화 {new Date(lastSync).toLocaleString('ko-KR')} · 오프라인에서도 모든 기록을 볼 수 있어요
             </p>
           )}
@@ -287,8 +287,8 @@ export default function HomePage() {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-ink-line bg-white p-3 text-center">
-      <p className="text-xs text-ink-hint">{label}</p>
+    <div className="rounded-xl border border-app-line bg-app-surface p-3 text-center">
+      <p className="text-xs text-app-hint">{label}</p>
       <p className="mt-0.5 font-bold tabular-nums">{value}</p>
     </div>
   )

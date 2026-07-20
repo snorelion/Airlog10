@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { getSetting, setSetting, getFlights } from '@/lib/store'
+import { getSetting, setSetting, getFlights, getPendingCount, clearLocalData } from '@/lib/store'
 import { sortChrono } from '@/lib/aggregate'
 import { minToHM } from '@/lib/time'
+import { applyTheme, setThemeCookie, readTheme, THEMES, type Theme } from '@/lib/theme'
 import Nav from '@/components/Nav'
 
 // 로컬 설정 키 ↔ profiles 컬럼 매핑
@@ -32,6 +33,15 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState(false)
   const [mailBusy, setMailBusy] = useState(false)
   const [mailMsg, setMailMsg] = useState('')
+  const [theme, setTheme] = useState<Theme>('system')
+
+  useEffect(() => { setTheme(readTheme()) }, [])
+
+  function changeTheme(t: Theme) {
+    setTheme(t)
+    setThemeCookie(t)
+    applyTheme(t)
+  }
 
   async function sendCopy() {
     setMailBusy(true)
@@ -131,23 +141,30 @@ export default function SettingsPage() {
   }
 
   async function logout() {
+    // 안 올라간 기록이 있으면 경고 — 로그아웃하면 이 기기 사본을 비운다 (다음 사용자 노출 방지)
+    const pending = await getPendingCount()
+    const msg = pending > 0
+      ? `아직 서버로 안 올라간 항목이 ${pending}건 있어요. 로그아웃하면 이 기기에서 지워져요. 계속할까요?`
+      : '로그아웃할까요? 이 기기의 저장본은 비워져요 (기록은 서버에 안전).'
+    if (!window.confirm(msg)) return
+    await clearLocalData()
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }
 
-  const inputCls = 'mt-1 w-full rounded-xl border border-ink-line bg-white px-3 py-2.5 outline-none focus:border-air-400'
-  const labelCls = 'text-xs font-medium text-ink-sub'
+  const inputCls = 'mt-1 w-full rounded-xl border border-app-line bg-app-surface px-3 py-2.5 outline-none focus:border-air-400'
+  const labelCls = 'text-xs font-medium text-app-sub'
 
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <h1 className="mb-4 text-xl font-bold">설정</h1>
 
       <div className="space-y-4">
-        <div className="rounded-2xl border border-ink-line bg-white p-4">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <h2 className="font-semibold">내 정보</h2>
-          <p className="mt-1 text-xs text-ink-hint">
+          <p className="mt-1 text-xs text-app-hint">
             기록할 때 역할에 맞는 칸에 이름이 자동으로 들어가고, 홈베이스는 출발지로 미리 채워져요.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-3">
@@ -163,7 +180,7 @@ export default function SettingsPage() {
                   <button key={cp} type="button"
                     onClick={() => set('defaultCapacity', v.defaultCapacity === cp ? '' : cp)}
                     className={'flex-1 rounded-lg px-2 py-2.5 text-sm font-semibold ' +
-                      (v.defaultCapacity === cp ? 'bg-air-600 text-white' : 'bg-ink-bg text-ink-sub')}>
+                      (v.defaultCapacity === cp ? 'bg-app-btn text-white' : 'bg-app-bg text-app-sub')}>
                     {cp}
                   </button>
                 ))}
@@ -190,9 +207,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-ink-line bg-white p-4">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <h2 className="font-semibold">자격 만료일</h2>
-          <p className="mt-1 text-xs text-ink-hint">넣어두면 홈 화면에 D-day로 보여드려요.</p>
+          <p className="mt-1 text-xs text-app-hint">넣어두면 홈 화면에 D-day로 보여드려요.</p>
           <div className="mt-3 grid grid-cols-1 gap-3">
             <div>
               <label className={labelCls}>메디컬</label>
@@ -209,7 +226,25 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-ink-line bg-white p-4">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
+          <h2 className="font-semibold">화면 테마</h2>
+          <div className="mt-3 flex gap-1">
+            {THEMES.map((t) => (
+              <button
+                key={t} type="button" onClick={() => changeTheme(t)}
+                className={
+                  'flex-1 rounded-lg px-2 py-2.5 text-sm font-semibold ' +
+                  (theme === t ? 'bg-app-btn text-white' : 'bg-app-bg text-app-sub')
+                }
+              >
+                {t === 'system' ? '시스템' : t === 'light' ? '밝게' : '어둡게'}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-app-hint">야간 브리핑룸에선 "어둡게"가 눈이 편해요 🌙</p>
+        </div>
+
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <h2 className="font-semibold">백업 · 내보내기</h2>
           <div className="mt-3">
             <label className={labelCls}>사본 받을 이메일 (추후 메일 발송용)</label>
@@ -217,28 +252,28 @@ export default function SettingsPage() {
               placeholder="snorelion@gmail.com" className={inputCls} />
           </div>
           <button onClick={downloadCsv}
-            className="mt-3 w-full rounded-xl border border-air-200 bg-air-50 py-3 font-semibold text-air-800">
+            className="mt-3 w-full rounded-xl border border-app-accent-soft bg-app-accent-soft py-3 font-semibold text-app-accent">
             로그북 전체 CSV 다운로드
           </button>
           <button onClick={sendCopy} disabled={mailBusy}
-            className="mt-2 w-full rounded-xl border border-ink-line bg-white py-3 font-semibold text-ink-body disabled:opacity-50">
+            className="mt-2 w-full rounded-xl border border-app-line bg-app-surface py-3 font-semibold text-app-text disabled:opacity-50">
             {mailBusy ? '보내는 중…' : '📧 이메일로 사본 보내기'}
           </button>
-          {mailMsg && <p className="mt-2 text-center text-sm text-ink-sub">{mailMsg}</p>}
+          {mailMsg && <p className="mt-2 text-center text-sm text-app-sub">{mailMsg}</p>}
         </div>
 
         <button onClick={save} disabled={busy}
-          className="w-full rounded-xl bg-air-600 py-3.5 text-lg font-bold text-white disabled:opacity-50">
+          className="w-full rounded-xl bg-app-btn py-3.5 text-lg font-bold text-white disabled:opacity-50">
           {busy ? '저장 중…' : '저장'}
         </button>
         {saved && <p className="text-center text-sm text-green-600">저장했어요 ✓</p>}
 
         <div className="flex items-center justify-between pt-2">
           <div className="flex gap-4">
-            <Link href="/people" className="text-sm font-medium text-air-600">👥 크루 목록</Link>
-            <Link href="/import" className="text-sm font-medium text-air-600">📥 가져오기</Link>
+            <Link href="/people" className="text-sm font-medium text-app-accent">👥 크루 목록</Link>
+            <Link href="/import" className="text-sm font-medium text-app-accent">📥 가져오기</Link>
           </div>
-          <button onClick={logout} className="text-sm text-ink-hint">로그아웃</button>
+          <button onClick={logout} className="text-sm text-app-hint">로그아웃</button>
         </div>
       </div>
 

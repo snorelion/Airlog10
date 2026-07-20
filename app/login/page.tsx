@@ -41,10 +41,10 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
       <div className="mb-8 text-center">
-        <div className="text-3xl font-extrabold tracking-tight text-air-800">
+        <div className="text-3xl font-extrabold tracking-tight text-app-accent">
           Air<span className="text-air-400">Log</span>10
         </div>
-        <p className="mt-2 text-sm text-ink-sub">파일럿 로그북 — 비행 기록, 통계, 어디서나.</p>
+        <p className="mt-2 text-sm text-app-sub">파일럿 로그북 — 비행 기록, 통계, 어디서나.</p>
       </div>
 
       <form onSubmit={submit} className="space-y-3">
@@ -54,7 +54,7 @@ export default function LoginPage() {
           placeholder="이메일"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-xl border border-ink-line bg-white px-4 py-3 text-base outline-none focus:border-air-400"
+          className="w-full rounded-xl border border-app-line bg-app-surface px-4 py-3 text-base outline-none focus:border-air-400"
         />
         <input
           type="password"
@@ -63,13 +63,13 @@ export default function LoginPage() {
           placeholder="비밀번호"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-xl border border-ink-line bg-white px-4 py-3 text-base outline-none focus:border-air-400"
+          className="w-full rounded-xl border border-app-line bg-app-surface px-4 py-3 text-base outline-none focus:border-air-400"
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-xl bg-air-600 py-3 font-semibold text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-app-btn py-3 font-semibold text-white disabled:opacity-50"
         >
           {busy ? '잠시만요…' : mode === 'login' ? '로그인' : '가입하기'}
         </button>
@@ -77,7 +77,7 @@ export default function LoginPage() {
 
       <button
         onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-        className="mt-4 text-sm text-air-600"
+        className="mt-4 text-sm text-app-accent"
       >
         {mode === 'login' ? '처음이신가요? 가입하기' : '이미 계정이 있어요 → 로그인'}
       </button>

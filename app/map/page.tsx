@@ -121,16 +121,16 @@ export default function MapPage() {
       <div className="mb-3 flex items-center justify-between">
         <h1 className="text-xl font-bold">파일럿 맵</h1>
         {loaded && (
-          <p className="text-sm text-ink-hint">
+          <p className="text-sm text-app-hint">
             공항 {dots.length}곳 · {countries}개국 · 노선 {routes.length}개
           </p>
         )}
       </div>
 
       {!loaded ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
       ) : dots.length === 0 ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-sub">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
           기록이 쌓이면 지도가 채워져요. (좌표는 온라인에서 한 번 받아와요)
         </div>
       ) : (
@@ -189,19 +189,19 @@ export default function MapPage() {
             </svg>
           </div>
 
-          <div className="mt-3 overflow-hidden rounded-2xl border border-ink-line bg-white">
+          <div className="mt-3 overflow-hidden rounded-2xl border border-app-line bg-app-surface">
             {dots.slice(0, 10).map((d, i) => (
               <a key={d.ident} href={`/airports/${d.ident}`}
-                className="flex items-center justify-between border-b border-ink-line px-4 py-2.5 last:border-0">
-                <span className="text-sm text-ink-hint">{i + 1}</span>
-                <span className="font-mono font-semibold text-air-600">{d.ident}</span>
-                <span className="text-sm tabular-nums text-ink-sub">{d.visits.toLocaleString()}회</span>
+                className="flex items-center justify-between border-b border-app-line px-4 py-2.5 last:border-0">
+                <span className="text-sm text-app-hint">{i + 1}</span>
+                <span className="font-mono font-semibold text-app-accent">{d.ident}</span>
+                <span className="text-sm tabular-nums text-app-sub">{d.visits.toLocaleString()}회</span>
               </a>
             ))}
           </div>
 
           {missingCount > 0 && (
-            <p className="mt-2 text-center text-xs text-ink-hint">
+            <p className="mt-2 text-center text-xs text-app-hint">
               좌표를 못 찾은 공항 {missingCount}곳은 지도에서 빠져 있어요.
             </p>
           )}

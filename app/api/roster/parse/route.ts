@@ -101,7 +101,9 @@ export async function POST(req: NextRequest) {
 
   for (let ci = 0; ci < cols.length; ci++) {
     const [dd, mm] = cols[ci].t.split('/')
-    const date = `${year}-${mm}-${dd}`
+    // 해 넘김 로스터(12월→1월): 컬럼 월이 시작 월보다 작으면 종료 연도 사용
+    const colYear = parseInt(mm, 10) < parseInt(period[2], 10) ? period[6] : year
+    const date = `${colYear}-${mm}-${dd}`
     const toks = colToks[ci].sort().map((s) => s.split('|')[2])
     let i = 0
     while (i < toks.length) {

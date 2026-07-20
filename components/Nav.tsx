@@ -16,17 +16,17 @@ const TABS = [
 export default function Nav() {
   const pathname = usePathname()
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-line bg-white pb-safe">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-app-line bg-app-surface pb-safe">
       <div className="mx-auto flex max-w-lg">
         {TABS.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href
+          const active = pathname === href || (href !== '/' && pathname.startsWith(href))
           return (
             <Link
               key={href}
               href={href}
               className={clsx(
                 'flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]',
-                active ? 'text-air-600 font-semibold' : 'text-ink-hint'
+                active ? 'text-app-accent font-semibold' : 'text-app-hint'
               )}
             >
               <Icon size={22} strokeWidth={active ? 2.4 : 1.8} />

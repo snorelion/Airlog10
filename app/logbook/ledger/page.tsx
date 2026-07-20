@@ -65,12 +65,12 @@ export default function LedgerPage() {
   const toDate = emptySums()
   for (const k of Object.keys(toDate) as (keyof Sums)[]) toDate[k] = forwarded[k] + pageSums[k]
 
-  const td = 'border border-ink-line px-1.5 py-1 text-center whitespace-nowrap'
-  const th = 'border border-ink-line bg-air-50 px-1.5 py-1 text-center text-[10px] font-semibold text-air-800 whitespace-nowrap'
+  const td = 'border border-app-line px-1.5 py-1 text-center whitespace-nowrap'
+  const th = 'border border-app-line bg-app-accent-soft px-1.5 py-1 text-center text-[10px] font-semibold text-app-accent whitespace-nowrap'
 
   function SumRow({ label, s }: { label: string; s: Sums }) {
     return (
-      <tr className="bg-ink-bg font-semibold">
+      <tr className="bg-app-bg font-semibold">
         <td colSpan={6} className={td + ' !text-right pr-2 text-[10px] tracking-wide'}>{label}</td>
         <td className={td}>{minToHMGrouped(s.total)}</td>
         <td className={td}>{s.flt ? minToHMGrouped(s.flt) : ''}</td>
@@ -92,20 +92,20 @@ export default function LedgerPage() {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">로그북 · 장부</h1>
         <div className="flex items-center gap-3 text-sm">
-          <Link href="/logbook/print" className="text-air-600">인쇄/PDF</Link>
-          <Link href="/logbook" className="text-air-600">목록 보기</Link>
-          <span className="text-ink-hint">PAGE {p} / {lastPage}</span>
+          <Link href="/logbook/print" className="text-app-accent">인쇄/PDF</Link>
+          <Link href="/logbook" className="text-app-accent">목록 보기</Link>
+          <span className="text-app-hint">PAGE {p} / {lastPage}</span>
         </div>
       </div>
 
       {!loaded ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
       ) : all.length === 0 ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-sub">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
           아직 기록이 없어요.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-ink-line bg-white p-2">
+        <div className="overflow-x-auto rounded-xl border border-app-line bg-app-surface p-2">
           <table className="w-full min-w-[860px] border-collapse text-[11px] tabular-nums">
             <thead>
               <tr>
@@ -160,13 +160,13 @@ export default function LedgerPage() {
 
       <div className="mt-4 flex items-center justify-center gap-4 text-sm">
         {p > 1 ? (
-          <button onClick={() => setPage(p - 1)} className="rounded-lg border border-ink-line bg-white px-4 py-2">← 이전 장</button>
-        ) : <span className="px-4 py-2 text-ink-hint">← 이전 장</span>}
-        <button onClick={() => setPage(1)} className="text-xs text-ink-hint">처음</button>
-        <button onClick={() => setPage(null)} className="text-xs text-ink-hint">마지막</button>
+          <button onClick={() => setPage(p - 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">← 이전 장</button>
+        ) : <span className="px-4 py-2 text-app-hint">← 이전 장</span>}
+        <button onClick={() => setPage(1)} className="text-xs text-app-hint">처음</button>
+        <button onClick={() => setPage(null)} className="text-xs text-app-hint">마지막</button>
         {p < lastPage ? (
-          <button onClick={() => setPage(p + 1)} className="rounded-lg border border-ink-line bg-white px-4 py-2">다음 장 →</button>
-        ) : <span className="px-4 py-2 text-ink-hint">다음 장 →</span>}
+          <button onClick={() => setPage(p + 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">다음 장 →</button>
+        ) : <span className="px-4 py-2 text-app-hint">다음 장 →</span>}
       </div>
 
       <Nav />

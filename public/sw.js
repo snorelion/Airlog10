@@ -3,7 +3,7 @@
 //  - 정적 자산(/_next/static, 아이콘, manifest): cache-first (내용이 해시로 불변)
 //  - 페이지·RSC 요청: network-first → 실패 시 캐시 → 최후엔 '/' 캐시
 //  - /api/ 와 외부(supabase 등) 요청은 절대 캐시하지 않음
-const CACHE = 'airlog10-v1'
+const CACHE = 'airlog10-v2'
 
 self.addEventListener('install', () => {
   self.skipWaiting()
@@ -43,10 +43,12 @@ self.addEventListener('fetch', (e) => {
   }
 
   // 페이지·RSC: network-first, 오프라인이면 캐시
+  // 주의: 세션 만료로 /login으로 리다이렉트된 응답을 원래 URL로 캐시하면
+  // 오프라인에서 홈 대신 로그인 화면이 떠 로그북이 잠긴다 → 리다이렉트는 캐시 금지
   e.respondWith(
     fetch(req)
       .then((res) => {
-        if (res.ok) {
+        if (res.ok && !res.redirected) {
           const copy = res.clone()
           caches.open(CACHE).then((c) => c.put(req, copy))
         }

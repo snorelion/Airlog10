@@ -89,24 +89,24 @@ export default function PeoplePage() {
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">크루</h1>
-        <Link href="/settings" className="text-sm text-air-600">설정으로</Link>
+        <Link href="/settings" className="text-sm text-app-accent">설정으로</Link>
       </div>
 
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="이름 검색"
-        className="mb-3 w-full rounded-xl border border-ink-line bg-white px-4 py-2.5 outline-none focus:border-air-400"
+        className="mb-3 w-full rounded-xl border border-app-line bg-app-surface px-4 py-2.5 outline-none focus:border-air-400"
       />
 
       {!loaded ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-sub">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
           같이 비행한 크루가 기록에서 자동으로 모여요.
         </div>
       ) : (
-        <div className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-white">
+        <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
           {filtered.map((a) => (
             <div key={a.name}>
               <button type="button" onClick={() => openEditor(a)} className="w-full px-4 py-3 text-left">
@@ -114,39 +114,39 @@ export default function PeoplePage() {
                   <p className="font-semibold">
                     {a.name}
                     {a.person?.employee_no && (
-                      <span className="ml-2 text-xs font-normal text-ink-hint">#{a.person.employee_no}</span>
+                      <span className="ml-2 text-xs font-normal text-app-hint">#{a.person.employee_no}</span>
                     )}
                   </p>
-                  <p className="text-sm tabular-nums text-ink-sub">{a.flights.toLocaleString()}편</p>
+                  <p className="text-sm tabular-nums text-app-sub">{a.flights.toLocaleString()}편</p>
                 </div>
-                <div className="mt-0.5 flex items-center justify-between text-xs text-ink-hint">
+                <div className="mt-0.5 flex items-center justify-between text-xs text-app-hint">
                   <span>{a.roles}{a.lastDate ? ` · 마지막 ${a.lastDate}` : ''}</span>
                   {a.person?.notes && <span>📝</span>}
                 </div>
                 {a.person?.notes && openName !== a.name && (
-                  <p className="mt-1 truncate text-xs text-ink-sub">{a.person.notes}</p>
+                  <p className="mt-1 truncate text-xs text-app-sub">{a.person.notes}</p>
                 )}
               </button>
               {openName === a.name && (
-                <div className="space-y-2 border-t border-ink-line bg-ink-bg px-4 py-3">
+                <div className="space-y-2 border-t border-app-line bg-app-bg px-4 py-3">
                   <input
                     value={empNo}
                     onChange={(e) => setEmpNo(e.target.value)}
                     placeholder="사번"
-                    className="w-full rounded-lg border border-ink-line bg-white px-3 py-2 text-sm outline-none focus:border-air-400"
+                    className="w-full rounded-lg border border-app-line bg-app-surface px-3 py-2 text-sm outline-none focus:border-air-400"
                   />
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
                     placeholder="메모 (성향, 기억할 것…)"
-                    className="w-full rounded-lg border border-ink-line bg-white px-3 py-2 text-sm outline-none focus:border-air-400"
+                    className="w-full rounded-lg border border-app-line bg-app-surface px-3 py-2 text-sm outline-none focus:border-air-400"
                   />
                   <div className="flex gap-2">
                     <button onClick={() => setOpenName(null)}
-                      className="flex-1 rounded-lg border border-ink-line bg-white py-2 text-sm font-medium">취소</button>
+                      className="flex-1 rounded-lg border border-app-line bg-app-surface py-2 text-sm font-medium">취소</button>
                     <button onClick={saveOpen}
-                      className="flex-1 rounded-lg bg-air-600 py-2 text-sm font-semibold text-white">저장</button>
+                      className="flex-1 rounded-lg bg-app-btn py-2 text-sm font-semibold text-white">저장</button>
                   </div>
                 </div>
               )}

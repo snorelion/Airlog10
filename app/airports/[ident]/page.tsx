@@ -86,31 +86,31 @@ export default function AirportPage() {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="font-mono text-xl font-bold">
           {ident}
-          {info?.iata && <span className="ml-2 text-base font-normal text-ink-hint">({info.iata})</span>}
+          {info?.iata && <span className="ml-2 text-base font-normal text-app-hint">({info.iata})</span>}
         </h1>
-        <Link href="/stats" className="text-sm text-air-600">통계로</Link>
+        <Link href="/stats" className="text-sm text-app-accent">통계로</Link>
       </div>
 
       <div className="space-y-4">
-        <div className="rounded-2xl border border-ink-line bg-white p-4">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <p className="font-semibold">{info?.name ?? (offline ? '(오프라인 — 공항 정보는 온라인에서)' : '불러오는 중…')}</p>
           {info && (
-            <p className="mt-1 text-sm text-ink-sub">
+            <p className="mt-1 text-sm text-app-sub">
               {info.municipality ? info.municipality + ' · ' : ''}{info.country ?? ''}
               {info.elevation_ft !== null ? ` · 표고 ${info.elevation_ft.toLocaleString()} ft` : ''}
             </p>
           )}
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-xl bg-ink-bg p-2">
-              <p className="text-xs text-ink-hint">내 방문</p>
+            <div className="rounded-xl bg-app-bg p-2">
+              <p className="text-xs text-app-hint">내 방문</p>
               <p className="font-bold tabular-nums">{visits.count.toLocaleString()}회</p>
             </div>
-            <div className="rounded-xl bg-ink-bg p-2">
-              <p className="text-xs text-ink-hint">처음</p>
+            <div className="rounded-xl bg-app-bg p-2">
+              <p className="text-xs text-app-hint">처음</p>
               <p className="text-sm font-semibold">{visits.first || '—'}</p>
             </div>
-            <div className="rounded-xl bg-ink-bg p-2">
-              <p className="text-xs text-ink-hint">마지막</p>
+            <div className="rounded-xl bg-app-bg p-2">
+              <p className="text-xs text-app-hint">마지막</p>
               <p className="text-sm font-semibold">{visits.last || '—'}</p>
             </div>
           </div>
@@ -119,15 +119,15 @@ export default function AirportPage() {
         <WxCard ident={ident} />
 
         {runways.length > 0 && (
-          <div className="rounded-2xl border border-ink-line bg-white p-4">
+          <div className="rounded-2xl border border-app-line bg-app-surface p-4">
             <h2 className="font-semibold">활주로</h2>
             <div className="mt-2 space-y-2">
               {runways.map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-xl bg-ink-bg px-3 py-2">
+                <div key={r.id} className="flex items-center justify-between rounded-xl bg-app-bg px-3 py-2">
                   <span className="font-mono text-lg font-bold">
                     {r.le_ident ?? '?'}/{r.he_ident ?? '?'}
                   </span>
-                  <span className="text-sm text-ink-sub">
+                  <span className="text-sm text-app-sub">
                     {r.length_ft ? `${r.length_ft.toLocaleString()} ft (${ftToM(r.length_ft).toLocaleString()} m)` : ''}
                     {r.surface ? ` · ${r.surface}` : ''}
                     {r.lighted ? ' · 💡' : ''}
@@ -138,16 +138,16 @@ export default function AirportPage() {
           </div>
         )}
 
-        <div className="rounded-2xl border border-ink-line bg-white p-4">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <h2 className="font-semibold">내 메모</h2>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={4}
             placeholder="접근 팁, 택시 루트, 주의사항…"
-            className="mt-2 w-full rounded-xl border border-ink-line bg-white px-3 py-2.5 text-sm outline-none focus:border-air-400"
+            className="mt-2 w-full rounded-xl border border-app-line bg-app-surface px-3 py-2.5 text-sm outline-none focus:border-air-400"
           />
-          <button onClick={saveNote} className="mt-2 w-full rounded-xl bg-air-600 py-2.5 font-semibold text-white">
+          <button onClick={saveNote} className="mt-2 w-full rounded-xl bg-app-btn py-2.5 font-semibold text-white">
             메모 저장
           </button>
           {noteSaved && <p className="mt-2 text-center text-sm text-green-600">저장했어요 ✓ (오프라인이어도 안전)</p>}

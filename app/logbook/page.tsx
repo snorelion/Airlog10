@@ -43,34 +43,27 @@ export default function LogbookPage() {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">로그북</h1>
         <div className="flex items-center gap-3">
-          <Link href="/logbook/ledger" className="text-sm font-medium text-air-600">장부 보기</Link>
-          <p className="text-sm text-ink-hint">{total.toLocaleString()}편</p>
+          <Link href="/logbook/ledger" className="text-sm font-medium text-app-accent">장부 보기</Link>
+          <p className="text-sm text-app-hint">{total.toLocaleString()}편</p>
         </div>
       </div>
 
-      {loaded && zeroCount > 0 && (
-        <Link href="/logbook/fix"
-          className="mb-3 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700">
-          ⏱️ 시간이 비어 있는 기록 {zeroCount}건 — 정리하러 가기 →
-        </Link>
-      )}
-
       {zeroCount > 0 && (
         <Link href="/logbook/fix"
-          className="mb-3 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">
+          className="mb-3 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/25 dark:text-amber-200">
           ⏱️ 시간이 비어 있는 기록 {zeroCount}건 — 정리하러 가기 →
         </Link>
       )}
 
       {!loaded ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-hint">불러오는 중…</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-ink-line bg-white p-8 text-center text-ink-sub">
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
           아직 기록이 없어요.{' '}
-          <Link href="/import" className="text-air-600 underline">가져오기</Link>부터 시작해 보세요.
+          <Link href="/import" className="text-app-accent underline">가져오기</Link>부터 시작해 보세요.
         </div>
       ) : (
-        <div className="divide-y divide-ink-line overflow-hidden rounded-2xl border border-ink-line bg-white">
+        <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
           {rows.map((f) => (
             <div key={f.id} className="cursor-pointer px-4 py-3"
               onClick={() => router.push(`/flights/new?edit=${f.id}`)}>
@@ -78,7 +71,7 @@ export default function LogbookPage() {
                 <p className="font-semibold">
                   {f.origin ?? '?'} → {f.destination ?? '?'}
                   {f.flight_number && (
-                    <span className="ml-2 text-xs font-normal text-ink-hint">{f.flight_number}</span>
+                    <span className="ml-2 text-xs font-normal text-app-hint">{f.flight_number}</span>
                   )}
                 </p>
                 <div className="flex items-center gap-2">
@@ -92,13 +85,13 @@ export default function LogbookPage() {
                         void deleteFlight(f.id)
                       }
                     }}
-                    className="p-1 text-ink-hint hover:text-red-500"
+                    className="p-1 text-app-hint hover:text-red-500"
                   >
                     <Trash2 size={15} />
                   </button>
                 </div>
               </div>
-              <div className="mt-0.5 flex items-center justify-between text-xs text-ink-hint">
+              <div className="mt-0.5 flex items-center justify-between text-xs text-app-hint">
                 <span>
                   {f.flight_date} · {f.aircraft_reg ?? ''}{f.aircraft_type ? ` (${f.aircraft_type})` : ''}
                 </span>
@@ -115,16 +108,16 @@ export default function LogbookPage() {
       {lastPage > 1 && (
         <div className="mt-4 flex items-center justify-center gap-4 text-sm">
           {p > 1 ? (
-            <button onClick={() => setPage(p - 1)} className="rounded-lg border border-ink-line bg-white px-4 py-2">
+            <button onClick={() => setPage(p - 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">
               ← 최근
             </button>
-          ) : <span className="px-4 py-2 text-ink-hint">← 최근</span>}
-          <span className="text-ink-sub">{p} / {lastPage}</span>
+          ) : <span className="px-4 py-2 text-app-hint">← 최근</span>}
+          <span className="text-app-sub">{p} / {lastPage}</span>
           {p < lastPage ? (
-            <button onClick={() => setPage(p + 1)} className="rounded-lg border border-ink-line bg-white px-4 py-2">
+            <button onClick={() => setPage(p + 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">
               과거 →
             </button>
-          ) : <span className="px-4 py-2 text-ink-hint">과거 →</span>}
+          ) : <span className="px-4 py-2 text-app-hint">과거 →</span>}
         </div>
       )}
 

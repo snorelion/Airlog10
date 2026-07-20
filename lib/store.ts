@@ -105,7 +105,14 @@ export async function getAircraftList(): Promise<AircraftRow[]> {
 
 export async function getPendingCount(): Promise<number> {
   const rows = await idbGetAll<OutboxItem>('outbox')
-  return rows.filter((r) => r.kind === 'flight').length
+  return rows.length
+}
+
+// 로그아웃 시 이 기기의 사본을 전부 비운다 (다음 사용자에게 노출 방지)
+export async function clearLocalData(): Promise<void> {
+  for (const s of ['flights', 'aircraft', 'roster', 'people', 'airport_notes', 'outbox', 'meta', 'wx']) {
+    try { await idbClear(s) } catch {}
+  }
 }
 
 export async function getLastSyncAt(): Promise<string | null> {
@@ -125,7 +132,8 @@ export async function setSetting(key: string, value: string): Promise<void> {
 
 // ── 쓰기 (오프라인 OK — outbox에 쌓임) ──────────────
 export async function addFlight(row: Omit<Flight, 'id' | 'deleted'>): Promise<Flight> {
-  const flight: Flight = { ...row, id: crypto.randomUUID(), deleted: false }
+  // created_at을 클라이언트에서 미리 부여 — 첫 pull 전에도 같은 날짜 안 정렬이 안정적
+  const flight: Flight = { ...row, id: crypto.randomUUID(), deleted: false, created_at: new Date().toISOString() }
   await idbPut('flights', flight)
   await idbPut('outbox', { id: flight.id, kind: 'flight', row: flight } satisfies OutboxItem)
   void sync() // 온라인이면 바로 올라감, 오프라인이면 조용히 실패 → 다음 기회에
@@ -151,8 +159,14 @@ export async function deleteFlight(id: string): Promise<void> {
 
 export async function rememberAircraft(row: AircraftRow): Promise<void> {
   if (!row.registration) return
-  await idbPut('aircraft', row)
-  await idbPut('outbox', { id: 'ac:' + row.registration, kind: 'aircraft', row } satisfies OutboxItem)
+  // 기종을 비워서 저장해도 이미 아는 기종을 지우지 않는다
+  const existing = await idbGet<AircraftRow>('aircraft', row.registration)
+  const merged: AircraftRow = {
+    registration: row.registration,
+    type_code: row.type_code ?? existing?.type_code ?? null,
+  }
+  await idbPut('aircraft', merged)
+  await idbPut('outbox', { id: 'ac:' + row.registration, kind: 'aircraft', row: merged } satisfies OutboxItem)
 }
 
 // ── 로스터 (예정 비행) ─────────────────────────────
@@ -167,6 +181,29 @@ export async function getRosterFlight(id: string): Promise<RosterFlight | undefi
 export async function addRosterFlights(
   rows: Omit<RosterFlight, 'id' | 'status'>[]
 ): Promise<number> {
+  if (!rows.length) return 0
+  // 재업로드 대응: 같은 기간의 기존 '예정' 편을 교체 (취소된 편이 남지 않게, 기록된 편은 보존)
+  const dates = rows.map((r) => r.flight_date).sort()
+  const from = dates[0]
+  const to = dates[dates.length - 1]
+  const existing = await idbGetAll<RosterFlight>('roster')
+  for (const r of existing) {
+    if (r.status === 'planned' && r.flight_date >= from && r.flight_date <= to) {
+      await idbDelete('roster', r.id)
+      await idbDelete('outbox', 'r:' + r.id)
+    }
+  }
+  if (typeof navigator === 'undefined' || navigator.onLine) {
+    try {
+      const supabase = createClient()
+      await supabase
+        .from('roster_flights')
+        .delete()
+        .eq('status', 'planned')
+        .gte('flight_date', from)
+        .lte('flight_date', to)
+    } catch {}
+  }
   for (const r of rows) {
     const row: RosterFlight = { ...r, id: crypto.randomUUID(), status: 'planned' }
     await idbPut('roster', row)
@@ -220,6 +257,12 @@ async function pullFlights(
   supabase: ReturnType<typeof createClient>,
   since: string
 ): Promise<string> {
+  // 아직 안 올라간 로컬 수정본은 서버 구본으로 덮지 않는다
+  const pendingIds = new Set(
+    (await idbGetAll<OutboxItem>('outbox'))
+      .filter((o) => o.kind === 'flight')
+      .map((o) => o.row.id)
+  )
   let maxSeen = since
   for (let fromRow = 0; ; fromRow += 1000) {
     const { data, error } = await supabase
@@ -231,7 +274,7 @@ async function pullFlights(
       .range(fromRow, fromRow + 999)
     if (error) throw new Error(error.message)
     if (!data || data.length === 0) break
-    await idbPutMany('flights', data)
+    await idbPutMany('flights', data.filter((r) => !pendingIds.has(r.id)))
     const last = data[data.length - 1].updated_at
     if (last > maxSeen) maxSeen = last
     if (data.length < 1000) break
@@ -292,11 +335,12 @@ export async function sync(): Promise<boolean> {
             .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,name' })
           if (error) throw new Error(error.message)
         } else if (item.kind === 'roster') {
-          // 서버 id는 서버가 관리 — (user,날짜,편명) 기준 upsert라 재등록해도 중복 없음
+          // 서버 id는 서버가 관리 — (user,날짜,편명,출발시각) 기준 upsert
+          // (같은 날 같은 편명 2레그도 따로 보존 — 마이그레이션 005)
           const { id, ...rest } = item.row
           const { error } = await supabase
             .from('roster_flights')
-            .upsert({ ...rest, user_id: user.id }, { onConflict: 'user_id,flight_date,flight_number' })
+            .upsert({ ...rest, user_id: user.id }, { onConflict: 'user_id,flight_date,flight_number,std' })
           if (error) throw new Error(error.message)
         } else {
           const { error } = await supabase
@@ -304,7 +348,12 @@ export async function sync(): Promise<boolean> {
             .upsert({ ...item.row, user_id: user.id }, { onConflict: 'user_id,ident' })
           if (error) throw new Error(error.message)
         }
-        await idbDelete('outbox', item.id)
+        // 업로드 도중 사용자가 같은 항목을 또 수정했을 수 있다 —
+        // outbox의 현재 내용이 방금 올린 것과 같을 때만 지운다 (최신 수정 유실 방지)
+        const latest = await idbGet<OutboxItem>('outbox', item.id)
+        if (latest && JSON.stringify(latest.row) === JSON.stringify(item.row)) {
+          await idbDelete('outbox', item.id)
+        }
       } catch {
         // 실패 항목은 outbox에 남겨 다음 동기화 때 재시도 (예: 테이블 미생성)
       }
@@ -320,11 +369,13 @@ export async function sync(): Promise<boolean> {
     let maxSeen = await pullFlights(supabase, since)
 
     // 자가 치유: 로컬 개수와 서버 개수가 다르면 커서가 어긋난 것 → 전체 재수신
+    // (안 올라간 로컬 항목이 있으면 개수가 정당하게 다르므로 건너뜀)
+    const stillPendingFlights = (await idbGetAll<OutboxItem>('outbox')).some((o) => o.kind === 'flight')
     const { count } = await supabase
       .from('flights')
       .select('id', { count: 'exact', head: true })
     const localCount = (await idbGetAll<Flight>('flights')).length
-    if (count !== null && count !== undefined && count !== localCount) {
+    if (!stillPendingFlights && count !== null && count !== undefined && count !== localCount) {
       maxSeen = await pullFlights(supabase, EPOCH)
     }
     await idbPut('meta', { k: 'lastPulledAt', v: maxSeen })

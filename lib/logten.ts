@@ -75,12 +75,14 @@ export async function decodeLogbookFile(file: File): Promise<string> {
 
 const DATE_LINE = /^\d{4}-\d{2}-\d{2}\t/
 
-// 기종 표기를 ICAO 코드로 통일 (한국 시절 표기 기준: B738/B739)
+// 기종 표기 통일 — 앱 표준은 읽기 쉬운 B737-800 / B737-900
 const TYPE_NORMALIZE: Record<string, string> = {
-  '737-800': 'B738',
-  '737-800, BBJ2': 'B738',
-  '737-900': 'B739',
-  '737-900ER': 'B739',
+  '737-800': 'B737-800',
+  '737-800, BBJ2': 'B737-800',
+  'B738': 'B737-800',
+  '737-900': 'B737-900',
+  '737-900ER': 'B737-900',
+  'B739': 'B737-900',
 }
 function normType(t: string | null): string | null {
   if (!t) return t

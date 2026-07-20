@@ -21,7 +21,11 @@ type ParsedRosterFlight = {
   overnight: boolean
 }
 
-const TYPE_MAP: Record<string, string> = { T738: 'B738', T739: 'B739', T79A: 'B739' }
+const TYPE_MAP: Record<string, string> = {
+  T738: 'B737-800',
+  T739: 'B737-900',
+  T79A: 'B737-900',
+}
 const TIME = /^\d{2}:\d{2}$/
 const FLT = /^[A-Z]{2,3}\d{2,4}[A-Z]?$/
 const AP = /^\*?[A-Z]{3,4}$/

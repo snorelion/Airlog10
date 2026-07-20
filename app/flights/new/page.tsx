@@ -41,6 +41,24 @@ function localBaseToUtc(hm: string): string {
   return fmtClock(hmToMin(hm) - 420)
 }
 
+// 등록번호 접두어 자동 — "LVL" → "HS-LVL". 이미 접두어가 있거나 '-'를 직접 넣었으면 그대로.
+function applyRegPrefix(v: string, prefix: string): string {
+  const t = v.trim().toUpperCase()
+  if (!t || !prefix) return t
+  const p = prefix.toUpperCase()
+  if (t.startsWith(p) || t.includes('-')) return t
+  return p + t
+}
+
+// 편명 접두어 자동 — "628" → "SL628". 이미 문자로 시작하면 그대로.
+function applyFlightPrefix(v: string, prefix: string): string {
+  const t = v.trim().toUpperCase()
+  if (!t || !prefix) return t
+  const p = prefix.toUpperCase()
+  if (t.startsWith(p) || /^[A-Z]/.test(t)) return t
+  return p + t
+}
+
 // 시각·시각·시간 3칸 연동 — 어느 칸을 고치든 나머지가 맞게 계산된다
 //  start+end → dur / start+dur → end / end+dur → start (자정 넘김 처리)
 function linkTimes(
@@ -144,6 +162,9 @@ export default function NewFlightPage() {
   const [typeHits, setTypeHits] = useState<AircraftHit[]>([])
   const [typeOpen, setTypeOpen] = useState(false)
   const [myName, setMyName] = useState('')
+  const [regPrefix, setRegPrefix] = useState('HS-')
+  const [flightPrefix, setFlightPrefix] = useState('SL')
+  const [typeOptions, setTypeOptions] = useState<string[]>(['B737-800', 'B737-900'])
   const [capacity, setCapacity] = useState('SIC')
   const [isPf, setIsPf] = useState(false)
   const [nightHM, setNightHM] = useState('')
@@ -232,6 +253,13 @@ export default function NewFlightPage() {
       const rid = params.get('roster')
       const name = (await getSetting('pilotName')) ?? ''
       setMyName(name)
+      // 우리 회사 표기 규칙 — 설정에서 바꿀 수 있다
+      setRegPrefix((await getSetting('regPrefix')) ?? 'HS-')
+      setFlightPrefix((await getSetting('flightPrefix')) ?? 'SL')
+      const savedTypes = (await getSetting('fleetTypes')) ?? ''
+      if (savedTypes.trim()) {
+        setTypeOptions(savedTypes.split(',').map((s) => s.trim()).filter(Boolean))
+      }
 
       if (eid) {
         const f = await getFlight(eid)
@@ -374,8 +402,9 @@ export default function NewFlightPage() {
     if (q.length < 2) { setRegHits([]); return }
     regTimer.current = setTimeout(async () => {
       const list = await getAircraftList()
+      // "LVL"만 쳐도 "HS-LVL"이 나오게 — 앞뒤 어디든 포함되면 후보
       const hits = list
-        .filter((a) => a.registration.startsWith(term))
+        .filter((a) => a.registration.includes(term))
         .sort(byRecency)
         .slice(0, 5)
         .map((a) => ({ registration: a.registration, type_code: a.type_code }))
@@ -385,8 +414,8 @@ export default function NewFlightPage() {
   }
 
   // 등록번호 칸을 벗어날 때 아는 기체면 기종 자동 채움
-  async function fillTypeFromReg() {
-    const term = reg.trim().toUpperCase()
+  async function fillTypeFromReg(value?: string) {
+    const term = (value ?? reg).trim().toUpperCase()
     if (!term) return
     const list = await getAircraftList()
     const hit = list.find((a) => a.registration === term)
@@ -558,7 +587,9 @@ export default function NewFlightPage() {
           <div>
             <label className="text-xs font-medium text-app-sub">편명</label>
             <input value={flightNumber} onChange={(e) => setFlightNumber(e.target.value.toUpperCase())}
-              placeholder="SL501" autoCapitalize="characters" className={inputCls + ' font-mono uppercase'} />
+              onBlur={() => setFlightNumber(applyFlightPrefix(flightNumber, flightPrefix))}
+              placeholder={`${flightPrefix || 'SL'}628 · 숫자만 쳐도 돼요`}
+              autoCapitalize="characters" className={inputCls + ' font-mono uppercase'} />
           </div>
         </div>
 
@@ -574,8 +605,14 @@ export default function NewFlightPage() {
               value={reg}
               onChange={(e) => searchReg(e.target.value)}
               onFocus={() => regHits.length && setRegOpen(true)}
-              onBlur={() => { setTimeout(() => setRegOpen(false), 150); void fillTypeFromReg() }}
-              placeholder="HS-LVL" autoCapitalize="characters" autoCorrect="off"
+              onBlur={() => {
+                setTimeout(() => setRegOpen(false), 150)
+                const withPrefix = applyRegPrefix(reg, regPrefix)
+                if (withPrefix !== reg) setReg(withPrefix)
+                void fillTypeFromReg(withPrefix)
+              }}
+              placeholder={`${regPrefix || 'HS-'}LVL · 뒤 3글자만 쳐도 돼요`}
+              autoCapitalize="characters" autoCorrect="off"
               className={inputCls + ' font-mono uppercase'}
             />
             {regOpen && regHits.length > 0 && (
@@ -604,9 +641,25 @@ export default function NewFlightPage() {
               onChange={(e) => searchType(e.target.value)}
               onFocus={() => typeHits.length && setTypeOpen(true)}
               onBlur={() => setTimeout(() => setTypeOpen(false), 150)}
-              placeholder="B738" autoCapitalize="characters" autoCorrect="off"
+              placeholder={typeOptions[0] ?? 'B737-800'} autoCapitalize="characters" autoCorrect="off"
               className={inputCls + ' font-mono uppercase'}
             />
+            {/* 우리 기단 빠른 선택 — 두 기종을 한 번에 고른다 */}
+            <div className="mt-1.5 flex gap-1.5">
+              {typeOptions.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTypeCode(t)}
+                  className={
+                    'flex-1 rounded-lg px-2 py-1.5 font-mono text-xs font-semibold ' +
+                    (typeCode === t ? 'bg-app-btn text-white' : 'bg-app-bg text-app-sub')
+                  }
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
             {typeOpen && typeHits.length > 0 && (
               <div className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-xl border border-app-line bg-app-surface shadow-lg">
                 {typeHits.map((h) => (

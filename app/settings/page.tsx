@@ -24,6 +24,13 @@ const FIELDS = [
   ['recurrentExpiry', 'recurrent_expiry'],
 ] as const
 
+// 회사 표기 규칙 (로컬 전용 — 서버 프로필엔 없는 값)
+const LOCAL_ONLY = [
+  ['regPrefix', 'HS-'],
+  ['flightPrefix', 'SL'],
+  ['fleetTypes', 'B737-800, B737-900'],
+] as const
+
 type Values = Record<string, string>
 
 export default function SettingsPage() {
@@ -80,6 +87,7 @@ export default function SettingsPage() {
     void (async () => {
       const next: Values = {}
       for (const [localKey] of FIELDS) next[localKey] = (await getSetting(localKey)) ?? ''
+      for (const [k, dflt] of LOCAL_ONLY) next[k] = (await getSetting(k)) ?? dflt
       // 비어 있으면 온라인 프로필에서 보충
       if (navigator.onLine && FIELDS.some(([k]) => !next[k])) {
         try {
@@ -103,6 +111,7 @@ export default function SettingsPage() {
     setBusy(true)
     setSaved(false)
     for (const [localKey] of FIELDS) await setSetting(localKey, (v[localKey] ?? '').trim())
+    for (const [k] of LOCAL_ONLY) await setSetting(k, (v[k] ?? '').trim())
     if (navigator.onLine) {
       try {
         const supabase = createClient()
@@ -242,6 +251,31 @@ export default function SettingsPage() {
               <label className={labelCls}>리커런트 (시뮬레이터)</label>
               <input type="date" value={v.recurrentExpiry ?? ''} onChange={(e) => set('recurrentExpiry', e.target.value)} className={inputCls} />
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
+          <h2 className="font-semibold">회사 표기 규칙</h2>
+          <p className="mt-1 text-xs text-app-hint">
+            기록할 때 앞부분을 자동으로 붙여줘요. 예: 등록번호 <b>LVL</b> → <b>HS-LVL</b>, 편명 <b>628</b> → <b>SL628</b>
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>등록번호 앞부분</label>
+              <input value={v.regPrefix ?? ''} onChange={(e) => set('regPrefix', e.target.value.toUpperCase())}
+                placeholder="HS-" className={inputCls + ' font-mono uppercase'} />
+            </div>
+            <div>
+              <label className={labelCls}>편명 앞부분</label>
+              <input value={v.flightPrefix ?? ''} onChange={(e) => set('flightPrefix', e.target.value.toUpperCase())}
+                placeholder="SL" className={inputCls + ' font-mono uppercase'} />
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className={labelCls}>우리 기단 기종 (쉼표로 구분)</label>
+            <input value={v.fleetTypes ?? ''} onChange={(e) => set('fleetTypes', e.target.value.toUpperCase())}
+              placeholder="B737-800, B737-900" className={inputCls + ' font-mono uppercase'} />
+            <p className="mt-1 text-xs text-app-hint">기록 화면 기종 칸 아래에 빠른 선택 버튼으로 나와요.</p>
           </div>
         </div>
 

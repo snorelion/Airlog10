@@ -186,13 +186,23 @@ export default function NewFlightPage() {
     setRosterId(d.rosterId)
   }
 
+  // 의미 있는 내용이 있어야만 임시저장으로 취급 (빈 폼 저장이 프리필을 막지 않게)
+  function draftMeaningful(d: ReturnType<typeof snapshot>): boolean {
+    return Boolean(
+      d.flightNumber || d.reg || d.outTime || d.inTime || d.totalHM ||
+      d.tkoTime || d.ldgTime || d.flightHM || d.remarks || d.nightHM || d.instHM ||
+      d.dayTO || d.dayLDG || d.nightTO || d.nightLDG || d.autolands
+    )
+  }
+
   // 초기화: 수정 모드 → 임시저장 복원 → 로스터 프리필 → 설정 프리필 순
   useEffect(() => {
     void (async () => {
       const params = new URLSearchParams(window.location.search)
       const eid = params.get('edit')
       const rid = params.get('roster')
-      setMyName((await getSetting('pilotName')) ?? '')
+      const name = (await getSetting('pilotName')) ?? ''
+      setMyName(name)
 
       if (eid) {
         const f = await getFlight(eid)
@@ -222,14 +232,19 @@ export default function NewFlightPage() {
           setRemarks(f.remarks ?? '')
         }
       } else {
-        // 임시저장 복원 (같은 맥락일 때만: 로스터 기록이면 같은 로스터)
+        // 임시저장 복원 (같은 맥락 + 실제 내용이 있을 때만)
         let restored = false
         try {
           const raw = await getSetting('flightDraft')
           if (raw) {
             const d = JSON.parse(raw)
-            if ((d.rosterId ?? null) === (rid ?? null)) {
+            if ((d.rosterId ?? null) === (rid ?? null) && draftMeaningful(d)) {
               restore(d)
+              // 복원본에 크루가 비어 있으면 내 이름은 채워준다 (설정 역할 기준)
+              if (name && !d.crewPic && !d.crewSic) {
+                if (d.capacity === 'PIC') setCrewPic(name)
+                else setCrewSic(name)
+              }
               setDraftRestored(true)
               restored = true
             }
@@ -237,7 +252,6 @@ export default function NewFlightPage() {
         } catch {}
 
         if (!restored) {
-          const name = (await getSetting('pilotName')) ?? ''
           const cap = (await getSetting('defaultCapacity')) ?? ''
           const hb = (await getSetting('homeBase')) ?? ''
           if (cap === 'PIC' || cap === 'SIC' || cap === 'PICUS') {
@@ -288,7 +302,9 @@ export default function NewFlightPage() {
     if (!initDone.current || editId) return
     if (draftTimer.current) clearTimeout(draftTimer.current)
     draftTimer.current = setTimeout(() => {
-      void setSetting('flightDraft', JSON.stringify(snapshot()))
+      const snap = snapshot()
+      // 빈 폼은 저장하지 않는다 (다음 방문의 이름·역할 프리필을 막지 않게)
+      void setSetting('flightDraft', draftMeaningful(snap) ? JSON.stringify(snap) : '')
     }, 400)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, flightNumber, origin, destination, reg, typeCode, outTime, inTime, totalHM,

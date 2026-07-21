@@ -159,6 +159,9 @@ export default function NewFlightPage() {
   const [tkoTime, setTkoTime] = useState('')
   const [ldgTime, setLdgTime] = useState('')
   const [flightHM, setFlightHM] = useState('')
+  const [onDuty, setOnDuty] = useState('')
+  const [offDuty, setOffDuty] = useState('')
+  const [dutyHM, setDutyHM] = useState('')
   const [typeHits, setTypeHits] = useState<AircraftHit[]>([])
   const [typeOpen, setTypeOpen] = useState(false)
   const [myName, setMyName] = useState('')
@@ -199,6 +202,7 @@ export default function NewFlightPage() {
     return {
       date, flightNumber, origin, destination, reg, typeCode,
       outTime, inTime, totalHM, tkoTime, ldgTime, flightHM,
+      onDuty, offDuty, dutyHM,
       capacity, isPf, nightHM, instHM, simHM, approaches,
       dayTO, dayLDG, nightTO, nightLDG, autolands,
       crewPic, crewSic, remarks, rosterId,
@@ -210,6 +214,7 @@ export default function NewFlightPage() {
     setReg(d.reg); setTypeCode(d.typeCode)
     setOutTime(d.outTime); setInTime(d.inTime); setTotalHM(d.totalHM)
     setTkoTime(d.tkoTime); setLdgTime(d.ldgTime); setFlightHM(d.flightHM)
+    setOnDuty(d.onDuty ?? ''); setOffDuty(d.offDuty ?? ''); setDutyHM(d.dutyHM ?? '')
     setCapacity(d.capacity); setIsPf(d.isPf); setNightHM(d.nightHM); setInstHM(d.instHM)
     setSimHM(d.simHM ?? ''); setApproaches(d.approaches ?? [])
     setDayTO(d.dayTO); setDayLDG(d.dayLDG); setNightTO(d.nightTO); setNightLDG(d.nightLDG)
@@ -284,6 +289,9 @@ export default function NewFlightPage() {
           setInstHM(f.inst_actual_min ? minToHM(f.inst_actual_min) : '')
           setSimHM(f.sim_min ? minToHM(f.sim_min) : '')
           setApproaches(f.approaches ?? [])
+          setOnDuty(f.on_duty_time ?? '')
+          setOffDuty(f.off_duty_time ?? '')
+          setDutyHM(f.duty_min ? minToHM(f.duty_min) : '')
           setDayTO(f.day_takeoffs); setDayLDG(f.day_landings)
           setNightTO(f.night_takeoffs); setNightLDG(f.night_landings)
           setAutolands(f.autolands)
@@ -336,6 +344,14 @@ export default function NewFlightPage() {
                 const e = hmToMin(r.sta)
                 setTotalHM(minToHM(((e - s) + 1440) % 1440))
               }
+              // 듀티 시각은 로컬 그대로 (듀티는 로컬 기준 기록)
+              if (r.report_time) setOnDuty(r.report_time)
+              if (r.duty_end_time) setOffDuty(r.duty_end_time)
+              if (r.report_time && r.duty_end_time) {
+                const s = hmToMin(r.report_time)
+                const e = hmToMin(r.duty_end_time)
+                setDutyHM(minToHM(((e - s) + 1440) % 1440))
+              }
             }
           } else if (hb) {
             setOrigin((prev) => prev || hb)
@@ -368,7 +384,7 @@ export default function NewFlightPage() {
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, flightNumber, origin, destination, reg, typeCode, outTime, inTime, totalHM,
-      tkoTime, ldgTime, flightHM, capacity, isPf, nightHM, instHM, simHM, approaches,
+      tkoTime, ldgTime, flightHM, onDuty, offDuty, dutyHM, capacity, isPf, nightHM, instHM, simHM, approaches,
       dayTO, dayLDG, nightTO, nightLDG, autolands, crewPic, crewSic, remarks, rosterId])
 
   async function clearDraft() {
@@ -476,6 +492,9 @@ export default function NewFlightPage() {
       takeoff_time: tkoTime.trim() || null,
       landing_time: ldgTime.trim() || null,
       flight_min: hmToMin(flightHM),
+      on_duty_time: onDuty.trim() || null,
+      off_duty_time: offDuty.trim() || null,
+      duty_min: hmToMin(dutyHM),
       aircraft_reg: regUp,
       aircraft_type: typeUp,
       total_min: totalMin,
@@ -738,6 +757,36 @@ export default function NewFlightPage() {
                 linkTimes('dur', tkoTime, ldgTime, flightHM, setTkoTime, setLdgTime, setFlightHM)
               }}
               placeholder="1:36" inputMode="numeric" className={inputCls + ' font-mono'} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-xs font-medium text-app-sub">리포트 (로컬)</label>
+            <input value={onDuty} onChange={(e) => setOnDuty(e.target.value)}
+              onBlur={() => {
+                tidyClock(onDuty, setOnDuty)
+                linkTimes('start', onDuty, offDuty, dutyHM, setOnDuty, setOffDuty, setDutyHM)
+              }}
+              placeholder="13:35" inputMode="numeric" className={inputCls + ' font-mono'} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-app-sub">듀티 종료</label>
+            <input value={offDuty} onChange={(e) => setOffDuty(e.target.value)}
+              onBlur={() => {
+                tidyClock(offDuty, setOffDuty)
+                linkTimes('end', onDuty, offDuty, dutyHM, setOnDuty, setOffDuty, setDutyHM)
+              }}
+              placeholder="21:45" inputMode="numeric" className={inputCls + ' font-mono'} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-app-sub">듀티 시간</label>
+            <input value={dutyHM} onChange={(e) => setDutyHM(e.target.value)}
+              onBlur={() => {
+                tidyDuration(dutyHM, setDutyHM)
+                linkTimes('dur', onDuty, offDuty, dutyHM, setOnDuty, setOffDuty, setDutyHM)
+              }}
+              placeholder="8:10" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
         </div>
 

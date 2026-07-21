@@ -12,6 +12,7 @@ type RosterParse = {
   flights: {
     flight_date: string; flight_number: string; origin: string | null; destination: string | null
     std: string | null; sta: string | null; aircraft_type: string | null; overnight: boolean
+    report_time?: string | null; duty_end_time?: string | null
   }[]
   stats: { flights: number; offDays: number; standbyDays: number }
 }
@@ -61,6 +62,8 @@ export default function ImportPage() {
           std: f.std,
           sta: f.sta,
           aircraft_type: f.aircraft_type,
+          report_time: f.report_time ?? null,
+          duty_end_time: f.duty_end_time ?? null,
         }))
       )
       setRosterMsg(`✅ ${n}편 등록! 홈 화면에 "오늘의 비행"으로 떠요.`)

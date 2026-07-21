@@ -17,6 +17,9 @@ export type Flight = {
   takeoff_time: string | null
   landing_time: string | null
   flight_min: number
+  on_duty_time: string | null
+  off_duty_time: string | null
+  duty_min: number
   aircraft_reg: string | null
   aircraft_type: string | null
   total_min: number
@@ -79,6 +82,8 @@ export type RosterFlight = {
   std: string | null          // 예정 출발 "HH:MM" (로컬)
   sta: string | null          // 예정 도착
   aircraft_type: string | null
+  report_time: string | null  // 그날 첫 비행에만: 리포트 시각
+  duty_end_time: string | null
   status: string              // planned | logged
 }
 
@@ -391,7 +396,7 @@ export async function sync(): Promise<boolean> {
       // 로스터: 서버본으로 전체 교체 (아직 안 올라간 로컬분이 있으면 보존)
       const { data: ro } = await supabase
         .from('roster_flights')
-        .select('id, flight_date, flight_number, origin, destination, std, sta, aircraft_type, status')
+        .select('id, flight_date, flight_number, origin, destination, std, sta, aircraft_type, report_time, duty_end_time, status')
       if (ro) {
         const stillPending = (await idbGetAll<OutboxItem>('outbox')).some((o) => o.kind === 'roster')
         if (!stillPending) {

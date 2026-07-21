@@ -133,6 +133,7 @@ export default function SettingsPage() {
     const header = [
       'date', 'flight_number', 'from', 'to', 'aircraft_reg', 'aircraft_type',
       'out', 'in', 'takeoff', 'landing', 'block_time', 'flight_time',
+      'on_duty', 'off_duty', 'duty_time',
       'pic', 'sic', 'picus', 'night', 'actual_inst', 'sim', 'dual_given',
       'day_takeoffs', 'day_landings', 'night_takeoffs', 'night_landings',
       'autolands', 'go_arounds', 'holds', 'approaches',
@@ -149,6 +150,7 @@ export default function SettingsPage() {
         f.flight_date, f.flight_number, f.origin, f.destination, f.aircraft_reg, f.aircraft_type,
         f.out_time, f.in_time, f.takeoff_time, f.landing_time,
         minToHM(f.total_min), f.flight_min ? minToHM(f.flight_min) : '',
+        f.on_duty_time, f.off_duty_time, f.duty_min ? minToHM(f.duty_min) : '',
         f.pic_min ? minToHM(f.pic_min) : '', f.sic_min ? minToHM(f.sic_min) : '',
         f.picus_min ? minToHM(f.picus_min) : '', f.night_min ? minToHM(f.night_min) : '',
         f.inst_actual_min ? minToHM(f.inst_actual_min) : '',

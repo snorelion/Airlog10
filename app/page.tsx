@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, getRosterFlights, sync, onStoreChange, type Flight, type RosterFlight } from '@/lib/store'
 import WxCard from '@/components/WxCard'
-import { computeTotals, windowTotalMin, currency90, type Totals } from '@/lib/aggregate'
+import { computeTotals, windowTotalMin, currency90, monthDutyMin, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
 import { Settings as SettingsIcon, Users } from 'lucide-react'
 import Nav from '@/components/Nav'
@@ -18,6 +18,7 @@ export default function HomePage() {
   const [rosterCard, setRosterCard] = useState<{ label: string; flights: RosterFlight[] } | null>(null)
   const [limits, setLimits] = useState<{ label: string; used: number; cap: number }[]>([])
   const [curr, setCurr] = useState<{ takeoffs: number; landings: number } | null>(null)
+  const [dutyMonth, setDutyMonth] = useState(0)
   const [homeBase, setHomeBase] = useState('')
   const [wxList, setWxList] = useState<string[]>([])
   const [wxQuery, setWxQuery] = useState('')
@@ -63,6 +64,7 @@ export default function HomePage() {
       { label: '12개월', used: windowTotalMin(flights, 365, todayLocal), cap: lim365 * 60 },
     ])
     setCurr(currency90(flights, todayLocal))
+    setDutyMonth(monthDutyMin(flights, todayLocal))
     const hb = ((await getSetting('homeBase')) ?? '').toUpperCase()
     setHomeBase(hb)
     // 날씨 공항 목록 — 없으면 홈베이스(+예전 마지막 조회)로 시작
@@ -239,8 +241,13 @@ export default function HomePage() {
                   )
                 })}
               </div>
+              {dutyMonth > 0 && (
+                <p className="mt-2 text-xs text-app-hint">
+                  이번 달 듀티 <b className="text-app-text">{minToHMGrouped(dutyMonth)}</b>
+                </p>
+              )}
               {curr && (
-                <p className="mt-3 text-xs text-app-hint">
+                <p className="mt-2 text-xs text-app-hint">
                   최근 90일 이륙 <b className="text-app-text">{curr.takeoffs}</b> · 착륙 <b className="text-app-text">{curr.landings}</b>{' '}
                   {curr.takeoffs >= 3 && curr.landings >= 3 ? (
                     <span className="font-semibold text-green-600 dark:text-green-400">✓ 기량유지 충족 (3회 이상)</span>

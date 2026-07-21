@@ -19,6 +19,8 @@ type ParsedRosterFlight = {
   sta: string | null
   aircraft_type: string | null
   overnight: boolean
+  report_time?: string | null   // 그날 첫 비행에만: 리포트 시각
+  duty_end_time?: string | null // 그날 첫 비행에만: 듀티 종료 시각
 }
 
 const TYPE_MAP: Record<string, string> = {
@@ -109,6 +111,10 @@ export async function POST(req: NextRequest) {
     const colYear = parseInt(mm, 10) < parseInt(period[2], 10) ? period[6] : year
     const date = `${colYear}-${mm}-${dd}`
     const toks = colToks[ci].sort().map((s) => s.split('|')[2])
+    // 듀티: 컬럼 맨 위 시각 = 리포트, 맨 아래 시각 = 듀티 종료 (비행 블록 밖)
+    const reportTime = toks.length && TIME.test(toks[0]) ? toks[0] : null
+    const dutyEndTime = toks.length && TIME.test(toks[toks.length - 1]) ? toks[toks.length - 1] : null
+    const firstFlightIdx = flights.length
     let i = 0
     while (i < toks.length) {
       const t = toks[i]
@@ -162,6 +168,11 @@ export async function POST(req: NextRequest) {
       } else {
         i++ // 듀티 시작/종료 시각 등은 건너뜀
       }
+    }
+    // 그날 첫 비행에 듀티 시각 붙이기
+    if (flights.length > firstFlightIdx) {
+      flights[firstFlightIdx].report_time = reportTime
+      flights[firstFlightIdx].duty_end_time = dutyEndTime
     }
   }
 

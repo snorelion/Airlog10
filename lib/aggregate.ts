@@ -81,6 +81,14 @@ export function windowTotalMin(flights: Flight[], days: number, todayStr: string
   return sum
 }
 
+// 이번 달 듀티 합계 (분)
+export function monthDutyMin(flights: Flight[], todayStr: string): number {
+  const ym = todayStr.slice(0, 7)
+  let sum = 0
+  for (const f of flights) if (f.flight_date.slice(0, 7) === ym) sum += f.duty_min ?? 0
+  return sum
+}
+
 // 기량유지: 최근 90일 이착륙 횟수
 export function currency90(flights: Flight[], todayStr: string): { takeoffs: number; landings: number } {
   const from = new Date(todayStr + 'T00:00:00')

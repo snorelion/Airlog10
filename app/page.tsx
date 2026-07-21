@@ -134,12 +134,16 @@ export default function HomePage() {
       ) : empty ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-6 text-center">
           <p className="text-4xl">✈️</p>
-          <h2 className="mt-3 text-lg font-bold">로그북을 시작해 볼까요?</h2>
+          <h2 className="mt-3 text-lg font-bold">환영해요! 로그북을 시작해 볼까요?</h2>
           <p className="mt-1 text-sm text-app-sub">
-            기존 로그북 파일을 가져오거나, 첫 비행을 직접 기록해 보세요.
+            먼저 ⚙️ 설정에서 이름·소속·홈베이스를 넣으면 기록이 훨씬 편해져요.<br />
+            그다음 기존 로그북을 가져오거나 첫 비행을 기록하세요.
           </p>
           <div className="mt-5 space-y-2">
-            <Link href="/import" className="block rounded-xl bg-app-btn py-3 font-semibold text-white">
+            <Link href="/settings" className="block rounded-xl bg-app-btn py-3 font-semibold text-white">
+              ⚙️ 내 정보 먼저 설정하기
+            </Link>
+            <Link href="/import" className="block rounded-xl border border-app-line py-3 font-semibold">
               기존 로그북 가져오기
             </Link>
             <Link href="/flights/new" className="block rounded-xl border border-app-line py-3 font-semibold">

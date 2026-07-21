@@ -184,6 +184,23 @@ export default function SettingsPage() {
     router.refresh()
   }
 
+  async function deleteAccount() {
+    if (!window.confirm('정말 계정을 삭제할까요? 모든 비행 기록·프로필이 영구히 지워지고 되돌릴 수 없어요.')) return
+    if (!window.confirm('마지막 확인이에요. 백업(CSV)을 받아두셨나요? 삭제를 진행할까요?')) return
+    try {
+      const res = await fetch('/api/delete-account', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '삭제 실패')
+      await clearLocalData()
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      router.push('/login')
+      router.refresh()
+    } catch (err) {
+      alert('삭제에 실패했어요: ' + (err instanceof Error ? err.message : String(err)))
+    }
+  }
+
   const inputCls = 'mt-1 w-full rounded-xl border border-app-line bg-app-surface px-3 py-2.5 outline-none focus:border-air-400'
   const labelCls = 'text-xs font-medium text-app-sub'
 
@@ -352,6 +369,18 @@ export default function SettingsPage() {
             <Link href="/import" className="text-sm font-medium text-app-accent">📥 가져오기</Link>
           </div>
           <button onClick={logout} className="text-sm text-app-hint">로그아웃</button>
+        </div>
+
+        <div className="rounded-2xl border border-app-line bg-app-surface p-4">
+          <div className="flex items-center justify-center gap-4 text-xs text-app-hint">
+            <Link href="/terms" className="underline">이용약관</Link>
+            <Link href="/privacy" className="underline">개인정보처리방침</Link>
+          </div>
+          <button onClick={deleteAccount}
+            className="mt-3 w-full rounded-xl border border-red-200 py-2.5 text-sm font-medium text-red-600 dark:border-red-900/40 dark:text-red-400">
+            계정 삭제
+          </button>
+          <p className="mt-1.5 text-center text-[11px] text-app-hint">모든 데이터가 영구 삭제돼요. 먼저 CSV 백업을 권장해요.</p>
         </div>
       </div>
 

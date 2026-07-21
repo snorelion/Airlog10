@@ -3,7 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 // 로그인 없이 접근 가능한 경로
 // /api/roster/parse는 라우트 안에서 세션 또는 시크릿으로 자체 인증
-const PUBLIC_PATHS = ['/login', '/signup', '/api/airports/seed', '/api/roster/parse']
+const PUBLIC_PATHS = [
+  '/login', '/signup', '/forgot-password', '/reset-password',
+  '/privacy', '/terms', '/api/airports/seed', '/api/roster/parse',
+]
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })

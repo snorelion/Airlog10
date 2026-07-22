@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [inviteCode, setInviteCode] = useState('')
   const [agree, setAgree] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -38,6 +39,16 @@ export default function LoginPage() {
     }
     setBusy(true)
     const supabase = createClient()
+
+    // 초대제: 가입 전 초대 코드를 먼저 검증·소모한다
+    if (mode === 'signup') {
+      const code = inviteCode.trim().toUpperCase()
+      if (!code) { setBusy(false); setError('초대 코드가 필요해요. 운영자에게 요청해 주세요.'); return }
+      const { data: ok, error: rErr } = await supabase.rpc('redeem_invite', { p_code: code })
+      if (rErr) { setBusy(false); setError('초대 코드 확인 중 문제가 생겼어요: ' + rErr.message); return }
+      if (!ok) { setBusy(false); setError('유효하지 않거나 이미 사용된 초대 코드예요.'); return }
+    }
+
     const { data, error } = await (mode === 'login'
       ? supabase.auth.signInWithPassword({ email: email.trim(), password })
       : supabase.auth.signUp({
@@ -83,6 +94,16 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded-xl border border-app-line bg-app-surface px-4 py-3 text-base outline-none focus:border-air-400"
         />
+        {mode === 'signup' && (
+          <input
+            type="text"
+            placeholder="초대 코드 (예: AIRLOG-7K2M)"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+            autoCapitalize="characters"
+            className="w-full rounded-xl border border-app-line bg-app-surface px-4 py-3 text-base font-mono uppercase outline-none focus:border-air-400"
+          />
+        )}
         {mode === 'signup' && (
           <label className="flex items-start gap-2 text-xs text-app-sub">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)}

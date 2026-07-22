@@ -42,9 +42,17 @@ export default function SettingsPage() {
   const [mailMsg, setMailMsg] = useState('')
   const [theme, setTheme] = useState<Theme>('system')
   const [lim, setLim] = useState({ l28: '100', l90: '270', l365: '1000' })
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     setTheme(readTheme())
+    void (async () => {
+      try {
+        const supabase = createClient()
+        const { data } = await supabase.rpc('is_admin')
+        setIsAdmin(!!data)
+      } catch {}
+    })()
     void (async () => {
       setLim({
         l28: (await getSetting('limit28')) || '100',
@@ -367,6 +375,7 @@ export default function SettingsPage() {
           <div className="flex gap-4">
             <Link href="/people" className="text-sm font-medium text-app-accent">👥 크루 목록</Link>
             <Link href="/import" className="text-sm font-medium text-app-accent">📥 가져오기</Link>
+            {isAdmin && <Link href="/admin/invite" className="text-sm font-medium text-app-accent">🎫 초대 코드</Link>}
           </div>
           <button onClick={logout} className="text-sm text-app-hint">로그아웃</button>
         </div>

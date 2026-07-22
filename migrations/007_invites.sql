@@ -38,13 +38,13 @@ create policy "admin read admins" on app_admins
 -- 유효하면 used_count++ 하고 true, 아니면 false. 코드 내용은 노출하지 않는다.
 create or replace function redeem_invite(p_code text)
 returns boolean language plpgsql security definer set search_path = public as $$
-declare ok boolean;
+declare n int;
 begin
   update invites
     set used_count = used_count + 1
     where code = p_code and not disabled and used_count < max_uses;
-  get diagnostics ok = row_count;
-  return ok > 0;
+  get diagnostics n = row_count;
+  return n > 0;
 end;
 $$;
 grant execute on function redeem_invite(text) to anon, authenticated;

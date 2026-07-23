@@ -119,7 +119,7 @@ export async function POST() {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: process.env.MAIL_FROM || 'AirLog10 <noreply@bjjlog10.com>',
+      from: process.env.MAIL_FROM || 'AirLog10 <noreply_air@bjjlog10.com>',
       to: [to],
       subject: `[AirLog10] 로그북 사본 — ${flights.length.toLocaleString()}편 · ${minToHMGrouped(totalMin)} (${today})`,
       html,

@@ -129,9 +129,9 @@ export default function LoginPage() {
             <b>{email}</b> 으로 6자리 코드를 보냈어요. 메일함(스팸함도)에서 확인해 입력해 주세요.
           </p>
           <input
-            type="text" inputMode="numeric" required placeholder="6자리 코드"
-            value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            className={inputCls + ' text-center font-mono text-2xl tracking-[0.4em]'}
+            type="text" inputMode="numeric" required placeholder="메일로 온 코드"
+            value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
+            className={inputCls + ' text-center font-mono text-2xl tracking-[0.3em]'}
             autoFocus
           />
           {error && <p className="text-sm text-red-600">{error}</p>}

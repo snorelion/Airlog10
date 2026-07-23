@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 
@@ -10,7 +10,6 @@ const SOFT = /otp.?expired|token has expired|invalid.*(code|token)|email link|pk
 
 export default function LoginPage() {
   const router = useRouter()
-  const params = useSearchParams()
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [step, setStep] = useState<'email' | 'code'>('email')
@@ -19,11 +18,11 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [soft, setSoft] = useState('')
 
-  // OAuth 콜백이 에러로 되돌려보낸 경우 표시
+  // OAuth 콜백이 에러로 되돌려보낸 경우 표시 (window로 읽어 Suspense 경계 불필요)
   useEffect(() => {
-    const e = params.get('error')
+    const e = new URLSearchParams(window.location.search).get('error')
     if (e) setError(decodeURIComponent(e))
-  }, [params])
+  }, [])
 
   function show(msg: string) {
     if (SOFT.test(msg)) setSoft('코드가 만료됐거나 맞지 않아요. 새 코드를 받아 다시 입력해 주세요.')

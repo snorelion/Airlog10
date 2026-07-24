@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { getFlights, getSetting, setSetting, sync, onStoreChange } from '@/lib/store'
+import { useEffect, useMemo, useState } from 'react'
+import { getFlights, getSetting, setSetting, sync, onStoreChange, type Flight } from '@/lib/store'
 import { createClient } from '@/lib/supabase'
+import { recapRange, filterRange } from '@/lib/aggregate'
 import { WORLD_LAND_PATH } from '@/components/world-land-path'
 import Nav from '@/components/Nav'
 
@@ -15,31 +16,24 @@ type AirportDot = { ident: string; x: number; y: number; visits: number }
 type Route = { x1: number; y1: number; x2: number; y2: number; count: number }
 
 export default function MapPage() {
-  const [dots, setDots] = useState<AirportDot[]>([])
-  const [routes, setRoutes] = useState<Route[]>([])
-  const [countries, setCountries] = useState(0)
-  const [missingCount, setMissingCount] = useState(0)
+  const [allFlights, setAllFlights] = useState<Flight[]>([])
+  const [coords, setCoords] = useState<Record<string, Coord>>({})
+  const [mapMode, setMapMode] = useState<'all' | 'weeks4' | 'lastMonth'>('all')
   const [loaded, setLoaded] = useState(false)
 
   async function load() {
     const flights = await getFlights()
+    setAllFlights(flights)
 
-    // 방문 횟수·노선 집계
-    const visits = new Map<string, number>()
-    const pairs = new Map<string, number>()
+    // 좌표는 '전체' 방문 공항 기준으로 확보·캐시 — 기간을 바꿔도 오프라인에서 그려짐
+    const ids = new Set<string>()
     for (const f of flights) {
-      if (f.origin) visits.set(f.origin, (visits.get(f.origin) ?? 0) + 1)
-      if (f.destination) visits.set(f.destination, (visits.get(f.destination) ?? 0) + 1)
-      if (f.origin && f.destination && f.origin !== f.destination) {
-        const key = [f.origin, f.destination].sort().join('|')
-        pairs.set(key, (pairs.get(key) ?? 0) + 1)
-      }
+      if (f.origin) ids.add(f.origin)
+      if (f.destination) ids.add(f.destination)
     }
-
-    // 공항 좌표 — 로컬 캐시 우선, 없는 것만 온라인 조회 (다음부터 오프라인 OK)
-    let coords: Record<string, Coord> = {}
-    try { coords = JSON.parse((await getSetting('airportCoords')) || '{}') } catch {}
-    const missing = Array.from(visits.keys()).filter((i) => !coords[i])
+    let c: Record<string, Coord> = {}
+    try { c = JSON.parse((await getSetting('airportCoords')) || '{}') } catch {}
+    const missing = Array.from(ids).filter((i) => !c[i])
     if (missing.length && typeof navigator !== 'undefined' && navigator.onLine) {
       try {
         const supabase = createClient()
@@ -49,36 +43,13 @@ export default function MapPage() {
           .in('ident', missing)
         for (const a of data ?? []) {
           if (a.lat !== null && a.lon !== null) {
-            coords[a.ident] = { lat: a.lat, lon: a.lon, name: a.name, country: a.country }
+            c[a.ident] = { lat: a.lat, lon: a.lon, name: a.name, country: a.country }
           }
         }
-        await setSetting('airportCoords', JSON.stringify(coords))
+        await setSetting('airportCoords', JSON.stringify(c))
       } catch {}
     }
-
-    const ds: AirportDot[] = []
-    const countrySet = new Set<string>()
-    for (const [ident, v] of Array.from(visits.entries())) {
-      const c = coords[ident]
-      if (!c) continue
-      ds.push({ ident, x: px(c.lon), y: py(c.lat), visits: v })
-      if (c.country) countrySet.add(c.country)
-    }
-    ds.sort((a, b) => b.visits - a.visits)
-
-    const rs: Route[] = []
-    for (const [key, count] of Array.from(pairs.entries())) {
-      const [a, b] = key.split('|')
-      const ca = coords[a]
-      const cb = coords[b]
-      if (!ca || !cb) continue
-      rs.push({ x1: px(ca.lon), y1: py(ca.lat), x2: px(cb.lon), y2: py(cb.lat), count })
-    }
-
-    setDots(ds)
-    setRoutes(rs)
-    setCountries(countrySet.size)
-    setMissingCount(Array.from(visits.keys()).filter((i) => !coords[i]).length)
+    setCoords(c)
     setLoaded(true)
   }
 
@@ -88,6 +59,47 @@ export default function MapPage() {
     return onStoreChange(() => { void load() })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 기간 필터 (전체 / 최근 4주 / 지난 달)
+  const today = new Date().toLocaleDateString('en-CA')
+  const filtered = useMemo(() => {
+    if (mapMode === 'all') return allFlights
+    const range = recapRange(today, mapMode)
+    return filterRange(allFlights, range.start, range.end)
+  }, [allFlights, mapMode, today])
+
+  // 필터된 비행으로 방문·노선 집계 (좌표는 이미 확보된 coords 사용)
+  const { dots, routes, countries, missingCount } = useMemo(() => {
+    const visits = new Map<string, number>()
+    const pairs = new Map<string, number>()
+    for (const f of filtered) {
+      if (f.origin) visits.set(f.origin, (visits.get(f.origin) ?? 0) + 1)
+      if (f.destination) visits.set(f.destination, (visits.get(f.destination) ?? 0) + 1)
+      if (f.origin && f.destination && f.origin !== f.destination) {
+        const key = [f.origin, f.destination].sort().join('|')
+        pairs.set(key, (pairs.get(key) ?? 0) + 1)
+      }
+    }
+    const ds: AirportDot[] = []
+    const cset = new Set<string>()
+    for (const [ident, v] of Array.from(visits.entries())) {
+      const c = coords[ident]
+      if (!c) continue
+      ds.push({ ident, x: px(c.lon), y: py(c.lat), visits: v })
+      if (c.country) cset.add(c.country)
+    }
+    ds.sort((a, b) => b.visits - a.visits)
+    const rs: Route[] = []
+    for (const [key, count] of Array.from(pairs.entries())) {
+      const [a, b] = key.split('|')
+      const ca = coords[a]
+      const cb = coords[b]
+      if (!ca || !cb) continue
+      rs.push({ x1: px(ca.lon), y1: py(ca.lat), x2: px(cb.lon), y2: py(cb.lat), count })
+    }
+    const miss = Array.from(visits.keys()).filter((i) => !coords[i]).length
+    return { dots: ds, routes: rs, countries: cset.size, missingCount: miss }
+  }, [filtered, coords])
 
   // 방문 공항에 맞춰 화면 잘라내기 (여백 포함)
   let minX = 0, minY = 0, w = 1000, h = 500
@@ -127,11 +139,22 @@ export default function MapPage() {
         )}
       </div>
 
+      <div className="mb-3 flex overflow-hidden rounded-lg border border-app-line text-xs font-medium">
+        {([['all', '전체'], ['weeks4', '최근 4주'], ['lastMonth', '지난 달']] as const).map(([m, label]) => (
+          <button
+            key={m} type="button" onClick={() => setMapMode(m)}
+            className={`flex-1 py-1.5 ${mapMode === m ? 'bg-app-btn text-white' : 'text-app-sub'}`}
+          >{label}</button>
+        ))}
+      </div>
+
       {!loaded ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
       ) : dots.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
-          기록이 쌓이면 지도가 채워져요. (좌표는 온라인에서 한 번 받아와요)
+          {mapMode === 'all'
+            ? '기록이 쌓이면 지도가 채워져요. (좌표는 온라인에서 한 번 받아와요)'
+            : '이 기간엔 비행 기록이 없어요.'}
         </div>
       ) : (
         <>

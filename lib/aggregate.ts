@@ -119,21 +119,38 @@ export type Recap = {
   intl: number          // 국제 편수
 }
 
-// 국내/국제 판정: ICAO 앞 2글자가 같은 국가권 (VTBD·VTSF → VT = 태국 국내)
-function isDomestic(f: Flight): boolean | null {
-  if (!f.origin || !f.destination) return null
-  return f.origin.slice(0, 2).toUpperCase() === f.destination.slice(0, 2).toUpperCase()
+// 베이스 국가권 = 가장 많이 드나든 공항의 ICAO 앞 2글자 (라이언님 = VT 태국).
+// 커리어 전체(기간 필터 전) 기준으로 뽑아 홈베이스 국가를 대표한다.
+export function baseCountry(flights: Flight[]): string {
+  const c = new Map<string, number>()
+  for (const f of flights) {
+    for (const a of [f.origin, f.destination]) {
+      if (!a) continue
+      const cc = a.slice(0, 2).toUpperCase()
+      c.set(cc, (c.get(cc) ?? 0) + 1)
+    }
+  }
+  let best = '', n = -1
+  for (const [k, v] of Array.from(c.entries())) if (v > n) { n = v; best = k }
+  return best
 }
 
-// 이미 기간·시뮬 필터된 flights를 받아 성향 집계
-export function computeRecap(flights: Flight[]): Recap {
+// 국내/국제 판정: 베이스국(예 VT)을 벗어나면 국제.
+// 출·도착 둘 다 베이스국이면 국내, 하나라도 벗어나면 국제.
+function isDomestic(f: Flight, baseCC: string): boolean | null {
+  if (!f.origin || !f.destination || !baseCC) return null
+  return f.origin.slice(0, 2).toUpperCase() === baseCC && f.destination.slice(0, 2).toUpperCase() === baseCC
+}
+
+// 이미 기간·시뮬 필터된 flights를 받아 성향 집계 (baseCC = 홈베이스 국가권)
+export function computeRecap(flights: Flight[], baseCC: string): Recap {
   const r: Recap = { flights: 0, total_min: 0, landings: 0, day_min: 0, night_min: 0, domestic: 0, intl: 0 }
   for (const f of flights) {
     r.flights += 1
     r.total_min += f.total_min
     r.night_min += f.night_min
     r.landings += f.day_landings + f.night_landings
-    const dom = isDomestic(f)
+    const dom = isDomestic(f, baseCC)
     if (dom === true) r.domestic += 1
     else if (dom === false) r.intl += 1
   }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getFlights, getSetting, sync, onStoreChange, type Flight } from '@/lib/store'
-import { computeYearly, computeByType, computeTopAirports, computeTotals, computeRecap, recapRange, filterRange } from '@/lib/aggregate'
+import { computeYearly, computeByType, computeTopAirports, computeTotals, computeRecap, recapRange, filterRange, baseCountry } from '@/lib/aggregate'
 import { createClient } from '@/lib/supabase'
 import { minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
@@ -167,9 +167,10 @@ export default function StatsPage() {
   // ── Recap (최근 4주 / 지난 달) ──
   const today = new Date().toLocaleDateString('en-CA')
   const range = recapRange(today, recapMode)
+  const baseCC = baseCountry(flights)
   const recapFlights = filterRange(flights, range.start, range.end)
-  const recap = computeRecap(recapFlights)
-  const prevRecap = computeRecap(filterRange(flights, range.prevStart, range.prevEnd))
+  const recap = computeRecap(recapFlights, baseCC)
+  const prevRecap = computeRecap(filterRange(flights, range.prevStart, range.prevEnd), baseCC)
   const recapTypes = computeByType(recapFlights)
   const recapAirports = computeTopAirports(recapFlights, 4)
   const recapMaxVisits = recapAirports[0]?.visits ?? 1

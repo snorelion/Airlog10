@@ -293,16 +293,20 @@ export default function ImportPage() {
 
           <div className="rounded-2xl border border-app-line bg-app-surface p-5">
             <h2 className="font-semibold">첫 5편 미리보기</h2>
-            <div className="mt-2 space-y-1 overflow-x-auto text-xs">
+            <div className="mt-3 space-y-2 text-xs">
               {result.flights.slice(0, 5).map((f, i) => (
-                <p key={i} className="whitespace-nowrap font-mono">
-                  {f.flight_date} {f.origin ?? '?'}→{f.destination ?? '?'} {f.out_time ?? '--:--'}-{f.in_time ?? '--:--'}
-                  {' '}블록 {minToHMGrouped(f.total_min)}
-                  {f.flight_min ? ` / 공중 ${minToHMGrouped(f.flight_min)}` : ''}
-                  {f.night_min ? ` / 야간 ${minToHMGrouped(f.night_min)}` : ''}
-                  {f.sim_min ? ` / 시뮬 ${minToHMGrouped(f.sim_min)}` : ''}
-                  {f.aircraft_reg ? ` ${f.aircraft_reg}` : ''}
-                </p>
+                <div key={i} className="rounded-lg bg-app-bg p-2 font-mono">
+                  <div>
+                    {f.flight_date} · {f.origin ?? '?'}→{f.destination ?? '?'} · {f.out_time ?? '--:--'}-{f.in_time ?? '--:--'}
+                    {f.aircraft_reg ? ` · ${f.aircraft_reg}` : ''}
+                  </div>
+                  <div className="mt-0.5 text-app-sub">
+                    블록 {minToHMGrouped(f.total_min)}
+                    {f.flight_min ? ` · 공중 ${minToHMGrouped(f.flight_min)}` : ''}
+                    {f.night_min ? ` · 야간 ${minToHMGrouped(f.night_min)}` : ''}
+                    {f.sim_min ? ` · 시뮬 ${minToHMGrouped(f.sim_min)}` : ''}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

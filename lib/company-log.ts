@@ -300,6 +300,7 @@ function blankFlight(): ParsedFlight {
     aircraft_reg: null,
     aircraft_type: null,
     total_min: 0,
+    flight_min: 0,
     pic_min: 0,
     sic_min: 0,
     picus_min: 0,

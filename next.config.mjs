@@ -9,6 +9,10 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // exceljs는 CommonJS + Node 내장모듈 의존 — 서버 라우트에서 그대로 쓰도록 번들 제외
+  experimental: {
+    serverComponentsExternalPackages: ['exceljs'],
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]
   },

@@ -16,6 +16,7 @@ export type ParsedFlight = {
   aircraft_reg: string | null
   aircraft_type: string | null
   total_min: number
+  flight_min?: number   // 공중시간(airborne). LogTen엔 없고 회사 파일에서 추정해 채운다
   pic_min: number
   sic_min: number
   picus_min: number
@@ -58,6 +59,8 @@ export type ParseResult = {
   flights: ParsedFlight[]
   aircraft: ParsedAircraft[]
   errors: string[]
+  warnings?: string[]   // 저장은 되지만 알아둬야 할 것 (처음 보는 기종 코드 등)
+  notes?: string[]      // 이 형식에서 적용한 보정 규칙 안내 (미리보기에 표시)
 }
 
 // 업로드 파일 → 문자열 (UTF-16 LE/BE BOM, UTF-8 자동 감지)

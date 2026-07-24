@@ -19,6 +19,16 @@ type RosterParse = {
 
 type Step = 'pick' | 'preview' | 'importing' | 'done'
 
+// 중복 판정 키.
+// 출발시각까지 넣는 이유: 회사(라이언에어) 로그북엔 편명이 없어서
+// 같은 날 같은 구간을 왕복 두 번 하면 날짜+구간만으로는 한 편으로 뭉개진다.
+function dupKey(f: {
+  flight_date: string; flight_number: string | null
+  origin: string | null; destination: string | null; out_time: string | null
+}): string {
+  return `${f.flight_date}|${f.flight_number ?? ''}|${f.origin ?? ''}|${f.destination ?? ''}|${f.out_time ?? ''}`
+}
+
 export default function ImportPage() {
   const [step, setStep] = useState<Step>('pick')
   const [result, setResult] = useState<ParseResult | null>(null)
@@ -26,6 +36,7 @@ export default function ImportPage() {
   const [imported, setImported] = useState(0)
   const [skipped, setSkipped] = useState(0)
   const [error, setError] = useState('')
+  const [fileBusy, setFileBusy] = useState(false)
   const [roster, setRoster] = useState<RosterParse | null>(null)
   const [rosterBusy, setRosterBusy] = useState(false)
   const [rosterMsg, setRosterMsg] = useState('')
@@ -77,10 +88,27 @@ export default function ImportPage() {
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     setError('')
     const file = e.target.files?.[0]
+    e.target.value = ''  // 같은 파일을 다시 고를 수 있게
     if (!file) return
+    setFileBusy(true)
     try {
-      const text = await decodeLogbookFile(file)
-      const parsed = parseLogbook(text)
+      // 엑셀(.xlsx)은 zip이라 'PK'로 시작한다. 회사 로그북은 확장자가 .csv여도 실제는 엑셀.
+      const head = new Uint8Array(await file.slice(0, 2).arrayBuffer())
+      const isExcel = head[0] === 0x50 && head[1] === 0x4b
+
+      let parsed: ParseResult
+      if (isExcel) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/company-log/parse', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || '파일을 읽지 못했어요.')
+        parsed = data as ParseResult
+      } else {
+        const text = await decodeLogbookFile(file)
+        parsed = parseLogbook(text)
+      }
+
       if (!parsed.flights.length) {
         setError(parsed.errors[0] || '비행 기록을 찾지 못했어요.')
         return
@@ -88,7 +116,9 @@ export default function ImportPage() {
       setResult(parsed)
       setStep('preview')
     } catch (err) {
-      setError('파일을 읽는 중 문제가 생겼어요: ' + String(err))
+      setError('파일을 읽는 중 문제가 생겼어요: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setFileBusy(false)
     }
   }
 
@@ -107,20 +137,16 @@ export default function ImportPage() {
       for (let fromRow = 0; ; fromRow += 1000) {
         const { data, error: qErr } = await supabase
           .from('flights')
-          .select('flight_date, flight_number, origin, destination')
+          .select('flight_date, flight_number, origin, destination, out_time')
           .eq('deleted', false)
           .order('id') // 정렬 없는 range 페이징은 경계에서 행이 샐 수 있음
           .range(fromRow, fromRow + 999)
         if (qErr) throw new Error(qErr.message)
-        for (const f of data ?? []) {
-          existing.add(`${f.flight_date}|${f.flight_number ?? ''}|${f.origin ?? ''}|${f.destination ?? ''}`)
-        }
+        for (const f of data ?? []) existing.add(dupKey(f))
         if (!data || data.length < 1000) break
       }
 
-      const fresh = result.flights.filter(
-        (f) => !existing.has(`${f.flight_date}|${f.flight_number ?? ''}|${f.origin ?? ''}|${f.destination ?? ''}`)
-      )
+      const fresh = result.flights.filter((f) => !existing.has(dupKey(f)))
       const skippedCount = result.flights.length - fresh.length
       setSkipped(skippedCount)
 
@@ -166,16 +192,28 @@ export default function ImportPage() {
           <div className="rounded-2xl border border-app-line bg-app-surface p-5">
             <h2 className="font-semibold">로그북 파일 업로드</h2>
             <p className="mt-1 text-sm text-app-sub">
-              LogTen Pro 내보내기 · Dynamic Export 탭 텍스트(.txt)를 지원해요.
-              먼저 내용을 요약해 보여드리고, 확인 후에 저장돼요.
-              이미 있는 기록(같은 날짜·편명·구간)은 자동으로 건너뛰니 여러 파일을 올려도 안전해요.
+              아래 형식을 자동으로 알아봐요. 먼저 내용을 요약해 보여드리고, 확인 후에 저장돼요.
+              이미 있는 기록은 자동으로 건너뛰니 여러 파일을 올려도 안전해요.
             </p>
+            <ul className="mt-3 space-y-1 text-sm text-app-sub">
+              <li>· LogTen Pro 내보내기 · Dynamic Export (.txt)</li>
+              <li>· 🇹🇭 <b>라이언에어 회사 로그북</b> (PilotLogBookReport, 엑셀)</li>
+            </ul>
             <label className="mt-4 block">
               <span className="inline-block cursor-pointer rounded-xl bg-app-btn px-5 py-3 font-semibold text-white">
-                파일 선택
+                {fileBusy ? '읽는 중…' : '파일 선택'}
               </span>
-              <input type="file" accept=".txt,.tsv,.csv,text/plain" className="hidden" onChange={onFile} />
+              <input
+                type="file"
+                accept=".txt,.tsv,.csv,.xlsx,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={onFile}
+              />
             </label>
+            <p className="mt-3 text-xs text-app-hint">
+              회사 파일은 확장자가 .csv여도 그대로 올리시면 돼요. 공중시간이 없는 파일이라
+              블록시간에서 15분을 뺀 값으로 추정합니다(이륙 = OUT+10분, 착륙 = IN−5분).
+            </p>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -240,6 +278,34 @@ export default function ImportPage() {
               <p className="mt-3 text-xs text-amber-600">건너뛴 줄 {result.errors.length}개 (형식을 읽지 못함)</p>
             )}
           </div>
+
+          {(result.notes?.length || result.warnings?.length) && (
+            <div className="rounded-2xl border border-app-line bg-app-surface p-5">
+              <h2 className="font-semibold">이렇게 채웠어요</h2>
+              {result.notes?.map((n, i) => (
+                <p key={`n${i}`} className="mt-2 text-sm text-app-sub" style={{ wordBreak: 'keep-all' }}>· {n}</p>
+              ))}
+              {result.warnings?.map((w, i) => (
+                <p key={`w${i}`} className="mt-2 text-sm text-amber-600" style={{ wordBreak: 'keep-all' }}>⚠️ {w}</p>
+              ))}
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-app-line bg-app-surface p-5">
+            <h2 className="font-semibold">첫 5편 미리보기</h2>
+            <div className="mt-2 space-y-1 overflow-x-auto text-xs">
+              {result.flights.slice(0, 5).map((f, i) => (
+                <p key={i} className="whitespace-nowrap font-mono">
+                  {f.flight_date} {f.origin ?? '?'}→{f.destination ?? '?'} {f.out_time ?? '--:--'}-{f.in_time ?? '--:--'}
+                  {' '}블록 {minToHMGrouped(f.total_min)}
+                  {f.flight_min ? ` / 공중 ${minToHMGrouped(f.flight_min)}` : ''}
+                  {f.night_min ? ` / 야간 ${minToHMGrouped(f.night_min)}` : ''}
+                  {f.sim_min ? ` / 시뮬 ${minToHMGrouped(f.sim_min)}` : ''}
+                  {f.aircraft_reg ? ` ${f.aircraft_reg}` : ''}
+                </p>
+              ))}
+            </div>
+          </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-3">
             <button onClick={() => { setStep('pick'); setResult(null) }} className="flex-1 rounded-xl border border-app-line bg-app-surface py-3 font-semibold">
@@ -249,7 +315,9 @@ export default function ImportPage() {
               가져오기
             </button>
           </div>
-          <p className="text-xs text-app-hint">이미 있는 기록(같은 날짜·편명·구간)은 자동으로 건너뛰어요.</p>
+          <p className="text-xs text-app-hint" style={{ wordBreak: 'keep-all' }}>
+            이미 있는 기록(같은 날짜·구간·출발시각)은 자동으로 건너뛰어요.
+          </p>
         </div>
       )}
 

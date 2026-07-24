@@ -6,7 +6,7 @@ import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, get
 import WxCard from '@/components/WxCard'
 import { computeTotals, windowTotalMin, currency90, monthDutyMin, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
-import { Settings as SettingsIcon, Users } from 'lucide-react'
+import { Settings as SettingsIcon, Users, Plane } from 'lucide-react'
 import Nav from '@/components/Nav'
 
 export default function HomePage() {
@@ -118,6 +118,9 @@ export default function HomePage() {
               업로드 대기 {pending}
             </span>
           )}
+          <Link href="/aircraft" aria-label="기체" className="p-1 text-app-hint">
+            <Plane size={20} />
+          </Link>
           <Link href="/people" aria-label="크루" className="p-1 text-app-hint">
             <Users size={20} />
           </Link>

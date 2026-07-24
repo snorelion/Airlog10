@@ -18,7 +18,9 @@ type Route = { x1: number; y1: number; x2: number; y2: number; count: number }
 export default function MapPage() {
   const [allFlights, setAllFlights] = useState<Flight[]>([])
   const [coords, setCoords] = useState<Record<string, Coord>>({})
-  const [mapMode, setMapMode] = useState<'all' | 'weeks4' | 'lastMonth'>('all')
+  const [mapMode, setMapMode] = useState<'all' | 'weeks4' | 'lastMonth' | 'custom'>('all')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
   const [loaded, setLoaded] = useState(false)
 
   async function load() {
@@ -64,9 +66,13 @@ export default function MapPage() {
   const today = new Date().toLocaleDateString('en-CA')
   const filtered = useMemo(() => {
     if (mapMode === 'all') return allFlights
+    if (mapMode === 'custom') {
+      if (!customStart && !customEnd) return allFlights
+      return filterRange(allFlights, customStart || '0000-01-01', customEnd || '9999-12-31')
+    }
     const range = recapRange(today, mapMode)
     return filterRange(allFlights, range.start, range.end)
-  }, [allFlights, mapMode, today])
+  }, [allFlights, mapMode, customStart, customEnd, today])
 
   // 필터된 비행으로 방문·노선 집계 (좌표는 이미 확보된 coords 사용)
   const { dots, routes, countries, missingCount } = useMemo(() => {
@@ -140,13 +146,29 @@ export default function MapPage() {
       </div>
 
       <div className="mb-3 flex overflow-hidden rounded-lg border border-app-line text-xs font-medium">
-        {([['all', '전체'], ['weeks4', '최근 4주'], ['lastMonth', '지난 달']] as const).map(([m, label]) => (
+        {([['all', '전체'], ['weeks4', '최근 4주'], ['lastMonth', '지난 달'], ['custom', '직접']] as const).map(([m, label]) => (
           <button
             key={m} type="button" onClick={() => setMapMode(m)}
             className={`flex-1 py-1.5 ${mapMode === m ? 'bg-app-btn text-white' : 'text-app-sub'}`}
           >{label}</button>
         ))}
       </div>
+
+      {mapMode === 'custom' && (
+        <div className="mb-3 flex items-center gap-2 text-sm">
+          <input
+            type="date" value={customStart} max={customEnd || undefined}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="flex-1 appearance-none rounded-lg border border-app-line bg-app-surface px-3 py-2 outline-none focus:border-air-400"
+          />
+          <span className="text-app-hint">~</span>
+          <input
+            type="date" value={customEnd} min={customStart || undefined}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="flex-1 appearance-none rounded-lg border border-app-line bg-app-surface px-3 py-2 outline-none focus:border-air-400"
+          />
+        </div>
+      )}
 
       {!loaded ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>

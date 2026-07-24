@@ -105,6 +105,73 @@ export function currency90(flights: Flight[], todayStr: string): { takeoffs: num
   return { takeoffs, landings }
 }
 
+// ─────────────────────────────────────────────
+// Recap — 특정 기간(최근 4주 / 지난 달)의 비행 성향 요약
+// ─────────────────────────────────────────────
+
+export type Recap = {
+  flights: number
+  total_min: number
+  landings: number
+  day_min: number       // 주간 = 블록 − 야간
+  night_min: number
+  domestic: number      // 국내 편수 (출·도착 ICAO 앞 2글자 동일)
+  intl: number          // 국제 편수
+}
+
+// 국내/국제 판정: ICAO 앞 2글자가 같은 국가권 (VTBD·VTSF → VT = 태국 국내)
+function isDomestic(f: Flight): boolean | null {
+  if (!f.origin || !f.destination) return null
+  return f.origin.slice(0, 2).toUpperCase() === f.destination.slice(0, 2).toUpperCase()
+}
+
+// 이미 기간·시뮬 필터된 flights를 받아 성향 집계
+export function computeRecap(flights: Flight[]): Recap {
+  const r: Recap = { flights: 0, total_min: 0, landings: 0, day_min: 0, night_min: 0, domestic: 0, intl: 0 }
+  for (const f of flights) {
+    r.flights += 1
+    r.total_min += f.total_min
+    r.night_min += f.night_min
+    r.landings += f.day_landings + f.night_landings
+    const dom = isDomestic(f)
+    if (dom === true) r.domestic += 1
+    else if (dom === false) r.intl += 1
+  }
+  r.day_min = Math.max(0, r.total_min - r.night_min)
+  return r
+}
+
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + n)
+  return d.toLocaleDateString('en-CA')
+}
+
+export type RecapRange = { start: string; end: string; prevStart: string; prevEnd: string; label: string }
+
+// 기간 계산 — 'weeks4'(최근 28일, 리밋과 연동) / 'lastMonth'(지난 달력월)
+// 각 기간엔 '직전 동일 기간'(prev)도 함께 줘서 전월/전주기 대비 ▲▼를 만든다
+export function recapRange(todayStr: string, mode: 'weeks4' | 'lastMonth'): RecapRange {
+  if (mode === 'weeks4') {
+    return {
+      start: addDays(todayStr, -27), end: todayStr,
+      prevStart: addDays(todayStr, -55), prevEnd: addDays(todayStr, -28),
+      label: '최근 4주',
+    }
+  }
+  const thisMonth1 = todayStr.slice(0, 7) + '-01'
+  const end = addDays(thisMonth1, -1)              // 지난달 말일
+  const start = end.slice(0, 7) + '-01'            // 지난달 1일
+  const prevEnd = addDays(start, -1)               // 지지난달 말일
+  const prevStart = prevEnd.slice(0, 7) + '-01'
+  return { start, end, prevStart, prevEnd, label: start.slice(0, 7) }
+}
+
+// 기간 안의 실비행만 (시뮬 total_min=0 은 제외)
+export function filterRange(flights: Flight[], start: string, end: string): Flight[] {
+  return flights.filter((f) => f.total_min > 0 && f.flight_date >= start && f.flight_date <= end)
+}
+
 // 시간순 정렬 (장부·목록 공용): 날짜 → 생성시각 → id
 export function sortChrono(flights: Flight[]): Flight[] {
   return [...flights].sort((a, b) =>

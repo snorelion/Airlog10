@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getFlights, getSetting, sync, onStoreChange, type Flight } from '@/lib/store'
-import { computeYearly, computeByType, computeTopAirports, computeTotals } from '@/lib/aggregate'
+import { computeYearly, computeByType, computeTopAirports, computeTotals, computeRecap, recapRange, filterRange } from '@/lib/aggregate'
 import { createClient } from '@/lib/supabase'
 import { minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
@@ -109,8 +109,41 @@ async function makeShareCard(flights: Flight[], name: string): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
+// 주간/야간 시간 비율 도넛 (하늘색=주간, 남색=야간)
+function DayNightDonut({ dayMin, nightMin }: { dayMin: number; nightMin: number }) {
+  const total = dayMin + nightMin
+  const R = 34, C = 2 * Math.PI * R
+  const nightLen = total > 0 ? (nightMin / total) * C : 0
+  const nightPct = total > 0 ? Math.round((nightMin / total) * 100) : 0
+  return (
+    <svg viewBox="0 0 90 90" className="h-24 w-24 shrink-0">
+      <circle cx="45" cy="45" r={R} fill="none" stroke="#7FB4E8" strokeWidth="12" />
+      <circle
+        cx="45" cy="45" r={R} fill="none" stroke="#12335A" strokeWidth="12"
+        strokeDasharray={`${nightLen} ${C - nightLen}`} transform="rotate(-90 45 45)" strokeLinecap="butt"
+      />
+      <text x="45" y="42" textAnchor="middle" className="fill-app-text" style={{ fontSize: 15, fontWeight: 700 }}>🌙 {nightPct}%</text>
+      <text x="45" y="58" textAnchor="middle" className="fill-app-hint" style={{ fontSize: 9 }}>야간</text>
+    </svg>
+  )
+}
+
+// 전(前) 기간 대비 증감 ▲▼
+function Delta({ cur, prev, fmt }: { cur: number; prev: number; fmt?: (n: number) => string }) {
+  const d = cur - prev
+  if (d === 0) return <span className="text-xs text-app-hint">±0</span>
+  const up = d > 0
+  const show = fmt ? fmt(Math.abs(d)) : String(Math.abs(d))
+  return (
+    <span className={`text-xs font-semibold ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-app-hint'}`}>
+      {up ? '▲' : '▼'} {show}
+    </span>
+  )
+}
+
 export default function StatsPage() {
   const [flights, setFlights] = useState<Flight[]>([])
+  const [recapMode, setRecapMode] = useState<'weeks4' | 'lastMonth'>('weeks4')
   const [names, setNames] = useState<Record<string, string>>({})
   const [loaded, setLoaded] = useState(false)
 
@@ -130,6 +163,17 @@ export default function StatsPage() {
   const byType = computeByType(flights)
   const topAirports = computeTopAirports(flights)
   const maxVisits = topAirports[0]?.visits ?? 1
+
+  // ── Recap (최근 4주 / 지난 달) ──
+  const today = new Date().toLocaleDateString('en-CA')
+  const range = recapRange(today, recapMode)
+  const recapFlights = filterRange(flights, range.start, range.end)
+  const recap = computeRecap(recapFlights)
+  const prevRecap = computeRecap(filterRange(flights, range.prevStart, range.prevEnd))
+  const recapTypes = computeByType(recapFlights)
+  const recapAirports = computeTopAirports(recapFlights, 4)
+  const recapMaxVisits = recapAirports[0]?.visits ?? 1
+  const domTotal = recap.domestic + recap.intl
 
   // 공항 이름은 온라인일 때만 조회해 덧붙임 (오프라인이면 코드만 표시)
   useEffect(() => {
@@ -174,6 +218,104 @@ export default function StatsPage() {
         </div>
       ) : (
         <div className="space-y-5">
+          {/* ── 돌아보기 (Recap) ── */}
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-app-sub">돌아보기</h2>
+              <div className="flex overflow-hidden rounded-lg border border-app-line text-xs font-medium">
+                <button
+                  type="button" onClick={() => setRecapMode('weeks4')}
+                  className={recapMode === 'weeks4' ? 'bg-app-btn px-3 py-1 text-white' : 'px-3 py-1 text-app-sub'}
+                >최근 4주</button>
+                <button
+                  type="button" onClick={() => setRecapMode('lastMonth')}
+                  className={recapMode === 'lastMonth' ? 'bg-app-btn px-3 py-1 text-white' : 'px-3 py-1 text-app-sub'}
+                >지난 달</button>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-app-line bg-app-surface p-4">
+              {recap.flights === 0 ? (
+                <p className="py-6 text-center text-sm text-app-sub">{range.label}엔 비행 기록이 없어요.</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* 핵심 숫자 + 전 기간 대비 */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-lg font-bold tabular-nums">{recap.flights}편</div>
+                      <Delta cur={recap.flights} prev={prevRecap.flights} />
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold tabular-nums">{minToHMGrouped(recap.total_min)}</div>
+                      <Delta cur={recap.total_min} prev={prevRecap.total_min} fmt={minToHMGrouped} />
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold tabular-nums">{recap.landings}회</div>
+                      <div className="text-xs text-app-hint">착륙</div>
+                    </div>
+                  </div>
+
+                  {/* 주간/야간 도넛 */}
+                  <div className="flex items-center gap-4 border-t border-app-line pt-3">
+                    <DayNightDonut dayMin={recap.day_min} nightMin={recap.night_min} />
+                    <div className="flex-1 space-y-1.5 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#12335A' }} />야간</span>
+                        <span className="font-semibold tabular-nums">{minToHMGrouped(recap.night_min)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#7FB4E8' }} />주간</span>
+                        <span className="font-semibold tabular-nums">{minToHMGrouped(recap.day_min)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 국내 / 국제 */}
+                  {domTotal > 0 && (
+                    <div className="border-t border-app-line pt-3">
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-air-400" />국내 {recap.domestic}</span>
+                        <span className="flex items-center gap-1.5">국제 {recap.intl}<span className="inline-block h-3 w-3 rounded-sm bg-amber-400" /></span>
+                      </div>
+                      <div className="flex h-3 overflow-hidden rounded-full bg-app-bg">
+                        <div className="bg-air-400" style={{ width: `${(recap.domestic / domTotal) * 100}%` }} />
+                        <div className="bg-amber-400" style={{ width: `${(recap.intl / domTotal) * 100}%` }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 많이 간 곳 */}
+                  {recapAirports.length > 0 && (
+                    <div className="border-t border-app-line pt-3">
+                      <div className="mb-1.5 text-xs font-medium text-app-hint">많이 드나든 공항</div>
+                      <div className="space-y-1.5">
+                        {recapAirports.map((a) => (
+                          <Link key={a.ident} href={`/airports/${a.ident}`} className="flex items-center gap-2">
+                            <span className="w-12 font-mono text-sm font-semibold text-app-accent">{a.ident}</span>
+                            <div className="h-3.5 flex-1 overflow-hidden rounded bg-app-bg">
+                              <div className="h-full rounded bg-air-400" style={{ width: `${Math.max(6, (a.visits / recapMaxVisits) * 100)}%` }} />
+                            </div>
+                            <span className="w-8 text-right text-xs tabular-nums text-app-hint">{a.visits}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 기종 믹스 */}
+                  {recapTypes.length > 0 && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-app-line pt-3 text-sm">
+                      {recapTypes.map((t) => (
+                        <span key={t.type} className="text-app-sub">
+                          <span className="font-mono font-semibold text-app-text">{t.type}</span> {t.flights}편
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
           <section>
             <h2 className="mb-2 text-sm font-semibold text-app-sub">연도별 비행시간</h2>
             <div className="overflow-hidden rounded-2xl border border-app-line bg-app-surface">

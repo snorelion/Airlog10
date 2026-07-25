@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getFlights, getSetting, sync, onStoreChange, type Flight } from '@/lib/store'
-import { computeYearly, computeByType, computeTopAirports, computeTotals, computeRecap, recapRange, filterRange, baseCountry } from '@/lib/aggregate'
+import { computeYearly, computeByType, computeTopAirports, computeTotals, computeRecap, recapRange, filterRange, baseCountry, type Recap } from '@/lib/aggregate'
 import { createClient } from '@/lib/supabase'
 import { minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
@@ -105,6 +105,118 @@ async function makeShareCard(flights: Flight[], name: string): Promise<void> {
   const a = document.createElement('a')
   a.href = url
   a.download = 'airlog10-career.png'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// 기간 결산 공유 카드 (1080×1350 PNG) — 커리어 카드와 같은 톤
+async function makeRecapCard(opts: {
+  title: string          // MONTHLY RECAP · LAST 4 WEEKS
+  label: string          // 2026년 6월 · 최근 4주
+  start: string
+  end: string
+  recap: Recap
+  top: { ident: string; visits: number }[]
+  types: { type: string; flights: number }[]
+  name: string
+}): Promise<void> {
+  const { title, label, start, end, recap, top, types, name } = opts
+  const W = 1080, H = 1350
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const g = ctx.createLinearGradient(0, 0, 0, H)
+  g.addColorStop(0, '#0A2A4A')
+  g.addColorStop(1, '#061D36')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, W, H)
+
+  const SANS = "-apple-system, 'Apple SD Gothic Neo', sans-serif"
+  ctx.textBaseline = 'alphabetic'
+
+  ctx.fillStyle = '#7FB4E8'
+  ctx.font = `600 40px ${SANS}`
+  ctx.fillText(title, 80, 140)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.font = `800 76px ${SANS}`
+  ctx.fillText(label, 80, 240)
+  ctx.fillStyle = '#9DBBD8'
+  ctx.font = `400 38px ${SANS}`
+  ctx.fillText(`${start} ~ ${end}${name ? '   ·   ' + name : ''}`, 80, 300)
+
+  ctx.fillStyle = '#FFC94D'
+  ctx.font = `800 160px ${SANS}`
+  ctx.fillText(minToHMGrouped(recap.total_min), 80, 500)
+  ctx.fillStyle = '#9DBBD8'
+  ctx.font = `500 42px ${SANS}`
+  ctx.fillText('BLOCK TIME', 80, 562)
+
+  const items: [string, string][] = [
+    [`${recap.flights}`, 'FLIGHTS'],
+    [`${recap.landings}`, 'LANDINGS'],
+    [minToHMGrouped(recap.night_min), 'NIGHT'],
+    [minToHMGrouped(recap.day_min), 'DAY'],
+    [`${recap.domestic}`, 'DOMESTIC'],
+    [`${recap.intl}`, 'INTL'],
+  ]
+  items.forEach(([val, lab], i) => {
+    const x = 80 + (i % 3) * 320
+    const y = 720 + Math.floor(i / 3) * 180
+    ctx.fillStyle = '#FFFFFF'
+    ctx.font = `700 62px ${SANS}`
+    ctx.fillText(val, x, y)
+    ctx.fillStyle = '#7FB4E8'
+    ctx.font = `500 29px ${SANS}`
+    ctx.fillText(lab, x, y + 44)
+  })
+
+  // 주간/야간 비율 막대 (어두운 배경이라 야간=골드, 주간=스카이로 대비 확보)
+  const barY = 1050, barW = 920, barH = 26
+  const tmin = recap.day_min + recap.night_min
+  const nightW = tmin > 0 ? (recap.night_min / tmin) * barW : 0
+  ctx.fillStyle = '#7FB4E8'
+  ctx.fillRect(80, barY, barW, barH)
+  ctx.fillStyle = '#FFC94D'
+  ctx.fillRect(80, barY, nightW, barH)
+  ctx.fillStyle = '#9DBBD8'
+  ctx.font = `500 30px ${SANS}`
+  const nightPct = tmin > 0 ? Math.round((recap.night_min / tmin) * 100) : 0
+  ctx.fillText(`NIGHT ${nightPct}%`, 80, barY - 20)
+
+  ctx.fillStyle = '#9DBBD8'
+  ctx.font = `500 32px ${SANS}`
+  if (top.length) {
+    ctx.fillText('TOP  ' + top.map((t) => `${t.ident} ${t.visits}`).join('   ·   '), 80, 1140)
+  }
+  if (types.length) {
+    ctx.fillText(types.map((t) => `${t.type} ${t.flights}`).join('   ·   '), 80, 1192)
+  }
+
+  // 데이터와 브랜드 사이 구분선 — 없으면 푸터가 기종 줄에 붙어 한 덩어리로 보임
+  ctx.fillStyle = '#12406E'
+  ctx.fillRect(80, 1245, 920, 2)
+
+  ctx.fillStyle = '#FFFFFF'
+  ctx.font = `800 44px ${SANS}`
+  ctx.fillText('AirLog10 ✈️', 80, 1310)
+
+  const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/png'))
+  if (!blob) return
+  const fname = `airlog10-recap-${start}.png`
+  const file = new File([blob], fname, { type: 'image/png' })
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] })
+      return
+    } catch {}
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fname
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -244,6 +356,9 @@ export default function StatsPage() {
   // ── Recap (최근 4주 / 지난 달) ──
   const today = new Date().toLocaleDateString('en-CA')
   const range = recapRange(today, recapMode)
+  const recapLabel = recapMode === 'lastMonth'
+    ? `${range.start.slice(0, 4)}년 ${Number(range.start.slice(5, 7))}월`
+    : '최근 4주'
   const baseCC = baseCountry(flights)
   const recapFlights = filterRange(flights, range.start, range.end)
   const recap = computeRecap(recapFlights, baseCC)
@@ -313,7 +428,7 @@ export default function StatsPage() {
             </div>
             <div className="rounded-2xl border border-app-line bg-app-surface p-4">
               {recap.flights === 0 ? (
-                <p className="py-6 text-center text-sm text-app-sub">{range.label}엔 비행 기록이 없어요.</p>
+                <p className="py-6 text-center text-sm text-app-sub">{recapLabel}엔 비행 기록이 없어요.</p>
               ) : (
                 <div className="space-y-4">
                   {/* 핵심 숫자 + 전 기간 대비 */}
@@ -389,6 +504,27 @@ export default function StatsPage() {
                       ))}
                     </div>
                   )}
+
+                  {/* 결산 카드 */}
+                  <button
+                    type="button"
+                    onClick={async () => makeRecapCard({
+                      title: recapMode === 'lastMonth' ? 'MONTHLY RECAP' : 'RECAP',
+                      // 카드는 전부 영문 톤이라 라벨도 영문 (한글 폰트 리스크도 피함)
+                      label: recapMode === 'lastMonth'
+                        ? `${['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUNE', 'JULY', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][Number(range.start.slice(5, 7)) - 1]} ${range.start.slice(0, 4)}`
+                        : 'LAST 4 WEEKS',
+                      start: range.start,
+                      end: range.end,
+                      recap,
+                      top: recapAirports,
+                      types: recapTypes,
+                      name: (await getSetting('pilotName')) ?? '',
+                    })}
+                    className="w-full rounded-lg border border-app-line bg-app-surface py-2 text-sm font-semibold text-app-accent"
+                  >
+                    📤 결산 카드 만들기
+                  </button>
                 </div>
               )}
             </div>

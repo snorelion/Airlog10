@@ -81,12 +81,15 @@ export default function LogbookPage() {
   // 로그북은 정보가 촘촘한 화면 — 좌우 여백을 px-3으로 당겨 내용 폭을 벌었다
   return (
     <main className="mx-auto max-w-lg px-3 pb-24 pt-6">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <h1 className="text-xl font-bold">로그북</h1>
-        <div className="flex items-center gap-3">
-          <Link href="/logbook/ledger" className="text-sm font-medium text-app-accent">장부 보기</Link>
-          <p className="text-sm text-app-hint">{total.toLocaleString()}편</p>
-        </div>
+        <p className="text-sm text-app-hint">{total.toLocaleString()}편</p>
+      </div>
+
+      {/* 목록 ↔ 장부 전환 — 장부(넓은 표)가 작은 링크에 숨어 있어 못 찾던 문제 해결 */}
+      <div className="mb-3 flex overflow-hidden rounded-lg border border-app-line text-xs font-semibold">
+        <span className="bg-app-btn px-3 py-1.5 text-white">목록</span>
+        <Link href="/logbook/ledger" className="px-3 py-1.5 text-app-sub">장부</Link>
       </div>
 
       {/* 검색과 필터를 두 줄로 — 한 줄에 다 넣으면 좁은 폰에서 검색창이 쪼그라들고

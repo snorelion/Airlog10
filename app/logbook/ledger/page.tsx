@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
 import { sortChrono } from '@/lib/aggregate'
 import { minToHM, minToHMGrouped } from '@/lib/time'
@@ -35,9 +36,50 @@ function addRow(s: Sums, f: Flight) {
   s.dual += f.dual_received_min
 }
 
+// 컬럼을 한 곳에만 정의 — 헤더·본문·합계가 어긋날 일이 없다.
+// full: true = '전체' 모드에서만 보이는 칸 (간단 모드에선 숨김)
+type Col = {
+  label: string
+  cell: (f: Flight) => ReactNode
+  sum?: (s: Sums) => ReactNode
+  full?: boolean
+  mono?: boolean
+  left?: boolean
+}
+
+const COLS: Col[] = [
+  { label: 'DATE', cell: (f) => f.flight_date },
+  { label: 'TYPE', cell: (f) => f.aircraft_type ?? '', mono: true },
+  { label: 'IDENT', cell: (f) => f.aircraft_reg ?? '', mono: true },
+  { label: 'FROM', cell: (f) => f.origin ?? '', mono: true },
+  { label: 'TO', cell: (f) => f.destination ?? '', mono: true },
+  { label: 'FLT #', cell: (f) => f.flight_number ?? '' },
+  { label: 'TOTAL', cell: (f) => minToHM(f.total_min), sum: (s) => minToHMGrouped(s.total) },
+  { label: 'FLT', full: true, cell: (f) => (f.flight_min ? minToHM(f.flight_min) : ''), sum: (s) => (s.flt ? minToHMGrouped(s.flt) : '') },
+  { label: 'NIGHT', cell: (f) => (f.night_min ? minToHM(f.night_min) : ''), sum: (s) => minToHMGrouped(s.night) },
+  { label: 'ACT INST', full: true, cell: (f) => (f.inst_actual_min ? minToHM(f.inst_actual_min) : ''), sum: (s) => minToHMGrouped(s.inst) },
+  { label: 'APCH', full: true, cell: (f) => f.approaches?.length || '', sum: (s) => s.apch },
+  {
+    label: 'T/O D/N', full: true,
+    cell: (f) => (f.day_takeoffs || f.night_takeoffs ? `${f.day_takeoffs}/${f.night_takeoffs}` : ''),
+    sum: (s) => `${s.dayTO}/${s.nightTO}`,
+  },
+  {
+    label: 'LDG D/N', full: true,
+    cell: (f) => (f.day_landings || f.night_landings ? `${f.day_landings}/${f.night_landings}` : ''),
+    sum: (s) => `${s.dayLDG}/${s.nightLDG}`,
+  },
+  { label: 'PIC', cell: (f) => (f.pic_min ? minToHM(f.pic_min) : ''), sum: (s) => minToHMGrouped(s.pic) },
+  { label: 'SIC', cell: (f) => (f.sic_min ? minToHM(f.sic_min) : ''), sum: (s) => minToHMGrouped(s.sic) },
+  { label: 'DUAL', full: true, cell: (f) => (f.dual_received_min ? minToHM(f.dual_received_min) : ''), sum: (s) => minToHMGrouped(s.dual) },
+  { label: 'REMARKS', left: true, cell: (f) => f.remarks ?? '' },
+]
+
 export default function LedgerPage() {
+  const router = useRouter()
   const [all, setAll] = useState<Flight[]>([])
   const [page, setPage] = useState<number | null>(null) // null = 마지막 장
+  const [full, setFull] = useState(false)               // false = 간단(핵심 칸만)
   const [loaded, setLoaded] = useState(false)
 
   async function load() {
@@ -53,6 +95,7 @@ export default function LedgerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const cols = COLS.filter((c) => full || !c.full)
   const lastPage = Math.max(1, Math.ceil(all.length / ROWS))
   const p = page === null ? lastPage : Math.min(Math.max(1, page), lastPage)
   const start = (p - 1) * ROWS
@@ -65,36 +108,49 @@ export default function LedgerPage() {
   const toDate = emptySums()
   for (const k of Object.keys(toDate) as (keyof Sums)[]) toDate[k] = forwarded[k] + pageSums[k]
 
-  const td = 'border border-app-line px-1.5 py-1 text-center whitespace-nowrap'
-  const th = 'border border-app-line bg-app-accent-soft px-1.5 py-1 text-center text-[10px] font-semibold text-app-accent whitespace-nowrap'
+  const cellBase = 'border border-app-line px-2 py-1.5 whitespace-nowrap'
+  const th = 'border border-app-line bg-app-accent-soft px-2 py-1.5 text-center text-[11px] font-semibold text-app-accent whitespace-nowrap'
+  // 합계 라벨이 차지할 칸 수 = 합계값이 없는 앞쪽 칸들(DATE~FLT #)
+  const labelSpan = cols.findIndex((c) => c.sum)
 
   function SumRow({ label, s }: { label: string; s: Sums }) {
     return (
       <tr className="bg-app-bg font-semibold">
-        <td colSpan={6} className={td + ' !text-right pr-2 text-[10px] tracking-wide'}>{label}</td>
-        <td className={td}>{minToHMGrouped(s.total)}</td>
-        <td className={td}>{s.flt ? minToHMGrouped(s.flt) : ''}</td>
-        <td className={td}>{minToHMGrouped(s.night)}</td>
-        <td className={td}>{minToHMGrouped(s.inst)}</td>
-        <td className={td}>{s.apch}</td>
-        <td className={td}>{s.dayTO}/{s.nightTO}</td>
-        <td className={td}>{s.dayLDG}/{s.nightLDG}</td>
-        <td className={td}>{minToHMGrouped(s.pic)}</td>
-        <td className={td}>{minToHMGrouped(s.sic)}</td>
-        <td className={td}>{minToHMGrouped(s.dual)}</td>
-        <td className={td}></td>
+        <td className={cellBase + ' sticky left-0 z-10 bg-app-bg pr-2 text-right text-[11px] tracking-wide'} colSpan={labelSpan}>
+          {label}
+        </td>
+        {cols.slice(labelSpan).map((c) => (
+          <td key={c.label} className={cellBase + ' text-center'}>{c.sum ? c.sum(s) : ''}</td>
+        ))}
       </tr>
     )
   }
 
   return (
     <main className="mx-auto max-w-5xl px-3 pb-24 pt-6">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <h1 className="text-xl font-bold">로그북 · 장부</h1>
         <div className="flex items-center gap-3 text-sm">
           <Link href="/logbook/print" className="text-app-accent">인쇄/PDF</Link>
-          <Link href="/logbook" className="text-app-accent">목록 보기</Link>
           <span className="text-app-hint">PAGE {p} / {lastPage}</span>
+        </div>
+      </div>
+
+      {/* 목록 ↔ 장부 전환 + 칸 수 (숨은 링크가 아니라 눈에 보이는 토글로) */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex overflow-hidden rounded-lg border border-app-line text-xs font-semibold">
+          <Link href="/logbook" className="px-3 py-1.5 text-app-sub">목록</Link>
+          <span className="bg-app-btn px-3 py-1.5 text-white">장부</span>
+        </div>
+        <div className="flex overflow-hidden rounded-lg border border-app-line text-xs font-medium">
+          <button
+            type="button" onClick={() => setFull(false)}
+            className={full ? 'px-3 py-1.5 text-app-sub' : 'bg-app-btn px-3 py-1.5 text-white'}
+          >간단</button>
+          <button
+            type="button" onClick={() => setFull(true)}
+            className={full ? 'bg-app-btn px-3 py-1.5 text-white' : 'px-3 py-1.5 text-app-sub'}
+          >전체 칸</button>
         </div>
       </div>
 
@@ -105,57 +161,63 @@ export default function LedgerPage() {
           아직 기록이 없어요.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-app-line bg-app-surface p-2">
-          <table className="w-full min-w-[860px] border-collapse text-[11px] tabular-nums">
-            <thead>
-              <tr>
-                <th className={th}>DATE</th>
-                <th className={th}>TYPE</th>
-                <th className={th}>IDENT</th>
-                <th className={th}>FROM</th>
-                <th className={th}>TO</th>
-                <th className={th}>FLT #</th>
-                <th className={th}>TOTAL</th>
-                <th className={th}>FLT</th>
-                <th className={th}>NIGHT</th>
-                <th className={th}>ACT INST</th>
-                <th className={th}>APCH</th>
-                <th className={th}>T/O D/N</th>
-                <th className={th}>LDG D/N</th>
-                <th className={th}>PIC</th>
-                <th className={th}>SIC</th>
-                <th className={th}>DUAL</th>
-                <th className={th + ' !text-left'}>REMARKS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((f) => (
-                <tr key={f.id}>
-                  <td className={td}>{f.flight_date}</td>
-                  <td className={td + ' font-mono'}>{f.aircraft_type ?? ''}</td>
-                  <td className={td + ' font-mono'}>{f.aircraft_reg ?? ''}</td>
-                  <td className={td + ' font-mono'}>{f.origin ?? ''}</td>
-                  <td className={td + ' font-mono'}>{f.destination ?? ''}</td>
-                  <td className={td}>{f.flight_number ?? ''}</td>
-                  <td className={td + ' font-semibold'}>{minToHM(f.total_min)}</td>
-                  <td className={td}>{f.flight_min ? minToHM(f.flight_min) : ''}</td>
-                  <td className={td}>{f.night_min ? minToHM(f.night_min) : ''}</td>
-                  <td className={td}>{f.inst_actual_min ? minToHM(f.inst_actual_min) : ''}</td>
-                  <td className={td}>{f.approaches?.length || ''}</td>
-                  <td className={td}>{f.day_takeoffs || f.night_takeoffs ? `${f.day_takeoffs}/${f.night_takeoffs}` : ''}</td>
-                  <td className={td}>{f.day_landings || f.night_landings ? `${f.day_landings}/${f.night_landings}` : ''}</td>
-                  <td className={td}>{f.pic_min ? minToHM(f.pic_min) : ''}</td>
-                  <td className={td}>{f.sic_min ? minToHM(f.sic_min) : ''}</td>
-                  <td className={td}>{f.dual_received_min ? minToHM(f.dual_received_min) : ''}</td>
-                  <td className={td + ' !text-left max-w-[180px] truncate'}>{f.remarks ?? ''}</td>
+        <>
+          <div className="overflow-x-auto rounded-xl border border-app-line bg-app-surface p-2">
+            <table
+              className="w-full border-collapse text-[13px] tabular-nums"
+              style={{ minWidth: full ? 1120 : 780 }}
+            >
+              <thead>
+                <tr>
+                  {cols.map((c, i) => (
+                    <th
+                      key={c.label}
+                      className={th + (i === 0 ? ' sticky left-0 z-20' : '') + (c.left ? ' !text-left' : '')}
+                    >
+                      {c.label}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-              <SumRow label="TOTAL THIS PAGE" s={pageSums} />
-              <SumRow label="AMOUNT FORWARDED" s={forwarded} />
-              <SumRow label="TOTAL TO DATE" s={toDate} />
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((f, ri) => {
+                  // 줄무늬 — 눈으로 행 따라가기 쉽게. 고정된 첫 칸도 같은 배경을 줘야
+                  // 옆으로 당길 때 뒤 칸이 비쳐 보이지 않는다
+                  const rowBg = ri % 2 ? 'bg-app-bg' : 'bg-app-surface'
+                  return (
+                    <tr
+                      key={f.id}
+                      className={`${rowBg} cursor-pointer`}
+                      onClick={() => router.push(`/flights/new?edit=${f.id}`)}
+                    >
+                      {cols.map((c, i) => (
+                        <td
+                          key={c.label}
+                          className={
+                            cellBase +
+                            (c.left ? ' text-left' : ' text-center') +
+                            (c.mono ? ' font-mono' : '') +
+                            (c.label === 'TOTAL' ? ' font-semibold' : '') +
+                            (c.label === 'REMARKS' ? ' max-w-[220px] truncate' : '') +
+                            (i === 0 ? ` sticky left-0 z-10 ${rowBg}` : '')
+                          }
+                        >
+                          {c.cell(f)}
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                })}
+                <SumRow label="TOTAL THIS PAGE" s={pageSums} />
+                <SumRow label="AMOUNT FORWARDED" s={forwarded} />
+                <SumRow label="TOTAL TO DATE" s={toDate} />
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-center text-[11px] text-app-hint">
+            표를 옆으로 당겨서 보세요 · 줄을 누르면 수정할 수 있어요
+          </p>
+        </>
       )}
 
       <div className="mt-4 flex items-center justify-center gap-4 text-sm">

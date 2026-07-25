@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import {
-  addFlight, updateFlight, getFlight, rememberAircraft, getAircraftList,
+  addFlight, updateFlight, deleteFlight, getFlight, rememberAircraft, getAircraftList,
   getSetting, setSetting, getFlights, getRosterFlight, updateRosterStatus, type Flight,
 } from '@/lib/store'
 import { hmToMin, minToHM } from '@/lib/time'
@@ -916,6 +916,22 @@ export default function NewFlightPage() {
         >
           {busy ? '저장 중…' : editId ? '수정 저장' : '저장'}
         </button>
+
+        {/* 삭제는 여기에만 — 목록에 두면 훑어보다 잘못 누르기 쉽고,
+            옆으로 당겨 보는 동작과도 부딪힌다 */}
+        {editId && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (!window.confirm('이 기록을 삭제할까요? 되돌릴 수 없어요.')) return
+              void deleteFlight(editId).then(() => router.push('/logbook'))
+            }}
+            className="w-full rounded-xl border border-app-line py-3 text-sm font-semibold text-red-600 disabled:opacity-50"
+          >
+            이 기록 삭제
+          </button>
+        )}
       </div>
 
       <Nav />

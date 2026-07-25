@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getFlights, deleteFlight, sync, onStoreChange, type Flight } from '@/lib/store'
+import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
 import { minToHMGrouped } from '@/lib/time'
-import { Trash2 } from 'lucide-react'
 import Nav from '@/components/Nav'
 
 const PAGE_SIZE = 50
@@ -77,6 +76,27 @@ export default function LogbookPage() {
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const p = Math.min(page, lastPage)
   const rows = filtered.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE)
+
+  // 같은 날 레그를 하루 단위로 묶는다 (날짜가 줄마다 반복되지 않게).
+  // rows는 최신순 정렬이라 같은 날짜가 연달아 온다.
+  type Item =
+    | { kind: 'date'; date: string; count: number; min: number }
+    | { kind: 'flight'; f: Flight; crew: string }
+  const items: Item[] = []
+  for (let i = 0; i < rows.length; ) {
+    const d = rows[i].flight_date
+    let j = i
+    let min = 0
+    while (j < rows.length && rows[j].flight_date === d) { min += rows[j].total_min; j++ }
+    items.push({ kind: 'date', date: d, count: j - i, min })
+    for (let k = i; k < j; k++) {
+      const f = rows[k]
+      // 통상 상대 조종사 — 내가 기장이면 부기장(FO), 내가 부기장이면 기장(CAP)
+      const other = f.capacity === 'SIC' ? f.crew_pic : f.crew_sic
+      items.push({ kind: 'flight', f, crew: other ? `${f.capacity === 'SIC' ? 'CAP' : 'FO'} ${other}` : '' })
+    }
+    i = j
+  }
 
   // 로그북은 정보가 촘촘한 화면 — 좌우 여백을 px-3으로 당겨 내용 폭을 벌었다
   return (
@@ -155,77 +175,80 @@ export default function LogbookPage() {
         </div>
       ) : (
         <>
-          {/* 폰 폭에 다 넣지 않고, 옆으로 살짝 당기면 크루·메모가 나오게.
-              항상 보이는 칸 320px + 당겨서 보는 칸 200px (모든 줄이 같은 폭이라 칸이 맞음) */}
+          {/* 하루 묶음 + 칸 제목이 있는 '가벼운 표'.
+              칸 제목이 있어야 옆으로 당겼을 때 나올 내용이 예고돼 덧붙인 판처럼 안 보인다.
+              구간(ROUTE) 칸은 고정 — 당겨도 어느 비행인지 안 잃는다. */}
           <div className="overflow-hidden rounded-2xl border border-app-line bg-app-surface">
             <div className="overflow-x-auto">
-              <div className="min-w-[520px] divide-y divide-app-line">
-                {rows.map((f) => {
-                  // 통상 상대 조종사 — 내가 기장이면 부기장, 내가 부기장이면 기장
-                  const otherCrew = f.capacity === 'SIC' ? f.crew_pic : f.crew_sic
-                  const otherLabel = f.capacity === 'SIC' ? 'CAP' : 'FO'
-                  return (
-                    <div
-                      key={f.id}
-                      className="flex cursor-pointer items-stretch"
-                      onClick={() => router.push(`/flights/new?edit=${f.id}`)}
-                    >
-                      {/* 항상 보이는 칸 */}
-                      <div className="w-[320px] shrink-0 px-3 py-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="min-w-0 truncate font-semibold">
-                            {f.origin ?? '?'} → {f.destination ?? '?'}
-                            {f.flight_number && (
-                              <span className="ml-2 text-xs font-normal text-app-hint">{f.flight_number}</span>
-                            )}
-                          </p>
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            <p className="font-semibold tabular-nums">{minToHMGrouped(f.total_min)}</p>
-                            <button
-                              type="button"
-                              aria-label="기록 삭제"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                if (window.confirm(`${f.flight_date} ${f.origin ?? '?'}→${f.destination ?? '?'} 기록을 삭제할까요?`)) {
-                                  void deleteFlight(f.id)
-                                }
-                              }}
-                              className="p-1 text-app-hint hover:text-red-500"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-app-hint">
-                          <span className="min-w-0 truncate">
-                            {f.flight_date}
-                            {f.aircraft_reg ? ` · ${f.aircraft_reg}` : ''}
-                            {f.aircraft_type ? ` ${f.aircraft_type}` : ''}
+              <table className="w-full table-fixed border-separate border-spacing-0" style={{ minWidth: 614 }}>
+                <colgroup>
+                  <col style={{ width: 150 }} />
+                  <col style={{ width: 54 }} />
+                  <col style={{ width: 116 }} />
+                  <col style={{ width: 72 }} />
+                  <col style={{ width: 92 }} />
+                  <col style={{ width: 130 }} />
+                </colgroup>
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wide text-app-hint">
+                    <th className="sticky left-0 z-20 border-b border-app-line bg-app-bg px-3 py-1.5 text-left font-semibold">Route</th>
+                    <th className="border-b border-app-line bg-app-bg px-2 py-1.5 text-right font-semibold">Time</th>
+                    <th className="border-b border-app-line bg-app-bg px-2 py-1.5 text-left font-semibold">Aircraft</th>
+                    <th className="border-b border-app-line bg-app-bg px-2 py-1.5 text-left font-semibold">Role</th>
+                    <th className="border-b border-app-line bg-app-bg px-2 py-1.5 text-left font-semibold">Crew</th>
+                    <th className="border-b border-app-line bg-app-bg px-2 py-1.5 text-left font-semibold">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it) =>
+                    it.kind === 'date' ? (
+                      <tr key={`d-${it.date}`}>
+                        {/* 날짜 글자는 sticky — 옆으로 당겨도 그날이 뭔지 보인다 */}
+                        <td colSpan={6} className="border-b border-app-line bg-app-bg py-1.5">
+                          <span className="sticky left-0 inline-block px-3 text-xs font-semibold text-app-sub">
+                            {it.date} · {it.count}편 · {minToHMGrouped(it.min)}
                           </span>
-                          <span className="shrink-0">
-                            {f.capacity ?? ''}
-                            {f.is_pf ? ' · PF' : ''}
-                            {f.night_min > 0 ? ' · 🌙' : ''}
-                          </span>
-                        </div>
-                      </div>
-                      {/* 옆으로 당기면 나오는 칸 — 크루·메모 */}
-                      <div className="w-[200px] shrink-0 border-l border-app-line px-3 py-2.5 text-xs">
-                        <p className="truncate text-app-sub">
-                          {otherCrew ? `${otherLabel} ${otherCrew}` : ''}
-                        </p>
-                        <p className="mt-0.5 truncate text-app-hint">
-                          {f.remarks ? `📝 ${f.remarks}` : ''}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr
+                        key={it.f.id}
+                        className="cursor-pointer"
+                        onClick={() => router.push(`/flights/new?edit=${it.f.id}`)}
+                      >
+                        <td className="sticky left-0 z-10 truncate border-b border-app-line bg-app-surface px-3 py-2 font-semibold">
+                          {it.f.origin ?? '?'} → {it.f.destination ?? '?'}
+                          {it.f.flight_number && (
+                            <span className="ml-1.5 text-[11px] font-normal text-app-hint">{it.f.flight_number}</span>
+                          )}
+                        </td>
+                        <td className="border-b border-app-line px-2 py-2 text-right font-semibold tabular-nums">
+                          {minToHMGrouped(it.f.total_min)}
+                        </td>
+                        <td className="truncate border-b border-app-line px-2 py-2 text-xs text-app-sub">
+                          <span className="font-mono">{it.f.aircraft_reg ?? ''}</span>
+                          {it.f.aircraft_type ? ` ${it.f.aircraft_type}` : ''}
+                        </td>
+                        <td className="truncate border-b border-app-line px-2 py-2 text-xs text-app-sub">
+                          {it.f.capacity ?? ''}
+                          {it.f.is_pf ? ' PF' : ''}
+                          {it.f.night_min > 0 ? ' 🌙' : ''}
+                        </td>
+                        <td className="truncate border-b border-app-line px-2 py-2 text-xs text-app-sub">
+                          {it.crew}
+                        </td>
+                        <td className="truncate border-b border-app-line px-2 py-2 text-xs text-app-hint">
+                          {it.f.remarks ?? ''}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
           <p className="mt-2 text-center text-[11px] text-app-hint">
-            옆으로 살짝 당기면 크루·메모가 보여요 · 자세히 보려면 [장부]
+            옆으로 당기면 크루·메모가 보여요 · 줄을 누르면 수정 · 자세히 보려면 [장부]
           </p>
         </>
       )}

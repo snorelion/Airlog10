@@ -78,8 +78,9 @@ export default function LogbookPage() {
   const p = Math.min(page, lastPage)
   const rows = filtered.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE)
 
+  // 로그북은 정보가 촘촘한 화면 — 좌우 여백을 px-3으로 당겨 내용 폭을 벌었다
   return (
-    <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
+    <main className="mx-auto max-w-lg px-3 pb-24 pt-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-bold">로그북</h1>
         <div className="flex items-center gap-3">
@@ -88,31 +89,34 @@ export default function LogbookPage() {
         </div>
       </div>
 
+      {/* 검색과 필터를 두 줄로 — 한 줄에 다 넣으면 좁은 폰에서 검색창이 쪼그라들고
+          PF 버튼이 끝으로 밀려 줄이 안 맞는다 */}
+      <input
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+        placeholder="검색: 공항·편명·기체·크루·메모"
+        className="mb-2 w-full rounded-xl border border-app-line bg-app-surface px-3 py-2 text-sm outline-none focus:border-air-400"
+      />
       <div className="mb-3 flex items-center gap-2">
-        <input
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setPage(1) }}
-          placeholder="검색: 공항·편명·기체·크루·메모"
-          className="flex-1 rounded-xl border border-app-line bg-app-surface px-3 py-2 text-sm outline-none focus:border-air-400"
-        />
         {(['ALL', 'PIC', 'SIC'] as const).map((c) => (
           <button
             key={c}
             type="button"
             onClick={() => { setCapFilter(c); setPage(1) }}
             className={
-              'rounded-lg px-2.5 py-2 text-xs font-semibold ' +
+              'rounded-lg px-3 py-1.5 text-xs font-semibold ' +
               (capFilter === c ? 'bg-app-btn text-white' : 'bg-app-surface text-app-sub border border-app-line')
             }
           >
             {c === 'ALL' ? '전체' : c}
           </button>
         ))}
+        <span className="mx-0.5 h-5 w-px bg-app-line" />
         <button
           type="button"
           onClick={() => { setPfOnly(!pfOnly); setPage(1) }}
           className={
-            'rounded-lg px-2.5 py-2 text-xs font-semibold ' +
+            'rounded-lg px-3 py-1.5 text-xs font-semibold ' +
             (pfOnly ? 'bg-app-btn text-white' : 'bg-app-surface text-app-sub border border-app-line')
           }
         >
@@ -148,17 +152,21 @@ export default function LogbookPage() {
         </div>
       ) : (
         <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
-          {rows.map((f) => (
-            <div key={f.id} className="cursor-pointer px-4 py-3"
+          {rows.map((f) => {
+            // 통상 상대 조종사 — 내가 기장이면 부기장, 내가 부기장이면 기장
+            const otherCrew = f.capacity === 'SIC' ? f.crew_pic : f.crew_sic
+            const otherLabel = f.capacity === 'SIC' ? 'CAP' : 'FO'
+            return (
+            <div key={f.id} className="cursor-pointer px-3 py-2.5"
               onClick={() => router.push(`/flights/new?edit=${f.id}`)}>
-              <div className="flex items-center justify-between">
-                <p className="font-semibold">
+              <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate font-semibold">
                   {f.origin ?? '?'} → {f.destination ?? '?'}
                   {f.flight_number && (
                     <span className="ml-2 text-xs font-normal text-app-hint">{f.flight_number}</span>
                   )}
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <p className="font-semibold tabular-nums">{minToHMGrouped(f.total_min)}</p>
                   <button
                     type="button"
@@ -175,17 +183,24 @@ export default function LogbookPage() {
                   </button>
                 </div>
               </div>
-              <div className="mt-0.5 flex items-center justify-between text-xs text-app-hint">
-                <span>
-                  {f.flight_date} · {f.aircraft_reg ?? ''}{f.aircraft_type ? ` (${f.aircraft_type})` : ''}
+              {/* 왼쪽은 남으면 줄이고(…), 역할 배지는 항상 보이게 */}
+              <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-app-hint">
+                <span className="min-w-0 truncate">
+                  {f.flight_date}
+                  {f.aircraft_reg ? ` · ${f.aircraft_reg}` : ''}
+                  {f.aircraft_type ? ` ${f.aircraft_type}` : ''}
+                  {otherCrew ? ` · ${otherLabel} ${otherCrew}` : ''}
                 </span>
-                <span>
-                  {f.capacity ?? ''}{f.is_pf ? ' · PF' : ''}
+                <span className="shrink-0">
+                  {f.capacity ?? ''}
+                  {f.is_pf ? ' · PF' : ''}
                   {f.night_min > 0 ? ' · 🌙' : ''}
+                  {f.remarks ? ' · 📝' : ''}
                 </span>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

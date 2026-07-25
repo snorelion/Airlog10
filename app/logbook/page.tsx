@@ -18,6 +18,26 @@ export default function LogbookPage() {
   const [query, setQuery] = useState('')
   const [capFilter, setCapFilter] = useState<'ALL' | 'PIC' | 'SIC'>('ALL')
   const [pfOnly, setPfOnly] = useState(false)
+  // 통계에서 넘어온 필터 (?year=2025 · ?type=B737-800 · ?airport=VTBD)
+  // useSearchParams는 Suspense가 필요해 빌드가 깨진 전례가 있어 직접 읽는다
+  const [yearFilter, setYearFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [airportFilter, setAirportFilter] = useState('')
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    setYearFilter(p.get('year') ?? '')
+    setTypeFilter(p.get('type') ?? '')
+    setAirportFilter((p.get('airport') ?? '').toUpperCase())
+  }, [])
+
+  function clearDrill() {
+    setYearFilter('')
+    setTypeFilter('')
+    setAirportFilter('')
+    setPage(1)
+    router.replace('/logbook')  // 새로고침해도 안 돌아오게 주소도 정리
+  }
 
   async function load() {
     const rows = await getFlights()
@@ -40,6 +60,9 @@ export default function LogbookPage() {
   // 검색·필터 (오프라인 로컬 사본에서 즉시)
   const q = query.trim().toUpperCase()
   const filtered = flights.filter((f) => {
+    if (yearFilter && f.flight_date.slice(0, 4) !== yearFilter) return false
+    if (typeFilter && (f.aircraft_type || '기타') !== typeFilter) return false
+    if (airportFilter && f.origin !== airportFilter && f.destination !== airportFilter) return false
     if (capFilter !== 'ALL' && (f.capacity ?? '') !== capFilter) return false
     if (pfOnly && !f.is_pf) return false
     if (!q) return true
@@ -96,6 +119,18 @@ export default function LogbookPage() {
           PF
         </button>
       </div>
+
+      {(yearFilter || typeFilter || airportFilter) && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-app-accent-soft px-3 py-1.5 text-sm font-semibold text-app-accent">
+            {yearFilter && `${yearFilter}년`}
+            {typeFilter && <span className="font-mono">{typeFilter}</span>}
+            {airportFilter && <span className="font-mono">{airportFilter}</span>}
+            <button type="button" onClick={clearDrill} aria-label="필터 지우기" className="text-app-accent">✕</button>
+          </span>
+          <span className="text-xs text-app-hint">{total.toLocaleString()}편만 보는 중</span>
+        </div>
+      )}
 
       {zeroCount > 0 && (
         <Link href="/logbook/fix"

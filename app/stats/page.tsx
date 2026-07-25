@@ -141,9 +141,86 @@ function Delta({ cur, prev, fmt }: { cur: number; prev: number; fmt?: (n: number
   )
 }
 
+// 연도·기종을 눌렀을 때 펼쳐지는 상세 — recap과 같은 구성(집계 함수 재활용)
+function DrillDetail({
+  flights, baseCC, logbookHref, logbookLabel, showTypes = true,
+}: {
+  flights: Flight[]
+  baseCC: string
+  logbookHref: string
+  logbookLabel: string
+  showTypes?: boolean
+}) {
+  const real = flights.filter((f) => f.total_min > 0)
+  const r = computeRecap(real, baseCC)
+  const t = computeTotals(real)
+  const aps = computeTopAirports(real, 4)
+  const types = computeByType(real)
+  const maxV = aps[0]?.visits ?? 1
+  const domTotal = r.domestic + r.intl
+
+  return (
+    <div className="space-y-3 border-t border-app-line bg-app-bg px-4 py-3">
+      <div className="grid grid-cols-4 gap-2 text-center text-sm">
+        <div><div className="text-xs text-app-hint">PIC</div><div className="font-semibold tabular-nums">{minToHMGrouped(t.pic_min)}</div></div>
+        <div><div className="text-xs text-app-hint">SIC</div><div className="font-semibold tabular-nums">{minToHMGrouped(t.sic_min)}</div></div>
+        <div><div className="text-xs text-app-hint">야간</div><div className="font-semibold tabular-nums">{minToHMGrouped(r.night_min)}</div></div>
+        <div><div className="text-xs text-app-hint">착륙</div><div className="font-semibold tabular-nums">{r.landings}</div></div>
+      </div>
+
+      {domTotal > 0 && (
+        <div>
+          <div className="mb-1 flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-air-400" />국내 {r.domestic}</span>
+            <span className="flex items-center gap-1.5">국제 {r.intl}<span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" /></span>
+          </div>
+          <div className="flex h-2.5 overflow-hidden rounded-full bg-app-surface">
+            <div className="bg-air-400" style={{ width: `${(r.domestic / domTotal) * 100}%` }} />
+            <div className="bg-amber-400" style={{ width: `${(r.intl / domTotal) * 100}%` }} />
+          </div>
+        </div>
+      )}
+
+      {aps.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-app-hint">많이 드나든 공항</div>
+          {aps.map((a) => (
+            <div key={a.ident} className="flex items-center gap-2">
+              <span className="w-12 font-mono text-xs font-semibold text-app-accent">{a.ident}</span>
+              <div className="h-3 flex-1 overflow-hidden rounded bg-app-surface">
+                <div className="h-full rounded bg-air-400" style={{ width: `${Math.max(6, (a.visits / maxV) * 100)}%` }} />
+              </div>
+              <span className="w-7 text-right text-xs tabular-nums text-app-hint">{a.visits}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showTypes && types.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-app-sub">
+          {types.map((ty) => (
+            <span key={ty.type}>
+              <span className="font-mono font-semibold text-app-text">{ty.type}</span> {ty.flights}편
+            </span>
+          ))}
+        </div>
+      )}
+
+      <Link
+        href={logbookHref}
+        className="block rounded-lg bg-app-btn py-2 text-center text-sm font-semibold text-white"
+      >
+        로그북에서 {logbookLabel} 보기 →
+      </Link>
+    </div>
+  )
+}
+
 export default function StatsPage() {
   const [flights, setFlights] = useState<Flight[]>([])
   const [recapMode, setRecapMode] = useState<'weeks4' | 'lastMonth'>('weeks4')
+  const [openYear, setOpenYear] = useState<string | null>(null)
+  const [openType, setOpenType] = useState<string | null>(null)
   const [names, setNames] = useState<Record<string, string>>({})
   const [loaded, setLoaded] = useState(false)
 
@@ -321,10 +398,27 @@ export default function StatsPage() {
             <h2 className="mb-2 text-sm font-semibold text-app-sub">연도별 비행시간</h2>
             <div className="overflow-hidden rounded-2xl border border-app-line bg-app-surface">
               {yearly.map((y) => (
-                <div key={y.yr} className="flex items-center justify-between border-b border-app-line px-4 py-2.5 last:border-0">
-                  <span className="font-semibold">{y.yr}</span>
-                  <span className="text-sm text-app-hint">{y.flights.toLocaleString()}편</span>
-                  <span className="font-semibold tabular-nums">{minToHMGrouped(y.total_min)}</span>
+                <div key={y.yr} className="border-b border-app-line last:border-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenYear(openYear === y.yr ? null : y.yr)}
+                    className="flex w-full items-center justify-between px-4 py-2.5 text-left"
+                  >
+                    <span className="font-semibold">{y.yr}</span>
+                    <span className="text-sm text-app-hint">{y.flights.toLocaleString()}편</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-semibold tabular-nums">{minToHMGrouped(y.total_min)}</span>
+                      <span className="text-xs text-app-hint">{openYear === y.yr ? '▲' : '▼'}</span>
+                    </span>
+                  </button>
+                  {openYear === y.yr && (
+                    <DrillDetail
+                      flights={flights.filter((f) => f.flight_date.slice(0, 4) === y.yr)}
+                      baseCC={baseCC}
+                      logbookHref={`/logbook?year=${y.yr}`}
+                      logbookLabel={`${y.yr}년`}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -334,10 +428,28 @@ export default function StatsPage() {
             <h2 className="mb-2 text-sm font-semibold text-app-sub">기종별</h2>
             <div className="overflow-hidden rounded-2xl border border-app-line bg-app-surface">
               {byType.map((t) => (
-                <div key={t.type} className="flex items-center justify-between border-b border-app-line px-4 py-2.5 last:border-0">
-                  <span className="font-mono font-semibold">{t.type}</span>
-                  <span className="text-sm text-app-hint">{t.flights.toLocaleString()}편</span>
-                  <span className="font-semibold tabular-nums">{minToHMGrouped(t.total_min)}</span>
+                <div key={t.type} className="border-b border-app-line last:border-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenType(openType === t.type ? null : t.type)}
+                    className="flex w-full items-center justify-between px-4 py-2.5 text-left"
+                  >
+                    <span className="font-mono font-semibold">{t.type}</span>
+                    <span className="text-sm text-app-hint">{t.flights.toLocaleString()}편</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-semibold tabular-nums">{minToHMGrouped(t.total_min)}</span>
+                      <span className="text-xs text-app-hint">{openType === t.type ? '▲' : '▼'}</span>
+                    </span>
+                  </button>
+                  {openType === t.type && (
+                    <DrillDetail
+                      flights={flights.filter((f) => (f.aircraft_type || '기타') === t.type)}
+                      baseCC={baseCC}
+                      logbookHref={`/logbook?type=${encodeURIComponent(t.type)}`}
+                      logbookLabel={t.type}
+                      showTypes={false}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -347,19 +459,28 @@ export default function StatsPage() {
             <h2 className="mb-2 text-sm font-semibold text-app-sub">많이 간 공항</h2>
             <div className="space-y-1.5 rounded-2xl border border-app-line bg-app-surface p-4">
               {topAirports.map((a) => (
-                <Link key={a.ident} href={`/airports/${a.ident}`} className="flex items-center gap-2">
-                  <span className="w-14 font-mono text-sm font-semibold text-app-accent">{a.ident}</span>
-                  <div className="h-4 flex-1 overflow-hidden rounded bg-app-bg">
-                    <div
-                      className="h-full rounded bg-air-400"
-                      style={{ width: `${Math.max(4, (a.visits / maxVisits) * 100)}%` }}
-                    />
-                  </div>
-                  <span className="w-24 truncate text-right text-xs text-app-sub">{names[a.ident] || ''}</span>
-                  <span className="w-10 text-right text-sm font-semibold tabular-nums">{a.visits}</span>
-                </Link>
+                <div key={a.ident} className="flex items-center gap-2">
+                  <Link href={`/airports/${a.ident}`} className="flex flex-1 items-center gap-2">
+                    <span className="w-14 font-mono text-sm font-semibold text-app-accent">{a.ident}</span>
+                    <div className="h-4 flex-1 overflow-hidden rounded bg-app-bg">
+                      <div
+                        className="h-full rounded bg-air-400"
+                        style={{ width: `${Math.max(4, (a.visits / maxVisits) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="w-20 truncate text-right text-xs text-app-sub">{names[a.ident] || ''}</span>
+                    <span className="w-9 text-right text-sm font-semibold tabular-nums">{a.visits}</span>
+                  </Link>
+                  <Link
+                    href={`/logbook?airport=${a.ident}`}
+                    aria-label={`${a.ident} 로그북 보기`}
+                    className="rounded-md border border-app-line px-1.5 py-1 text-[11px] font-medium text-app-sub"
+                  >
+                    목록
+                  </Link>
+                </div>
               ))}
-              <p className="pt-1 text-center text-[11px] text-app-hint">공항을 누르면 상세 정보·활주로·메모가 열려요</p>
+              <p className="pt-1 text-center text-[11px] text-app-hint">공항을 누르면 상세 정보·활주로, [목록]은 그 공항 비행 기록</p>
             </div>
           </section>
         </div>

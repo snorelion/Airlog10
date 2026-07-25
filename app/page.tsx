@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, getRosterFlights, sync, onStoreChange, type Flight, type RosterFlight } from '@/lib/store'
+import { getFlights, getPendingCount, getLastSyncAt, getSetting, setSetting, getRosterFlights, sync, onStoreChange, type RosterFlight } from '@/lib/store'
 import WxCard from '@/components/WxCard'
 import { computeTotals, windowTotalMin, currency90, monthDutyMin, type Totals } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
@@ -11,7 +11,8 @@ import Nav from '@/components/Nav'
 
 export default function HomePage() {
   const [totals, setTotals] = useState<Totals | null>(null)
-  const [recent, setRecent] = useState<Flight[]>([])
+  const [monthStat, setMonthStat] = useState({ flights: 0, min: 0 })
+  const [limitsOpen, setLimitsOpen] = useState<boolean | null>(null) // null = 자동(임계일 때만 펼침)
   const [pending, setPending] = useState(0)
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [expiries, setExpiries] = useState<{ label: string; date: string; dday: number }[]>([])
@@ -27,10 +28,14 @@ export default function HomePage() {
   async function load() {
     const flights = await getFlights()
     setTotals(computeTotals(flights))
-    const sorted = [...flights].sort((a, b) =>
-      b.flight_date.localeCompare(a.flight_date) || (b.created_at ?? '').localeCompare(a.created_at ?? '')
-    )
-    setRecent(sorted.slice(0, 5))
+    // 이번 달 — 히어로 카드 한 줄로 "요즘 얼마나 날았나"를 보여준다 (시뮬 제외)
+    const ym = new Date().toLocaleDateString('en-CA').slice(0, 7)
+    let mf = 0
+    let mm = 0
+    for (const f of flights) {
+      if (f.total_min > 0 && f.flight_date.slice(0, 7) === ym) { mf += 1; mm += f.total_min }
+    }
+    setMonthStat({ flights: mf, min: mm })
     setPending(await getPendingCount())
     setLastSync(await getLastSyncAt())
 
@@ -156,20 +161,28 @@ export default function HomePage() {
         </div>
       ) : (
         <>
+          {/* 총시간·역할시간·이번 달을 한 카드로 압축 — 매일 볼 필요 없는 숫자가
+              화면 절반을 먹고 정작 자주 쓰는 [기록] 버튼을 아래로 밀어내던 문제 해결 */}
           <div className="rounded-2xl bg-air-800 p-5 text-white">
             <p className="text-sm text-air-200">총 비행시간</p>
             <p className="mt-1 text-4xl font-extrabold tabular-nums">
               {minToHMGrouped(totals?.total_min ?? 0)}
             </p>
-            <p className="mt-2 text-sm text-air-100">
+            <p className="mt-1.5 text-sm text-air-100">
               {(totals?.flights ?? 0).toLocaleString()}편 · 착륙 {(totals?.landings ?? 0).toLocaleString()}회
             </p>
-          </div>
-
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <StatCard label="PIC" value={minToHMGrouped(totals?.pic_min ?? 0)} />
-            <StatCard label="SIC" value={minToHMGrouped(totals?.sic_min ?? 0)} />
-            <StatCard label="야간" value={minToHMGrouped(totals?.night_min ?? 0)} />
+            <div className="mt-3 flex items-center gap-3 border-t border-white/15 pt-2.5 text-xs text-air-100">
+              <span>PIC <b className="tabular-nums text-white">{minToHMGrouped(totals?.pic_min ?? 0)}</b></span>
+              <span>SIC <b className="tabular-nums text-white">{minToHMGrouped(totals?.sic_min ?? 0)}</b></span>
+              <span>🌙 <b className="tabular-nums text-white">{minToHMGrouped(totals?.night_min ?? 0)}</b></span>
+            </div>
+            <Link href="/stats" className="mt-2 flex items-center justify-between text-xs text-air-100">
+              <span>
+                이번 달 <b className="tabular-nums text-white">{monthStat.flights}편</b>
+                {monthStat.min > 0 && <> · <b className="tabular-nums text-white">{minToHMGrouped(monthStat.min)}</b></>}
+              </span>
+              <span className="text-air-200">돌아보기 ›</span>
+            </Link>
           </div>
 
           {rosterCard && (
@@ -228,9 +241,35 @@ export default function HomePage() {
             </div>
           )}
 
-          {limits.length > 0 && (
+          {limits.length > 0 && (() => {
+            // 평소엔 접어둔다 — 여유 있을 때 게이지는 정보 가치가 낮다.
+            // 단 한도의 70%를 넘거나 90일 기량유지가 미달이면 자동으로 펼쳐 경고한다.
+            const maxPct = Math.max(...limits.map((l) => (l.cap > 0 ? (l.used / l.cap) * 100 : 0)))
+            const currencyShort = !!curr && (curr.takeoffs < 3 || curr.landings < 3)
+            const alert = maxPct >= 70 || currencyShort
+            const open = limitsOpen ?? alert
+            const tightest = limits.reduce((a, b) =>
+              (b.cap > 0 ? b.used / b.cap : 0) > (a.cap > 0 ? a.used / a.cap : 0) ? b : a
+            )
+            return (
             <div className="mt-3 rounded-2xl border border-app-line bg-app-surface p-4">
-              <h2 className="text-sm font-semibold text-app-sub">비행시간 리밋 · 기량유지</h2>
+              <button
+                type="button"
+                onClick={() => setLimitsOpen(!open)}
+                className="flex w-full items-center justify-between gap-2 text-left"
+              >
+                <h2 className="text-sm font-semibold text-app-sub">비행시간 리밋 · 기량유지</h2>
+                <span className="flex items-center gap-1.5 text-xs">
+                  {!open && (
+                    <span className={alert ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-app-hint'}>
+                      {currencyShort ? '⚠️ 기량유지 확인' : `${tightest.label} ${Math.round(maxPct)}%`}
+                    </span>
+                  )}
+                  <span className="text-app-hint">{open ? '▲' : '▼'}</span>
+                </span>
+              </button>
+              {open && (
+              <>
               <div className="mt-2 space-y-2">
                 {limits.map((l) => {
                   const pct = l.cap > 0 ? (l.used / l.cap) * 100 : 0
@@ -263,8 +302,11 @@ export default function HomePage() {
                   )}
                 </p>
               )}
+              </>
+              )}
             </div>
-          )}
+            )
+          })()}
 
           <div className="mt-6 space-y-3">
             <div className="flex items-center justify-between">
@@ -317,21 +359,8 @@ export default function HomePage() {
             )}
           </div>
 
-          <h2 className="mb-2 mt-6 text-sm font-semibold text-app-sub">최근 비행</h2>
-          <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
-            {recent.map((f) => (
-              <div key={f.id} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <p className="font-semibold">
-                    {f.origin ?? '?'} → {f.destination ?? '?'}
-                    {f.flight_number && <span className="ml-2 text-xs font-normal text-app-hint">{f.flight_number}</span>}
-                  </p>
-                  <p className="text-xs text-app-hint">{f.flight_date} · {f.aircraft_reg ?? ''}</p>
-                </div>
-                <p className="font-semibold tabular-nums">{minToHMGrouped(f.total_min)}</p>
-              </div>
-            ))}
-          </div>
+          {/* 최근 비행 목록은 뺐다 — 하단 [로그북] 탭과 역할이 겹치고,
+              홈 맨 아래라 실제로 잘 보지 않는 자리였다 */}
 
           {lastSync && (
             <p className="mt-4 text-center text-xs text-app-hint">
@@ -343,14 +372,5 @@ export default function HomePage() {
 
       <Nav />
     </main>
-  )
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-app-line bg-app-surface p-3 text-center">
-      <p className="text-xs text-app-hint">{label}</p>
-      <p className="mt-0.5 font-bold tabular-nums">{value}</p>
-    </div>
   )
 }

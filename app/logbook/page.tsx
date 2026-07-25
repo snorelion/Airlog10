@@ -154,57 +154,80 @@ export default function LogbookPage() {
           <Link href="/import" className="text-app-accent underline">가져오기</Link>부터 시작해 보세요.
         </div>
       ) : (
-        <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
-          {rows.map((f) => {
-            // 통상 상대 조종사 — 내가 기장이면 부기장, 내가 부기장이면 기장
-            const otherCrew = f.capacity === 'SIC' ? f.crew_pic : f.crew_sic
-            const otherLabel = f.capacity === 'SIC' ? 'CAP' : 'FO'
-            return (
-            <div key={f.id} className="cursor-pointer px-3 py-2.5"
-              onClick={() => router.push(`/flights/new?edit=${f.id}`)}>
-              <div className="flex items-center justify-between gap-2">
-                <p className="min-w-0 truncate font-semibold">
-                  {f.origin ?? '?'} → {f.destination ?? '?'}
-                  {f.flight_number && (
-                    <span className="ml-2 text-xs font-normal text-app-hint">{f.flight_number}</span>
-                  )}
-                </p>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <p className="font-semibold tabular-nums">{minToHMGrouped(f.total_min)}</p>
-                  <button
-                    type="button"
-                    aria-label="기록 삭제"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (window.confirm(`${f.flight_date} ${f.origin ?? '?'}→${f.destination ?? '?'} 기록을 삭제할까요?`)) {
-                        void deleteFlight(f.id)
-                      }
-                    }}
-                    className="p-1 text-app-hint hover:text-red-500"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-              {/* 왼쪽은 남으면 줄이고(…), 역할 배지는 항상 보이게 */}
-              <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-app-hint">
-                <span className="min-w-0 truncate">
-                  {f.flight_date}
-                  {f.aircraft_reg ? ` · ${f.aircraft_reg}` : ''}
-                  {f.aircraft_type ? ` ${f.aircraft_type}` : ''}
-                  {otherCrew ? ` · ${otherLabel} ${otherCrew}` : ''}
-                </span>
-                <span className="shrink-0">
-                  {f.capacity ?? ''}
-                  {f.is_pf ? ' · PF' : ''}
-                  {f.night_min > 0 ? ' · 🌙' : ''}
-                  {f.remarks ? ' · 📝' : ''}
-                </span>
+        <>
+          {/* 폰 폭에 다 넣지 않고, 옆으로 살짝 당기면 크루·메모가 나오게.
+              항상 보이는 칸 320px + 당겨서 보는 칸 200px (모든 줄이 같은 폭이라 칸이 맞음) */}
+          <div className="overflow-hidden rounded-2xl border border-app-line bg-app-surface">
+            <div className="overflow-x-auto">
+              <div className="min-w-[520px] divide-y divide-app-line">
+                {rows.map((f) => {
+                  // 통상 상대 조종사 — 내가 기장이면 부기장, 내가 부기장이면 기장
+                  const otherCrew = f.capacity === 'SIC' ? f.crew_pic : f.crew_sic
+                  const otherLabel = f.capacity === 'SIC' ? 'CAP' : 'FO'
+                  return (
+                    <div
+                      key={f.id}
+                      className="flex cursor-pointer items-stretch"
+                      onClick={() => router.push(`/flights/new?edit=${f.id}`)}
+                    >
+                      {/* 항상 보이는 칸 */}
+                      <div className="w-[320px] shrink-0 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="min-w-0 truncate font-semibold">
+                            {f.origin ?? '?'} → {f.destination ?? '?'}
+                            {f.flight_number && (
+                              <span className="ml-2 text-xs font-normal text-app-hint">{f.flight_number}</span>
+                            )}
+                          </p>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <p className="font-semibold tabular-nums">{minToHMGrouped(f.total_min)}</p>
+                            <button
+                              type="button"
+                              aria-label="기록 삭제"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (window.confirm(`${f.flight_date} ${f.origin ?? '?'}→${f.destination ?? '?'} 기록을 삭제할까요?`)) {
+                                  void deleteFlight(f.id)
+                                }
+                              }}
+                              className="p-1 text-app-hint hover:text-red-500"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-app-hint">
+                          <span className="min-w-0 truncate">
+                            {f.flight_date}
+                            {f.aircraft_reg ? ` · ${f.aircraft_reg}` : ''}
+                            {f.aircraft_type ? ` ${f.aircraft_type}` : ''}
+                          </span>
+                          <span className="shrink-0">
+                            {f.capacity ?? ''}
+                            {f.is_pf ? ' · PF' : ''}
+                            {f.night_min > 0 ? ' · 🌙' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      {/* 옆으로 당기면 나오는 칸 — 크루·메모 */}
+                      <div className="w-[200px] shrink-0 border-l border-app-line px-3 py-2.5 text-xs">
+                        <p className="truncate text-app-sub">
+                          {otherCrew ? `${otherLabel} ${otherCrew}` : ''}
+                        </p>
+                        <p className="mt-0.5 truncate text-app-hint">
+                          {f.remarks ? `📝 ${f.remarks}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
-            )
-          })}
-        </div>
+          </div>
+          <p className="mt-2 text-center text-[11px] text-app-hint">
+            옆으로 살짝 당기면 크루·메모가 보여요 · 자세히 보려면 [장부]
+          </p>
+        </>
       )}
 
       {lastPage > 1 && (

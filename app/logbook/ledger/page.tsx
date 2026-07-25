@@ -37,12 +37,11 @@ function addRow(s: Sums, f: Flight) {
 }
 
 // 컬럼을 한 곳에만 정의 — 헤더·본문·합계가 어긋날 일이 없다.
-// full: true = '전체' 모드에서만 보이는 칸 (간단 모드에선 숨김)
+// 장부는 '자세히 보는 화면'이라 칸을 가리지 않고 전부 보여준다 (간단히 보는 건 목록)
 type Col = {
   label: string
   cell: (f: Flight) => ReactNode
   sum?: (s: Sums) => ReactNode
-  full?: boolean
   mono?: boolean
   left?: boolean
 }
@@ -55,23 +54,23 @@ const COLS: Col[] = [
   { label: 'TO', cell: (f) => f.destination ?? '', mono: true },
   { label: 'FLT #', cell: (f) => f.flight_number ?? '' },
   { label: 'TOTAL', cell: (f) => minToHM(f.total_min), sum: (s) => minToHMGrouped(s.total) },
-  { label: 'FLT', full: true, cell: (f) => (f.flight_min ? minToHM(f.flight_min) : ''), sum: (s) => (s.flt ? minToHMGrouped(s.flt) : '') },
+  { label: 'FLT', cell: (f) => (f.flight_min ? minToHM(f.flight_min) : ''), sum: (s) => (s.flt ? minToHMGrouped(s.flt) : '') },
   { label: 'NIGHT', cell: (f) => (f.night_min ? minToHM(f.night_min) : ''), sum: (s) => minToHMGrouped(s.night) },
-  { label: 'ACT INST', full: true, cell: (f) => (f.inst_actual_min ? minToHM(f.inst_actual_min) : ''), sum: (s) => minToHMGrouped(s.inst) },
-  { label: 'APCH', full: true, cell: (f) => f.approaches?.length || '', sum: (s) => s.apch },
+  { label: 'ACT INST', cell: (f) => (f.inst_actual_min ? minToHM(f.inst_actual_min) : ''), sum: (s) => minToHMGrouped(s.inst) },
+  { label: 'APCH', cell: (f) => f.approaches?.length || '', sum: (s) => s.apch },
   {
-    label: 'T/O D/N', full: true,
+    label: 'T/O D/N',
     cell: (f) => (f.day_takeoffs || f.night_takeoffs ? `${f.day_takeoffs}/${f.night_takeoffs}` : ''),
     sum: (s) => `${s.dayTO}/${s.nightTO}`,
   },
   {
-    label: 'LDG D/N', full: true,
+    label: 'LDG D/N',
     cell: (f) => (f.day_landings || f.night_landings ? `${f.day_landings}/${f.night_landings}` : ''),
     sum: (s) => `${s.dayLDG}/${s.nightLDG}`,
   },
   { label: 'PIC', cell: (f) => (f.pic_min ? minToHM(f.pic_min) : ''), sum: (s) => minToHMGrouped(s.pic) },
   { label: 'SIC', cell: (f) => (f.sic_min ? minToHM(f.sic_min) : ''), sum: (s) => minToHMGrouped(s.sic) },
-  { label: 'DUAL', full: true, cell: (f) => (f.dual_received_min ? minToHM(f.dual_received_min) : ''), sum: (s) => minToHMGrouped(s.dual) },
+  { label: 'DUAL', cell: (f) => (f.dual_received_min ? minToHM(f.dual_received_min) : ''), sum: (s) => minToHMGrouped(s.dual) },
   { label: 'REMARKS', left: true, cell: (f) => f.remarks ?? '' },
 ]
 
@@ -79,7 +78,6 @@ export default function LedgerPage() {
   const router = useRouter()
   const [all, setAll] = useState<Flight[]>([])
   const [page, setPage] = useState<number | null>(null) // null = 마지막 장
-  const [full, setFull] = useState(false)               // false = 간단(핵심 칸만)
   const [loaded, setLoaded] = useState(false)
 
   async function load() {
@@ -95,7 +93,7 @@ export default function LedgerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const cols = COLS.filter((c) => full || !c.full)
+  const cols = COLS
   const lastPage = Math.max(1, Math.ceil(all.length / ROWS))
   const p = page === null ? lastPage : Math.min(Math.max(1, page), lastPage)
   const start = (p - 1) * ROWS
@@ -136,22 +134,10 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* 목록 ↔ 장부 전환 + 칸 수 (숨은 링크가 아니라 눈에 보이는 토글로) */}
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex overflow-hidden rounded-lg border border-app-line text-xs font-semibold">
-          <Link href="/logbook" className="px-3 py-1.5 text-app-sub">목록</Link>
-          <span className="bg-app-btn px-3 py-1.5 text-white">장부</span>
-        </div>
-        <div className="flex overflow-hidden rounded-lg border border-app-line text-xs font-medium">
-          <button
-            type="button" onClick={() => setFull(false)}
-            className={full ? 'px-3 py-1.5 text-app-sub' : 'bg-app-btn px-3 py-1.5 text-white'}
-          >간단</button>
-          <button
-            type="button" onClick={() => setFull(true)}
-            className={full ? 'bg-app-btn px-3 py-1.5 text-white' : 'px-3 py-1.5 text-app-sub'}
-          >전체 칸</button>
-        </div>
+      {/* 목록 ↔ 장부 전환 (숨은 링크가 아니라 눈에 보이는 토글로) */}
+      <div className="mb-3 flex overflow-hidden rounded-lg border border-app-line text-xs font-semibold">
+        <Link href="/logbook" className="px-3 py-1.5 text-app-sub">목록</Link>
+        <span className="bg-app-btn px-3 py-1.5 text-white">장부</span>
       </div>
 
       {!loaded ? (
@@ -162,10 +148,12 @@ export default function LedgerPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-xl border border-app-line bg-app-surface p-2">
+          {/* 안쪽 여백(p-2)을 주면 고정된 DATE 칸 왼쪽에 그만큼 빈틈이 생겨
+              옆으로 당길 때 뒤 칸이 그 틈으로 비쳐 보인다 → 여백 없이 */}
+          <div className="overflow-x-auto rounded-xl border border-app-line bg-app-surface">
             <table
               className="w-full border-collapse text-[13px] tabular-nums"
-              style={{ minWidth: full ? 1120 : 780 }}
+              style={{ minWidth: 1120 }}
             >
               <thead>
                 <tr>
@@ -217,6 +205,35 @@ export default function LedgerPage() {
           <p className="mt-2 text-center text-[11px] text-app-hint">
             표를 옆으로 당겨서 보세요 · 줄을 누르면 수정할 수 있어요
           </p>
+
+          {/* 표 안의 합계 줄은 숫자가 오른쪽(화면 밖)에 있어 폰에서 안 보인다
+              → 옆으로 당기지 않고도 읽히는 요약을 따로 둔다 */}
+          <div className="mt-3 overflow-hidden rounded-xl border border-app-line bg-app-surface">
+            <div className="grid grid-cols-4 border-b border-app-line bg-app-accent-soft px-3 py-1.5 text-[11px] font-semibold text-app-accent">
+              <span />
+              <span className="text-right">TOTAL</span>
+              <span className="text-right">NIGHT</span>
+              <span className="text-right">PIC</span>
+            </div>
+            {([
+              ['이 장', pageSums],
+              ['이전 누적', forwarded],
+              ['전체 누적', toDate],
+            ] as const).map(([label, s], i) => (
+              <div
+                key={label}
+                className={
+                  'grid grid-cols-4 px-3 py-2 text-sm tabular-nums' +
+                  (i < 2 ? ' border-b border-app-line' : ' font-bold')
+                }
+              >
+                <span className="text-app-sub">{label}</span>
+                <span className="text-right">{minToHMGrouped(s.total)}</span>
+                <span className="text-right">{minToHMGrouped(s.night)}</span>
+                <span className="text-right">{minToHMGrouped(s.pic)}</span>
+              </div>
+            ))}
+          </div>
         </>
       )}
 

@@ -243,10 +243,10 @@ export default function HomePage() {
 
           {limits.length > 0 && (() => {
             // 평소엔 접어둔다 — 여유 있을 때 게이지는 정보 가치가 낮다.
-            // 단 한도의 70%를 넘거나 90일 기량유지가 미달이면 자동으로 펼쳐 경고한다.
+            // 단 한도의 90%를 넘거나 90일 기량유지가 미달이면 자동으로 펼쳐 경고한다.
             const maxPct = Math.max(...limits.map((l) => (l.cap > 0 ? (l.used / l.cap) * 100 : 0)))
             const currencyShort = !!curr && (curr.takeoffs < 3 || curr.landings < 3)
-            const alert = maxPct >= 70 || currencyShort
+            const alert = maxPct >= 90 || currencyShort
             const open = limitsOpen ?? alert
             const tightest = limits.reduce((a, b) =>
               (b.cap > 0 ? b.used / b.cap : 0) > (a.cap > 0 ? a.used / a.cap : 0) ? b : a

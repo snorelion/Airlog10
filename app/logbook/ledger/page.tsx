@@ -111,11 +111,14 @@ export default function LedgerPage() {
   // 합계 라벨이 차지할 칸 수 = 합계값이 없는 앞쪽 칸들(DATE~FLT #)
   const labelSpan = cols.findIndex((c) => c.sum)
 
-  function SumRow({ label, s }: { label: string; s: Sums }) {
+  function SumRow({ label, ko, s }: { label: string; ko: string; s: Sums }) {
     return (
       <tr className="bg-app-bg font-semibold">
+        {/* 라벨은 sticky — 옆으로 당겨 숫자를 볼 때도 어느 합계인지 보인다.
+            종이 로그북 관례라 영문을 쓰되, 뜻을 알 수 있게 한국어를 작게 붙였다 */}
         <td className={cellBase + ' sticky left-0 z-10 bg-app-bg pr-2 text-right text-[11px] tracking-wide'} colSpan={labelSpan}>
           {label}
+          <span className="ml-1.5 font-normal text-app-hint">({ko})</span>
         </td>
         {cols.slice(labelSpan).map((c) => (
           <td key={c.label} className={cellBase + ' text-center'}>{c.sum ? c.sum(s) : ''}</td>
@@ -196,44 +199,15 @@ export default function LedgerPage() {
                     </tr>
                   )
                 })}
-                <SumRow label="TOTAL THIS PAGE" s={pageSums} />
-                <SumRow label="AMOUNT FORWARDED" s={forwarded} />
-                <SumRow label="TOTAL TO DATE" s={toDate} />
+                <SumRow label="TOTAL THIS PAGE" ko="이 장" s={pageSums} />
+                <SumRow label="AMOUNT FORWARDED" ko="이전까지 누적" s={forwarded} />
+                <SumRow label="TOTAL TO DATE" ko="전체 누적" s={toDate} />
               </tbody>
             </table>
           </div>
           <p className="mt-2 text-center text-[11px] text-app-hint">
-            표를 옆으로 당겨서 보세요 · 줄을 누르면 수정할 수 있어요
+            표를 옆으로 당겨서 보세요 · 맨 아래 세 줄이 합계 · 줄을 누르면 수정
           </p>
-
-          {/* 표 안의 합계 줄은 숫자가 오른쪽(화면 밖)에 있어 폰에서 안 보인다
-              → 옆으로 당기지 않고도 읽히는 요약을 따로 둔다 */}
-          <div className="mt-3 overflow-hidden rounded-xl border border-app-line bg-app-surface">
-            <div className="grid grid-cols-4 border-b border-app-line bg-app-accent-soft px-3 py-1.5 text-[11px] font-semibold text-app-accent">
-              <span />
-              <span className="text-right">TOTAL</span>
-              <span className="text-right">NIGHT</span>
-              <span className="text-right">PIC</span>
-            </div>
-            {([
-              ['이 장', pageSums],
-              ['이전 누적', forwarded],
-              ['전체 누적', toDate],
-            ] as const).map(([label, s], i) => (
-              <div
-                key={label}
-                className={
-                  'grid grid-cols-4 px-3 py-2 text-sm tabular-nums' +
-                  (i < 2 ? ' border-b border-app-line' : ' font-bold')
-                }
-              >
-                <span className="text-app-sub">{label}</span>
-                <span className="text-right">{minToHMGrouped(s.total)}</span>
-                <span className="text-right">{minToHMGrouped(s.night)}</span>
-                <span className="text-right">{minToHMGrouped(s.pic)}</span>
-              </div>
-            ))}
-          </div>
         </>
       )}
 

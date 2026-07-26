@@ -33,6 +33,9 @@ const LOCAL_ONLY = [
 
 type Values = Record<string, string>
 
+// 사본 받을 주소 형식 검사 (오타로 엉뚱한 데 가거나 조용히 실패하는 것 방지)
+const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
+
 export default function SettingsPage() {
   const router = useRouter()
   const [v, setV] = useState<Values>({})
@@ -74,7 +77,7 @@ export default function SettingsPage() {
 
   async function sendCopy() {
     const to = (v.copyEmail ?? '').trim()
-    if (!to) return
+    if (!isEmail(to)) return
     setMailBusy(true)
     setMailMsg('')
     try {
@@ -370,14 +373,16 @@ export default function SettingsPage() {
             className="mt-3 w-full rounded-xl border border-app-accent-soft bg-app-accent-soft py-3 font-semibold text-app-accent">
             로그북 전체 CSV 다운로드
           </button>
-          <button onClick={sendCopy} disabled={mailBusy || !(v.copyEmail ?? '').trim()}
+          <button onClick={sendCopy} disabled={mailBusy || !isEmail((v.copyEmail ?? '').trim())}
             className="mt-2 w-full rounded-xl border border-app-line bg-app-surface py-3 font-semibold text-app-text disabled:opacity-50">
             {mailBusy ? '보내는 중…' : '📧 이메일로 사본 보내기'}
           </button>
           <p className="mt-1.5 break-words text-center text-xs text-app-hint">
-            {(v.copyEmail ?? '').trim()
-              ? `→ ${(v.copyEmail ?? '').trim()} 으로 보냅니다`
-              : '받을 주소를 먼저 입력해 주세요'}
+            {!(v.copyEmail ?? '').trim()
+              ? '받을 주소를 먼저 입력해 주세요'
+              : !isEmail((v.copyEmail ?? '').trim())
+                ? '이메일 주소 형식을 확인해 주세요'
+                : `→ ${(v.copyEmail ?? '').trim()} 으로 보냅니다`}
           </p>
           {mailMsg && <p className="mt-2 break-words text-center text-sm text-app-sub">{mailMsg}</p>}
         </div>

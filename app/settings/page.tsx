@@ -73,9 +73,21 @@ export default function SettingsPage() {
   }
 
   async function sendCopy() {
+    const to = (v.copyEmail ?? '').trim()
+    if (!to) return
     setMailBusy(true)
     setMailMsg('')
     try {
+      if (!navigator.onLine) throw new Error('메일 발송은 인터넷 연결이 필요해요.')
+      // 화면에 적힌 주소를 서버에 먼저 반영 — [저장]을 따로 안 눌러도
+      // "적은 주소 = 받는 주소"가 되게 (서버는 저장된 값만 보고 보낸다)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('로그인이 필요해요.')
+      await setSetting('copyEmail', to)
+      const { error: upErr } = await supabase.from('profiles').update({ copy_email: to }).eq('id', user.id)
+      if (upErr) throw new Error('주소를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.')
+
       const res = await fetch('/api/send-logbook', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '발송에 실패했어요.')
@@ -350,19 +362,24 @@ export default function SettingsPage() {
         <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <h2 className="font-semibold">백업 · 내보내기</h2>
           <div className="mt-3">
-            <label className={labelCls}>사본 받을 이메일 (추후 메일 발송용)</label>
+            <label className={labelCls}>사본 받을 이메일 (여기 적은 주소로만 보냅니다)</label>
             <input type="email" value={v.copyEmail ?? ''} onChange={(e) => set('copyEmail', e.target.value)}
-              placeholder="snorelion@gmail.com" className={inputCls} />
+              placeholder="you@example.com" className={inputCls} />
           </div>
           <button onClick={downloadCsv}
             className="mt-3 w-full rounded-xl border border-app-accent-soft bg-app-accent-soft py-3 font-semibold text-app-accent">
             로그북 전체 CSV 다운로드
           </button>
-          <button onClick={sendCopy} disabled={mailBusy}
+          <button onClick={sendCopy} disabled={mailBusy || !(v.copyEmail ?? '').trim()}
             className="mt-2 w-full rounded-xl border border-app-line bg-app-surface py-3 font-semibold text-app-text disabled:opacity-50">
             {mailBusy ? '보내는 중…' : '📧 이메일로 사본 보내기'}
           </button>
-          {mailMsg && <p className="mt-2 text-center text-sm text-app-sub">{mailMsg}</p>}
+          <p className="mt-1.5 break-words text-center text-xs text-app-hint">
+            {(v.copyEmail ?? '').trim()
+              ? `→ ${(v.copyEmail ?? '').trim()} 으로 보냅니다`
+              : '받을 주소를 먼저 입력해 주세요'}
+          </p>
+          {mailMsg && <p className="mt-2 break-words text-center text-sm text-app-sub">{mailMsg}</p>}
         </div>
 
         <button onClick={save} disabled={busy}

@@ -3,7 +3,7 @@ import { createServerSupabase } from '@/lib/supabase-server'
 import { minToHM, minToHMGrouped } from '@/lib/time'
 
 // 로그북 사본을 이메일로 발송 (CSV 첨부) — Resend 사용
-// 필요 환경변수: RESEND_API_KEY (+선택 MAIL_FROM, 기본 noreply@bjjlog10.com)
+// 필요 환경변수: RESEND_API_KEY (+선택 MAIL_FROM, 기본 'AirLog10 <noreply_air@bjjlog10.com>')
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
@@ -34,14 +34,20 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '로그인이 필요해요.' }, { status: 401 })
 
-  // 받을 주소: 프로필 copy_email → 없으면 계정 이메일
+  // 받을 주소 = 설정의 copy_email "뿐". 계정 이메일로 대신 보내지 않는다
+  // (로그북엔 비행 이력·크루 이름이 다 들어가므로, 본인이 적어둔 곳으로만 나가게)
   const { data: profile } = await supabase
     .from('profiles')
     .select('name, copy_email')
     .eq('id', user.id)
     .single()
-  const to = profile?.copy_email || user.email
-  if (!to) return NextResponse.json({ error: '받을 이메일 주소가 없어요.' }, { status: 400 })
+  const to = profile?.copy_email?.trim()
+  if (!to) {
+    return NextResponse.json(
+      { error: "설정에서 '사본 받을 이메일'을 입력하고 저장해 주세요." },
+      { status: 400 }
+    )
+  }
 
   // 전체 비행 (1,000행 한도 → 루프)
   const flights: FlightRow[] = []

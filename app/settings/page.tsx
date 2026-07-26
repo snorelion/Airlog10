@@ -120,7 +120,13 @@ export default function SettingsPage() {
             const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
             if (data) {
               for (const [localKey, col] of FIELDS) {
-                if (!next[localKey] && data[col]) next[localKey] = String(data[col])
+                if (!next[localKey] && data[col]) {
+                  next[localKey] = String(data[col])
+                  // 화면에 띄우는 데서 끝내지 말고 폰에도 남긴다.
+                  // 기록 폼·오프라인은 로컬만 보기 때문에, 여기서 안 심어두면
+                  // "설정엔 PIC로 보이는데 기록하면 SIC"가 된다.
+                  await setSetting(localKey, next[localKey])
+                }
               }
             }
           }

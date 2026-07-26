@@ -9,20 +9,7 @@ import { sortChrono } from '@/lib/aggregate'
 import { minToHM } from '@/lib/time'
 import { applyTheme, setThemeCookie, readTheme, THEMES, type Theme } from '@/lib/theme'
 import Nav from '@/components/Nav'
-
-// 로컬 설정 키 ↔ profiles 컬럼 매핑
-const FIELDS = [
-  ['pilotName', 'name'],
-  ['defaultCapacity', 'default_capacity'],
-  ['airline', 'airline'],
-  ['homeBase', 'home_base'],
-  ['employeeNo', 'employee_no'],
-  ['licenceNo', 'licence_no'],
-  ['copyEmail', 'copy_email'],
-  ['medicalExpiry', 'medical_expiry'],
-  ['englishExpiry', 'english_expiry'],
-  ['recurrentExpiry', 'recurrent_expiry'],
-] as const
+import { PROFILE_FIELDS as FIELDS } from '@/lib/profile-fields'
 
 // 회사 표기 규칙 (로컬 전용 — 서버 프로필엔 없는 값)
 const LOCAL_ONLY = [

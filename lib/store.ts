@@ -5,6 +5,7 @@
 
 import { createClient } from './supabase'
 import { idbGetAll, idbGet, idbPut, idbDelete, idbPutMany, idbClear } from './idb'
+import { PROFILE_FIELDS } from './profile-fields'
 
 export type Flight = {
   id: string
@@ -402,6 +403,23 @@ export async function sync(): Promise<boolean> {
         if (!stillPending) {
           await idbClear('roster')
           await idbPutMany('roster', ro)
+        }
+      }
+
+      // 프로필(설정) 내려받기 — 폰에 값이 "없을 때만" 채운다.
+      // 로그아웃·기기교체·재설치를 하면 meta가 비어 설정이 사라지는데,
+      // 설정 화면을 열어보지 않으면 기록 폼 프리필(기본 역할·내 이름 등)이
+      // 영영 죽은 채로 남는다. 화면을 여는 어느 경로로든 sync가 돌므로 여기서 살린다.
+      // 로컬 값을 덮어쓰지 않는 이유: 이 폰에서 방금 고친 값이 항상 우선이어야 한다
+      // (프로필은 아직 outbox 대상이 아니라 서버가 더 낡을 수 있다).
+      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      if (prof) {
+        const row = prof as Record<string, unknown>
+        for (const [localKey, col] of PROFILE_FIELDS) {
+          const val = row[col]
+          if (val === null || val === undefined || val === '') continue
+          if (await getSetting(localKey)) continue
+          await setSetting(localKey, String(val))
         }
       }
     } catch {} // 마이그레이션 전이면 테이블이 없을 수 있음 — 조용히 넘어감

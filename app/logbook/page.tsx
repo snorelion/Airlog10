@@ -135,7 +135,7 @@ export default function LogbookPage() {
               (capFilter === c ? 'bg-app-btn text-white' : 'bg-app-surface text-app-sub border border-app-line')
             }
           >
-            {c === 'ALL' ? t.all : c === OTHER_TYPE ? t.otherType : c}
+            {c === 'ALL' ? t.all : c}
           </button>
         ))}
         <span className="mx-0.5 h-5 w-px bg-app-line" />
@@ -155,7 +155,7 @@ export default function LogbookPage() {
         <div className="mb-3 flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-app-accent-soft px-3 py-1.5 text-sm font-semibold text-app-accent">
             {yearFilter && fmt(t.yearChip, { year: yearFilter })}
-            {typeFilter && <span className="font-mono">{typeFilter}</span>}
+            {typeFilter && <span className="font-mono">{typeFilter === OTHER_TYPE ? t.otherType : typeFilter}</span>}
             {airportFilter && <span className="font-mono">{airportFilter}</span>}
             <button type="button" onClick={clearDrill} aria-label={t.clearFilter} className="text-app-accent">✕</button>
           </span>

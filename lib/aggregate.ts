@@ -45,10 +45,14 @@ export function computeYearly(flights: Flight[]): { yr: string; flights: number;
   return Array.from(map.values()).sort((a, b) => a.yr.localeCompare(b.yr))
 }
 
+// 기종이 비어 있는 기록의 묶음 값. 화면에는 언어에 맞게 표시하되(t.otherType)
+// 필터·비교에 쓰이는 '값' 자체는 번역하지 않는다 — 번역하면 필터가 어긋난다
+export const OTHER_TYPE = '기타'
+
 export function computeByType(flights: Flight[]): { type: string; flights: number; total_min: number }[] {
   const map = new Map<string, { type: string; flights: number; total_min: number }>()
   for (const f of flights) {
-    const type = f.aircraft_type || '기타'
+    const type = f.aircraft_type || OTHER_TYPE
     const e = map.get(type) ?? { type, flights: 0, total_min: 0 }
     e.flights += 1
     e.total_min += f.total_min

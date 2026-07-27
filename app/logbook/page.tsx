@@ -4,13 +4,17 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
+import { OTHER_TYPE } from '@/lib/aggregate'
 import { minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
+import { useT, fmt } from '@/lib/i18n'
+import { logbook as dict } from '@/lib/i18n/logbook'
 
 const PAGE_SIZE = 50
 
 export default function LogbookPage() {
   const router = useRouter()
+  const t = useT(dict)
   const [flights, setFlights] = useState<Flight[]>([])
   const [page, setPage] = useState(1)
   const [loaded, setLoaded] = useState(false)
@@ -60,7 +64,7 @@ export default function LogbookPage() {
   const q = query.trim().toUpperCase()
   const filtered = flights.filter((f) => {
     if (yearFilter && f.flight_date.slice(0, 4) !== yearFilter) return false
-    if (typeFilter && (f.aircraft_type || '기타') !== typeFilter) return false
+    if (typeFilter && (f.aircraft_type || OTHER_TYPE) !== typeFilter) return false
     if (airportFilter && f.origin !== airportFilter && f.destination !== airportFilter) return false
     if (capFilter !== 'ALL' && (f.capacity ?? '') !== capFilter) return false
     if (pfOnly && !f.is_pf) return false
@@ -102,14 +106,14 @@ export default function LogbookPage() {
   return (
     <main className="mx-auto max-w-lg px-3 pb-24 pt-6">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold">로그북</h1>
-        <p className="text-sm text-app-hint">{total.toLocaleString()}편</p>
+        <h1 className="text-xl font-bold">{t.title}</h1>
+        <p className="text-sm text-app-hint">{fmt(t.flightCount, { n: total.toLocaleString() })}</p>
       </div>
 
       {/* 목록 ↔ 장부 전환 — 장부(넓은 표)가 작은 링크에 숨어 있어 못 찾던 문제 해결 */}
       <div className="mb-3 flex overflow-hidden rounded-lg border border-app-line text-xs font-semibold">
-        <span className="bg-app-btn px-3 py-1.5 text-white">목록</span>
-        <Link href="/logbook/ledger" className="px-3 py-1.5 text-app-sub">장부</Link>
+        <span className="bg-app-btn px-3 py-1.5 text-white">{t.list}</span>
+        <Link href="/logbook/ledger" className="px-3 py-1.5 text-app-sub">{t.ledger}</Link>
       </div>
 
       {/* 검색과 필터를 두 줄로 — 한 줄에 다 넣으면 좁은 폰에서 검색창이 쪼그라들고
@@ -117,7 +121,7 @@ export default function LogbookPage() {
       <input
         value={query}
         onChange={(e) => { setQuery(e.target.value); setPage(1) }}
-        placeholder="검색: 공항·편명·기체·크루·메모"
+        placeholder={t.searchPlaceholder}
         className="mb-2 w-full rounded-xl border border-app-line bg-app-surface px-3 py-2 text-sm outline-none focus:border-air-400"
       />
       <div className="mb-3 flex items-center gap-2">
@@ -131,7 +135,7 @@ export default function LogbookPage() {
               (capFilter === c ? 'bg-app-btn text-white' : 'bg-app-surface text-app-sub border border-app-line')
             }
           >
-            {c === 'ALL' ? '전체' : c}
+            {c === 'ALL' ? t.all : c === OTHER_TYPE ? t.otherType : c}
           </button>
         ))}
         <span className="mx-0.5 h-5 w-px bg-app-line" />
@@ -150,28 +154,28 @@ export default function LogbookPage() {
       {(yearFilter || typeFilter || airportFilter) && (
         <div className="mb-3 flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-app-accent-soft px-3 py-1.5 text-sm font-semibold text-app-accent">
-            {yearFilter && `${yearFilter}년`}
+            {yearFilter && fmt(t.yearChip, { year: yearFilter })}
             {typeFilter && <span className="font-mono">{typeFilter}</span>}
             {airportFilter && <span className="font-mono">{airportFilter}</span>}
-            <button type="button" onClick={clearDrill} aria-label="필터 지우기" className="text-app-accent">✕</button>
+            <button type="button" onClick={clearDrill} aria-label={t.clearFilter} className="text-app-accent">✕</button>
           </span>
-          <span className="text-xs text-app-hint">{total.toLocaleString()}편만 보는 중</span>
+          <span className="text-xs text-app-hint">{fmt(t.filteredCount, { n: total.toLocaleString() })}</span>
         </div>
       )}
 
       {zeroCount > 0 && (
         <Link href="/logbook/fix"
           className="mb-3 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/25 dark:text-amber-200">
-          ⏱️ 시간이 비어 있는 기록 {zeroCount}건 — 정리하러 가기 →
+          {fmt(t.zeroTime, { n: zeroCount })}
         </Link>
       )}
 
       {!loaded ? (
-        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{t.loading}</div>
       ) : rows.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
-          아직 기록이 없어요.{' '}
-          <Link href="/import" className="text-app-accent underline">가져오기</Link>부터 시작해 보세요.
+          {t.emptyPrefix}{' '}
+          <Link href="/import" className="text-app-accent underline">{t.importLink}</Link>{t.emptySuffix}
         </div>
       ) : (
         <>
@@ -206,7 +210,7 @@ export default function LogbookPage() {
                         {/* 날짜 글자는 sticky — 옆으로 당겨도 그날이 뭔지 보인다 */}
                         <td colSpan={6} className="border-b border-app-line bg-app-bg py-1.5">
                           <span className="sticky left-0 inline-block px-3 text-xs font-semibold text-app-sub">
-                            {it.date} · {it.count}편 · {minToHMGrouped(it.min)}
+                            {fmt(t.dayHeader, { date: it.date, n: it.count, time: minToHMGrouped(it.min) })}
                           </span>
                         </td>
                       </tr>
@@ -248,7 +252,7 @@ export default function LogbookPage() {
             </div>
           </div>
           <p className="mt-2 text-center text-[11px] text-app-hint">
-            옆으로 당기면 크루·메모가 보여요 · 줄을 누르면 수정 · 자세히 보려면 [장부]
+            {t.swipeHint}
           </p>
         </>
       )}
@@ -257,15 +261,15 @@ export default function LogbookPage() {
         <div className="mt-4 flex items-center justify-center gap-4 text-sm">
           {p > 1 ? (
             <button onClick={() => setPage(p - 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">
-              ← 최근
+              {t.newer}
             </button>
-          ) : <span className="px-4 py-2 text-app-hint">← 최근</span>}
+          ) : <span className="px-4 py-2 text-app-hint">{t.newer}</span>}
           <span className="text-app-sub">{p} / {lastPage}</span>
           {p < lastPage ? (
             <button onClick={() => setPage(p + 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">
-              과거 →
+              {t.older}
             </button>
-          ) : <span className="px-4 py-2 text-app-hint">과거 →</span>}
+          ) : <span className="px-4 py-2 text-app-hint">{t.older}</span>}
         </div>
       )}
 

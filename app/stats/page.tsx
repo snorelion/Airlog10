@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getFlights, getSetting, sync, onStoreChange, type Flight } from '@/lib/store'
-import { computeYearly, computeByType, computeTopAirports, computeTotals, computeRecap, recapRange, filterRange, baseCountry, type Recap } from '@/lib/aggregate'
+import { computeYearly, computeByType, computeTopAirports, computeTotals, computeRecap, recapRange, filterRange, baseCountry, OTHER_TYPE, type Recap } from '@/lib/aggregate'
 import { createClient } from '@/lib/supabase'
 import { minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
+// 이 파일은 map 콜백에서 t를 기종 항목 이름으로 이미 쓰고 있어 사전은 L로 받는다
+import { useT, useLang, fmt as tf, LOCALE } from '@/lib/i18n'
+import { stats as dict } from '@/lib/i18n/stats'
 
 // 커리어 요약 공유 카드 (1080×1350 PNG) — 캔버스로 그려서 공유/저장
 async function makeShareCard(flights: Flight[], name: string): Promise<void> {
@@ -235,7 +238,7 @@ function DayNightDonut({ dayMin, nightMin }: { dayMin: number; nightMin: number 
         strokeDasharray={`${nightLen} ${C - nightLen}`} transform="rotate(-90 45 45)" strokeLinecap="butt"
       />
       <text x="45" y="42" textAnchor="middle" className="fill-app-text" style={{ fontSize: 15, fontWeight: 700 }}>🌙 {nightPct}%</text>
-      <text x="45" y="58" textAnchor="middle" className="fill-app-hint" style={{ fontSize: 9 }}>야간</text>
+      <text x="45" y="58" textAnchor="middle" className="fill-app-hint" style={{ fontSize: 9 }}>{L.night}</text>
     </svg>
   )
 }
@@ -263,6 +266,7 @@ function DrillDetail({
   logbookLabel: string
   showTypes?: boolean
 }) {
+  const L = useT(dict)
   const real = flights.filter((f) => f.total_min > 0)
   const r = computeRecap(real, baseCC)
   const t = computeTotals(real)
@@ -276,15 +280,15 @@ function DrillDetail({
       <div className="grid grid-cols-4 gap-2 text-center text-sm">
         <div><div className="text-xs text-app-hint">PIC</div><div className="font-semibold tabular-nums">{minToHMGrouped(t.pic_min)}</div></div>
         <div><div className="text-xs text-app-hint">SIC</div><div className="font-semibold tabular-nums">{minToHMGrouped(t.sic_min)}</div></div>
-        <div><div className="text-xs text-app-hint">야간</div><div className="font-semibold tabular-nums">{minToHMGrouped(r.night_min)}</div></div>
-        <div><div className="text-xs text-app-hint">착륙</div><div className="font-semibold tabular-nums">{r.landings}</div></div>
+        <div><div className="text-xs text-app-hint">{L.night}</div><div className="font-semibold tabular-nums">{minToHMGrouped(r.night_min)}</div></div>
+        <div><div className="text-xs text-app-hint">{L.landings}</div><div className="font-semibold tabular-nums">{r.landings}</div></div>
       </div>
 
       {domTotal > 0 && (
         <div>
           <div className="mb-1 flex items-center justify-between text-xs">
-            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-air-400" />국내 {r.domestic}</span>
-            <span className="flex items-center gap-1.5">국제 {r.intl}<span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" /></span>
+            <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-air-400" />{L.domestic} {r.domestic}</span>
+            <span className="flex items-center gap-1.5">{L.intl} {r.intl}<span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-400" /></span>
           </div>
           <div className="flex h-2.5 overflow-hidden rounded-full bg-app-surface">
             <div className="bg-air-400" style={{ width: `${(r.domestic / domTotal) * 100}%` }} />
@@ -295,7 +299,7 @@ function DrillDetail({
 
       {aps.length > 0 && (
         <div className="space-y-1">
-          <div className="text-xs font-medium text-app-hint">많이 드나든 공항</div>
+          <div className="text-xs font-medium text-app-hint">{L.topAirports}</div>
           {aps.map((a) => (
             <div key={a.ident} className="flex items-center gap-2">
               <span className="w-12 font-mono text-xs font-semibold text-app-accent">{a.ident}</span>
@@ -312,7 +316,7 @@ function DrillDetail({
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-app-sub">
           {types.map((ty) => (
             <span key={ty.type}>
-              <span className="font-mono font-semibold text-app-text">{ty.type}</span> {ty.flights}편
+              <span className="font-mono font-semibold text-app-text">{ty.type === OTHER_TYPE ? L.otherTypeFallback : ty.type}</span> {tf(L.flightsN, { n: ty.flights })}
             </span>
           ))}
         </div>
@@ -322,13 +326,15 @@ function DrillDetail({
         href={logbookHref}
         className="block rounded-lg bg-app-btn py-2 text-center text-sm font-semibold text-white"
       >
-        로그북에서 {logbookLabel} 보기 →
+        {tf(L.viewInLogbook, { label: logbookLabel })}
       </Link>
     </div>
   )
 }
 
 export default function StatsPage() {
+  const L = useT(dict)
+  const lang = useLang()
   const [flights, setFlights] = useState<Flight[]>([])
   const [recapMode, setRecapMode] = useState<'weeks4' | 'lastMonth'>('weeks4')
   const [openYear, setOpenYear] = useState<string | null>(null)
@@ -356,9 +362,10 @@ export default function StatsPage() {
   // ── Recap (최근 4주 / 지난 달) ──
   const today = new Date().toLocaleDateString('en-CA')
   const range = recapRange(today, recapMode)
+  // "2026년 6월" / "June 2026" — 달 이름은 언어마다 달라 Intl에 맡긴다
   const recapLabel = recapMode === 'lastMonth'
-    ? `${range.start.slice(0, 4)}년 ${Number(range.start.slice(5, 7))}월`
-    : '최근 4주'
+    ? new Date(range.start + 'T00:00:00').toLocaleDateString(LOCALE[lang], { year: 'numeric', month: 'long' })
+    : L.last4w
   const baseCC = baseCountry(flights)
   const recapFlights = filterRange(flights, range.start, range.end)
   const recap = computeRecap(recapFlights, baseCC)
@@ -391,50 +398,50 @@ export default function StatsPage() {
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">통계</h1>
+        <h1 className="text-xl font-bold">{L.title}</h1>
         {flights.length > 0 && (
           <button
             type="button"
             onClick={async () => makeShareCard(flights, (await getSetting('pilotName')) ?? '')}
             className="rounded-lg bg-app-btn px-3 py-1.5 text-sm font-semibold text-white"
           >
-            공유 카드
+            {L.shareCard}
           </button>
         )}
       </div>
 
       {!loaded ? (
-        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{L.loading}</div>
       ) : yearly.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
-          기록이 쌓이면 통계가 여기 나타나요.
+          {L.empty}
         </div>
       ) : (
         <div className="space-y-5">
           {/* ── 돌아보기 (Recap) ── */}
           <section>
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-app-sub">돌아보기</h2>
+              <h2 className="text-sm font-semibold text-app-sub">{L.recap}</h2>
               <div className="flex overflow-hidden rounded-lg border border-app-line text-xs font-medium">
                 <button
                   type="button" onClick={() => setRecapMode('weeks4')}
                   className={recapMode === 'weeks4' ? 'bg-app-btn px-3 py-1 text-white' : 'px-3 py-1 text-app-sub'}
-                >최근 4주</button>
+                >{L.last4w}</button>
                 <button
                   type="button" onClick={() => setRecapMode('lastMonth')}
                   className={recapMode === 'lastMonth' ? 'bg-app-btn px-3 py-1 text-white' : 'px-3 py-1 text-app-sub'}
-                >지난 달</button>
+                >{L.lastMonth}</button>
               </div>
             </div>
             <div className="rounded-2xl border border-app-line bg-app-surface p-4">
               {recap.flights === 0 ? (
-                <p className="py-6 text-center text-sm text-app-sub">{recapLabel}엔 비행 기록이 없어요.</p>
+                <p className="py-6 text-center text-sm text-app-sub">{tf(L.noFlightsIn, { label: recapLabel })}</p>
               ) : (
                 <div className="space-y-4">
                   {/* 핵심 숫자 + 전 기간 대비 */}
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
-                      <div className="text-lg font-bold tabular-nums">{recap.flights}편</div>
+                      <div className="text-lg font-bold tabular-nums">{tf(L.flightsN, { n: recap.flights })}</div>
                       <Delta cur={recap.flights} prev={prevRecap.flights} />
                     </div>
                     <div>
@@ -442,8 +449,8 @@ export default function StatsPage() {
                       <Delta cur={recap.total_min} prev={prevRecap.total_min} fmt={minToHMGrouped} />
                     </div>
                     <div>
-                      <div className="text-lg font-bold tabular-nums">{recap.landings}회</div>
-                      <div className="text-xs text-app-hint">착륙</div>
+                      <div className="text-lg font-bold tabular-nums">{tf(L.landingsN, { n: recap.landings })}</div>
+                      <div className="text-xs text-app-hint">{L.landings}</div>
                     </div>
                   </div>
 
@@ -452,11 +459,11 @@ export default function StatsPage() {
                     <DayNightDonut dayMin={recap.day_min} nightMin={recap.night_min} />
                     <div className="flex-1 space-y-1.5 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#12335A' }} />야간</span>
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#12335A' }} />{L.night}</span>
                         <span className="font-semibold tabular-nums">{minToHMGrouped(recap.night_min)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#7FB4E8' }} />주간</span>
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: '#7FB4E8' }} />{L.day}</span>
                         <span className="font-semibold tabular-nums">{minToHMGrouped(recap.day_min)}</span>
                       </div>
                     </div>
@@ -466,8 +473,8 @@ export default function StatsPage() {
                   {domTotal > 0 && (
                     <div className="border-t border-app-line pt-3">
                       <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-air-400" />국내 {recap.domestic}</span>
-                        <span className="flex items-center gap-1.5">국제 {recap.intl}<span className="inline-block h-3 w-3 rounded-sm bg-amber-400" /></span>
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-air-400" />{L.domestic} {recap.domestic}</span>
+                        <span className="flex items-center gap-1.5">{L.intl} {recap.intl}<span className="inline-block h-3 w-3 rounded-sm bg-amber-400" /></span>
                       </div>
                       <div className="flex h-3 overflow-hidden rounded-full bg-app-bg">
                         <div className="bg-air-400" style={{ width: `${(recap.domestic / domTotal) * 100}%` }} />
@@ -479,7 +486,7 @@ export default function StatsPage() {
                   {/* 많이 간 곳 */}
                   {recapAirports.length > 0 && (
                     <div className="border-t border-app-line pt-3">
-                      <div className="mb-1.5 text-xs font-medium text-app-hint">많이 드나든 공항</div>
+                      <div className="mb-1.5 text-xs font-medium text-app-hint">{L.topAirports}</div>
                       <div className="space-y-1.5">
                         {recapAirports.map((a) => (
                           <Link key={a.ident} href={`/airports/${a.ident}`} className="flex items-center gap-2">
@@ -499,7 +506,7 @@ export default function StatsPage() {
                     <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-app-line pt-3 text-sm">
                       {recapTypes.map((t) => (
                         <span key={t.type} className="text-app-sub">
-                          <span className="font-mono font-semibold text-app-text">{t.type}</span> {t.flights}편
+                          <span className="font-mono font-semibold text-app-text">{t.type === OTHER_TYPE ? L.otherTypeFallback : t.type}</span> {tf(L.flightsN, { n: t.flights })}
                         </span>
                       ))}
                     </div>
@@ -523,7 +530,7 @@ export default function StatsPage() {
                     })}
                     className="w-full rounded-lg border border-app-line bg-app-surface py-2 text-sm font-semibold text-app-accent"
                   >
-                    📤 결산 카드 만들기
+                    {L.makeRecapCard}
                   </button>
                 </div>
               )}
@@ -531,7 +538,7 @@ export default function StatsPage() {
           </section>
 
           <section>
-            <h2 className="mb-2 text-sm font-semibold text-app-sub">연도별 비행시간</h2>
+            <h2 className="mb-2 text-sm font-semibold text-app-sub">{L.byYear}</h2>
             <div className="overflow-hidden rounded-2xl border border-app-line bg-app-surface">
               {yearly.map((y) => (
                 <div key={y.yr} className="border-b border-app-line last:border-0">
@@ -541,7 +548,7 @@ export default function StatsPage() {
                     className="flex w-full items-center justify-between px-4 py-2.5 text-left"
                   >
                     <span className="font-semibold">{y.yr}</span>
-                    <span className="text-sm text-app-hint">{y.flights.toLocaleString()}편</span>
+                    <span className="text-sm text-app-hint">{tf(L.flightsN, { n: y.flights.toLocaleString() })}</span>
                     <span className="flex items-center gap-1.5">
                       <span className="font-semibold tabular-nums">{minToHMGrouped(y.total_min)}</span>
                       <span className="text-xs text-app-hint">{openYear === y.yr ? '▲' : '▼'}</span>
@@ -552,7 +559,7 @@ export default function StatsPage() {
                       flights={flights.filter((f) => f.flight_date.slice(0, 4) === y.yr)}
                       baseCC={baseCC}
                       logbookHref={`/logbook?year=${y.yr}`}
-                      logbookLabel={`${y.yr}년`}
+                      logbookLabel={tf(L.yearLabel, { year: y.yr })}
                     />
                   )}
                 </div>
@@ -561,7 +568,7 @@ export default function StatsPage() {
           </section>
 
           <section>
-            <h2 className="mb-2 text-sm font-semibold text-app-sub">기종별</h2>
+            <h2 className="mb-2 text-sm font-semibold text-app-sub">{L.byType}</h2>
             <div className="overflow-hidden rounded-2xl border border-app-line bg-app-surface">
               {byType.map((t) => (
                 <div key={t.type} className="border-b border-app-line last:border-0">
@@ -571,7 +578,7 @@ export default function StatsPage() {
                     className="flex w-full items-center justify-between px-4 py-2.5 text-left"
                   >
                     <span className="font-mono font-semibold">{t.type}</span>
-                    <span className="text-sm text-app-hint">{t.flights.toLocaleString()}편</span>
+                    <span className="text-sm text-app-hint">{tf(L.flightsN, { n: t.flights.toLocaleString() })}</span>
                     <span className="flex items-center gap-1.5">
                       <span className="font-semibold tabular-nums">{minToHMGrouped(t.total_min)}</span>
                       <span className="text-xs text-app-hint">{openType === t.type ? '▲' : '▼'}</span>
@@ -579,7 +586,7 @@ export default function StatsPage() {
                   </button>
                   {openType === t.type && (
                     <DrillDetail
-                      flights={flights.filter((f) => (f.aircraft_type || '기타') === t.type)}
+                      flights={flights.filter((f) => (f.aircraft_type || OTHER_TYPE) === t.type)}
                       baseCC={baseCC}
                       logbookHref={`/logbook?type=${encodeURIComponent(t.type)}`}
                       logbookLabel={t.type}
@@ -592,7 +599,7 @@ export default function StatsPage() {
           </section>
 
           <section>
-            <h2 className="mb-2 text-sm font-semibold text-app-sub">많이 간 공항</h2>
+            <h2 className="mb-2 text-sm font-semibold text-app-sub">{L.topAirportsTitle}</h2>
             <div className="space-y-1.5 rounded-2xl border border-app-line bg-app-surface p-4">
               {topAirports.map((a) => (
                 <div key={a.ident} className="flex items-center gap-2">
@@ -609,14 +616,14 @@ export default function StatsPage() {
                   </Link>
                   <Link
                     href={`/logbook?airport=${a.ident}`}
-                    aria-label={`${a.ident} 로그북 보기`}
+                    aria-label={tf(L.viewLogbookAria, { ident: a.ident })}
                     className="rounded-md border border-app-line px-1.5 py-1 text-[11px] font-medium text-app-sub"
                   >
-                    목록
+                    {L.listBtn}
                   </Link>
                 </div>
               ))}
-              <p className="pt-1 text-center text-[11px] text-app-hint">공항을 누르면 상세 정보·활주로, [목록]은 그 공항 비행 기록</p>
+              <p className="pt-1 text-center text-[11px] text-app-hint">{L.airportHint}</p>
             </div>
           </section>
         </div>

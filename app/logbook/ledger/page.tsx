@@ -7,6 +7,8 @@ import { getFlights, sync, onStoreChange, type Flight } from '@/lib/store'
 import { sortChrono } from '@/lib/aggregate'
 import { minToHM, minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
+import { useT } from '@/lib/i18n'
+import { ledger as dict } from '@/lib/i18n/ledger'
 
 // 종이 로그북처럼 한 페이지 20행, 과거→현재 순
 const ROWS = 20
@@ -75,6 +77,7 @@ const COLS: Col[] = [
 ]
 
 export default function LedgerPage() {
+  const t = useT(dict)
   const router = useRouter()
   const [all, setAll] = useState<Flight[]>([])
   const [page, setPage] = useState<number | null>(null) // null = 마지막 장
@@ -111,14 +114,15 @@ export default function LedgerPage() {
   // 합계 라벨이 차지할 칸 수 = 합계값이 없는 앞쪽 칸들(DATE~FLT #)
   const labelSpan = cols.findIndex((c) => c.sum)
 
-  function SumRow({ label, ko, s }: { label: string; ko: string; s: Sums }) {
+  function SumRow({ label, sub, s }: { label: string; sub: string; s: Sums }) {
     return (
       <tr className="bg-app-bg font-semibold">
         {/* 라벨은 sticky — 옆으로 당겨 숫자를 볼 때도 어느 합계인지 보인다.
-            종이 로그북 관례라 영문을 쓰되, 뜻을 알 수 있게 한국어를 작게 붙였다 */}
+            라벨은 종이 로그북 관례라 어느 언어에서든 영문 그대로 두고,
+            뜻풀이가 필요한 언어에만 작게 덧붙인다(영어는 sub가 빈 문자열) */}
         <td className={cellBase + ' sticky left-0 z-10 bg-app-bg pr-2 text-right text-[11px] tracking-wide'} colSpan={labelSpan}>
           {label}
-          <span className="ml-1.5 font-normal text-app-hint">({ko})</span>
+          {sub && <span className="ml-1.5 font-normal text-app-hint">({sub})</span>}
         </td>
         {cols.slice(labelSpan).map((c) => (
           <td key={c.label} className={cellBase + ' text-center'}>{c.sum ? c.sum(s) : ''}</td>
@@ -130,24 +134,24 @@ export default function LedgerPage() {
   return (
     <main className="mx-auto max-w-5xl px-3 pb-24 pt-6">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold">로그북 · 장부</h1>
+        <h1 className="text-xl font-bold">{t.title}</h1>
         <div className="flex items-center gap-3 text-sm">
-          <Link href="/logbook/print" className="text-app-accent">인쇄/PDF</Link>
+          <Link href="/logbook/print" className="text-app-accent">{t.printPdf}</Link>
           <span className="text-app-hint">PAGE {p} / {lastPage}</span>
         </div>
       </div>
 
       {/* 목록 ↔ 장부 전환 (숨은 링크가 아니라 눈에 보이는 토글로) */}
       <div className="mb-3 flex overflow-hidden rounded-lg border border-app-line text-xs font-semibold">
-        <Link href="/logbook" className="px-3 py-1.5 text-app-sub">목록</Link>
-        <span className="bg-app-btn px-3 py-1.5 text-white">장부</span>
+        <Link href="/logbook" className="px-3 py-1.5 text-app-sub">{t.list}</Link>
+        <span className="bg-app-btn px-3 py-1.5 text-white">{t.ledger}</span>
       </div>
 
       {!loaded ? (
-        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{t.loading}</div>
       ) : all.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
-          아직 기록이 없어요.
+          {t.empty}
         </div>
       ) : (
         <>
@@ -199,27 +203,27 @@ export default function LedgerPage() {
                     </tr>
                   )
                 })}
-                <SumRow label="TOTAL THIS PAGE" ko="이 장" s={pageSums} />
-                <SumRow label="AMOUNT FORWARDED" ko="이전까지 누적" s={forwarded} />
-                <SumRow label="TOTAL TO DATE" ko="전체 누적" s={toDate} />
+                <SumRow label="TOTAL THIS PAGE" sub={t.subThisPage} s={pageSums} />
+                <SumRow label="AMOUNT FORWARDED" sub={t.subForwarded} s={forwarded} />
+                <SumRow label="TOTAL TO DATE" sub={t.subToDate} s={toDate} />
               </tbody>
             </table>
           </div>
           <p className="mt-2 text-center text-[11px] text-app-hint">
-            표를 옆으로 당겨서 보세요 · 맨 아래 세 줄이 합계 · 줄을 누르면 수정
+            {t.hint}
           </p>
         </>
       )}
 
       <div className="mt-4 flex items-center justify-center gap-4 text-sm">
         {p > 1 ? (
-          <button onClick={() => setPage(p - 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">← 이전 장</button>
-        ) : <span className="px-4 py-2 text-app-hint">← 이전 장</span>}
-        <button onClick={() => setPage(1)} className="text-xs text-app-hint">처음</button>
-        <button onClick={() => setPage(null)} className="text-xs text-app-hint">마지막</button>
+          <button onClick={() => setPage(p - 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">{t.prevPage}</button>
+        ) : <span className="px-4 py-2 text-app-hint">{t.prevPage}</span>}
+        <button onClick={() => setPage(1)} className="text-xs text-app-hint">{t.first}</button>
+        <button onClick={() => setPage(null)} className="text-xs text-app-hint">{t.last}</button>
         {p < lastPage ? (
-          <button onClick={() => setPage(p + 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">다음 장 →</button>
-        ) : <span className="px-4 py-2 text-app-hint">다음 장 →</span>}
+          <button onClick={() => setPage(p + 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">{t.nextPage}</button>
+        ) : <span className="px-4 py-2 text-app-hint">{t.nextPage}</span>}
       </div>
 
       <Nav />

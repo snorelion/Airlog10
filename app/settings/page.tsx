@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { getSetting, setSetting, getFlights, getPendingCount, clearLocalData } from '@/lib/store'
+import { getSetting, setSetting, saveProfileSettings, getFlights, getPendingCount, clearLocalData } from '@/lib/store'
 import { sortChrono } from '@/lib/aggregate'
 import { minToHM } from '@/lib/time'
 import { applyTheme, setThemeCookie, readTheme, THEMES, type Theme } from '@/lib/theme'
@@ -126,19 +126,10 @@ export default function SettingsPage() {
   async function save() {
     setBusy(true)
     setSaved(false)
-    for (const [localKey] of FIELDS) await setSetting(localKey, (v[localKey] ?? '').trim())
     for (const [k] of LOCAL_ONLY) await setSetting(k, (v[k] ?? '').trim())
-    if (navigator.onLine) {
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const patch: Record<string, string | null> = {}
-          for (const [localKey, col] of FIELDS) patch[col] = (v[localKey] ?? '').trim() || null
-          await supabase.from('profiles').update(patch).eq('id', user.id)
-        }
-      } catch {}
-    }
+    // 프로필 값은 outbox를 거친다 — 오프라인에서 바꿔도 온라인 복귀 때 올라가고,
+    // 다른 기기는 그걸 내려받는다
+    await saveProfileSettings(v)
     setBusy(false)
     setSaved(true)
   }

@@ -94,6 +94,9 @@ type OutboxItem =
   | { id: string; kind: 'person'; row: Person }
   | { id: string; kind: 'airportNote'; row: AirportNoteRow }
   | { id: string; kind: 'roster'; row: RosterFlight }
+  // 프로필(설정)은 계정당 하나뿐이라 id를 고정한다 —
+  // 여러 번 고쳐도 항목이 쌓이지 않고 마지막 상태 하나만 남는다
+  | { id: 'profile'; kind: 'profile'; row: Record<string, string | null> }
 
 // ── 읽기 (항상 로컬 사본) ──────────────────────────
 export async function getFlights(): Promise<Flight[]> {
@@ -134,6 +137,22 @@ export async function getSetting(key: string): Promise<string | null> {
 
 export async function setSetting(key: string, value: string): Promise<void> {
   await idbPut('meta', { k: 'setting:' + key, v: value })
+}
+
+// 프로필 설정 저장 (이름·기본 역할·만료일 등 — 서버에도 있는 값들).
+// setSetting과 나눠둔 이유: sync가 서버에서 내려받을 때도 setSetting을 쓰는데,
+// 그게 outbox에 쌓이면 받은 값을 곧장 되올리는 무한 왕복이 된다.
+// 사용자가 "직접 바꾼" 경로만 이 함수를 거쳐 서버로 올라간다.
+export async function saveProfileSettings(values: Record<string, string>): Promise<void> {
+  const row: Record<string, string | null> = {}
+  for (const [localKey, col] of PROFILE_FIELDS) {
+    const val = (values[localKey] ?? '').trim()
+    await setSetting(localKey, val)
+    row[col] = val || null   // 빈 칸은 서버에서도 비운다
+  }
+  await idbPut('outbox', { id: 'profile', kind: 'profile', row } satisfies OutboxItem)
+  notify()
+  void sync() // 온라인이면 바로, 오프라인이면 다음 기회에
 }
 
 // ── 쓰기 (오프라인 OK — outbox에 쌓임) ──────────────
@@ -348,6 +367,12 @@ export async function sync(): Promise<boolean> {
             .from('roster_flights')
             .upsert({ ...rest, user_id: user.id }, { onConflict: 'user_id,flight_date,flight_number,std' })
           if (error) throw new Error(error.message)
+        } else if (item.kind === 'profile') {
+          // 프로필은 계정당 한 행 — user_id 컬럼이 없고 id가 곧 사용자다.
+          // update가 profiles_touch 트리거를 건드려 updated_at이 갱신되고,
+          // 그걸 다른 기기가 보고 내려받는다
+          const { error } = await supabase.from('profiles').update(item.row).eq('id', user.id)
+          if (error) throw new Error(error.message)
         } else {
           const { error } = await supabase
             .from('airport_notes')
@@ -406,20 +431,26 @@ export async function sync(): Promise<boolean> {
         }
       }
 
-      // 프로필(설정) 내려받기 — 폰에 값이 "없을 때만" 채운다.
-      // 로그아웃·기기교체·재설치를 하면 meta가 비어 설정이 사라지는데,
-      // 설정 화면을 열어보지 않으면 기록 폼 프리필(기본 역할·내 이름 등)이
-      // 영영 죽은 채로 남는다. 화면을 여는 어느 경로로든 sync가 돌므로 여기서 살린다.
-      // 로컬 값을 덮어쓰지 않는 이유: 이 폰에서 방금 고친 값이 항상 우선이어야 한다
-      // (프로필은 아직 outbox 대상이 아니라 서버가 더 낡을 수 있다).
+      // 프로필(설정) 내려받기 — 서버가 바뀌었을 때만.
+      // 기기교체·재설치·로그아웃 후엔 meta가 비어 설정이 사라지는데, 설정 화면을
+      // 열어보지 않으면 기록 폼 프리필(기본 역할·내 이름)이 죽은 채로 남는다.
+      // 어느 화면을 열어도 sync가 도니 여기서 살린다.
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       if (prof) {
         const row = prof as Record<string, unknown>
-        for (const [localKey, col] of PROFILE_FIELDS) {
-          const val = row[col]
-          if (val === null || val === undefined || val === '') continue
-          if (await getSetting(localKey)) continue
-          await setSetting(localKey, String(val))
+        const serverAt = String(row.updated_at ?? '')
+        const seen = await idbGet<{ k: string; v: string }>('meta', 'profilePulledAt')
+        // 아직 안 올라간 내 변경이 있으면 건너뛴다 — 그게 올라간 뒤에 받아야 덮이지 않는다
+        const pendingProfile = (await idbGetAll<OutboxItem>('outbox')).some((o) => o.kind === 'profile')
+        if (!pendingProfile && serverAt && serverAt !== seen?.v) {
+          for (const [localKey, col] of PROFILE_FIELDS) {
+            const val = row[col]
+            // 서버가 비어 있으면 로컬을 지우지 않는다 — 옛 버전에서 이 폰에만 남은
+            // 값이 조용히 사라지는 것보다, 안 지워지는 쪽이 안전하다
+            if (val === null || val === undefined || val === '') continue
+            await setSetting(localKey, String(val))
+          }
+          await idbPut('meta', { k: 'profilePulledAt', v: serverAt })
         }
       }
     } catch {} // 마이그레이션 전이면 테이블이 없을 수 있음 — 조용히 넘어감

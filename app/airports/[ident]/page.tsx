@@ -34,7 +34,7 @@ type Runway = {
 }
 
 export default function AirportPage() {
-  const t = useT(dict)
+  const L = useT(dict)
   const params = useParams<{ ident: string }>()
   const ident = (params.ident ?? '').toUpperCase()
 
@@ -91,29 +91,29 @@ export default function AirportPage() {
           {ident}
           {info?.iata && <span className="ml-2 text-base font-normal text-app-hint">({info.iata})</span>}
         </h1>
-        <Link href="/stats" className="text-sm text-app-accent">{t.toStats}</Link>
+        <Link href="/stats" className="text-sm text-app-accent">{L.toStats}</Link>
       </div>
 
       <div className="space-y-4">
         <div className="rounded-2xl border border-app-line bg-app-surface p-4">
-          <p className="font-semibold">{info?.name ?? (offline ? t.offlineInfo : t.loading)}</p>
+          <p className="font-semibold">{info?.name ?? (offline ? L.offlineInfo : L.loading)}</p>
           {info && (
             <p className="mt-1 text-sm text-app-sub">
               {info.municipality ? info.municipality + ' · ' : ''}{info.country ?? ''}
-              {info.elevation_ft !== null ? fmt(t.elevation, { ft: info.elevation_ft.toLocaleString() }) : ''}
+              {info.elevation_ft !== null ? fmt(L.elevation, { ft: info.elevation_ft.toLocaleString() }) : ''}
             </p>
           )}
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-app-bg p-2">
-              <p className="text-xs text-app-hint">{t.myVisits}</p>
-              <p className="font-bold tabular-nums">{fmt(t.visitsN, { n: visits.count.toLocaleString() })}</p>
+              <p className="text-xs text-app-hint">{L.myVisits}</p>
+              <p className="font-bold tabular-nums">{fmt(L.visitsN, { n: visits.count.toLocaleString() })}</p>
             </div>
             <div className="rounded-xl bg-app-bg p-2">
-              <p className="text-xs text-app-hint">{t.first}</p>
+              <p className="text-xs text-app-hint">{L.first}</p>
               <p className="text-sm font-semibold">{visits.first || '—'}</p>
             </div>
             <div className="rounded-xl bg-app-bg p-2">
-              <p className="text-xs text-app-hint">{t.last}</p>
+              <p className="text-xs text-app-hint">{L.last}</p>
               <p className="text-sm font-semibold">{visits.last || '—'}</p>
             </div>
           </div>
@@ -123,7 +123,7 @@ export default function AirportPage() {
 
         {runways.length > 0 && (
           <div className="rounded-2xl border border-app-line bg-app-surface p-4">
-            <h2 className="font-semibold">{t.runways}</h2>
+            <h2 className="font-semibold">{L.runways}</h2>
             <div className="mt-2 space-y-2">
               {runways.map((r) => (
                 <div key={r.id} className="flex items-center justify-between rounded-xl bg-app-bg px-3 py-2">
@@ -142,18 +142,18 @@ export default function AirportPage() {
         )}
 
         <div className="rounded-2xl border border-app-line bg-app-surface p-4">
-          <h2 className="font-semibold">{t.myNotes}</h2>
+          <h2 className="font-semibold">{L.myNotes}</h2>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={4}
-            placeholder={t.notesPlaceholder}
+            placeholder={L.notesPlaceholder}
             className="mt-2 w-full rounded-xl border border-app-line bg-app-surface px-3 py-2.5 text-sm outline-none focus:border-air-400"
           />
           <button onClick={saveNote} className="mt-2 w-full rounded-xl bg-app-btn py-2.5 font-semibold text-white">
-            {t.saveNote}
+            {L.saveNote}
           </button>
-          {noteSaved && <p className="mt-2 text-center text-sm text-green-600">{t.noteSaved}</p>}
+          {noteSaved && <p className="mt-2 text-center text-sm text-green-600">{L.noteSaved}</p>}
         </div>
       </div>
 

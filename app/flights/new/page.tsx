@@ -147,7 +147,7 @@ function AirportField({
 // ── 비행 입력 폼 ──────────────────────────────
 export default function NewFlightPage() {
   const router = useRouter()
-  const t = useT(dict)
+  const L = useT(dict)
   const [date, setDate] = useState(() => new Date().toLocaleDateString('en-CA'))
   const [flightNumber, setFlightNumber] = useState('')
   const [origin, setOrigin] = useState('')
@@ -471,9 +471,9 @@ export default function NewFlightPage() {
     setError('')
     const totalMin = hmToMin(totalHM)
     const simMin = hmToMin(simHM)
-    if (!date) { setError(t.errDate); return }
+    if (!date) { setError(L.errDate); return }
     if (totalMin <= 0 && simMin <= 0) {
-      setError(t.errTime)
+      setError(L.errTime)
       return
     }
     setBusy(true)
@@ -581,48 +581,48 @@ export default function NewFlightPage() {
   return (
     <main className="mx-auto max-w-lg px-4 pb-28 pt-6">
       <div className="mb-2 flex items-center justify-between">
-        <h1 className="text-xl font-bold">{editId ? t.editTitle : t.newTitle}</h1>
+        <h1 className="text-xl font-bold">{editId ? L.editTitle : L.newTitle}</h1>
         {!editId && !rosterId && (
           <button
             type="button"
             onClick={fillReturnLeg}
             className="rounded-lg bg-app-accent-soft px-3 py-1.5 text-sm font-semibold text-app-accent"
           >
-            {t.fillReturn}
+            {L.fillReturn}
           </button>
         )}
       </div>
 
       {draftRestored && !editId && (
         <div className="mb-3 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700/40 dark:bg-amber-900/25 dark:text-amber-200">
-          <span>{t.draftRestored}</span>
-          <button onClick={discardDraft} className="font-semibold underline">{t.discard}</button>
+          <span>{L.draftRestored}</span>
+          <button onClick={discardDraft} className="font-semibold underline">{L.discard}</button>
         </div>
       )}
 
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium text-app-sub">{t.date}</label>
+            <label className="text-xs font-medium text-app-sub">{L.date}</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className="text-xs font-medium text-app-sub">{t.flightNo}</label>
+            <label className="text-xs font-medium text-app-sub">{L.flightNo}</label>
             <input value={flightNumber} onChange={(e) => setFlightNumber(e.target.value.toUpperCase())}
               onBlur={() => setFlightNumber(applyFlightPrefix(flightNumber, flightPrefix))}
-              placeholder={fmt(t.flightNoHint, { prefix: flightPrefix || 'SL' })}
+              placeholder={fmt(L.flightNoHint, { prefix: flightPrefix || 'SL' })}
               autoCapitalize="characters" className={inputCls + ' font-mono uppercase'} />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <AirportField label={t.from} value={origin} onChange={setOrigin} />
-          <AirportField label={t.to} value={destination} onChange={setDestination} />
+          <AirportField label={L.from} value={origin} onChange={setOrigin} />
+          <AirportField label={L.to} value={destination} onChange={setDestination} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="relative">
-            <label className="text-xs font-medium text-app-sub">{t.reg}</label>
+            <label className="text-xs font-medium text-app-sub">{L.reg}</label>
             <input
               value={reg}
               onChange={(e) => searchReg(e.target.value)}
@@ -633,7 +633,7 @@ export default function NewFlightPage() {
                 if (withPrefix !== reg) setReg(withPrefix)
                 void fillTypeFromReg(withPrefix)
               }}
-              placeholder={fmt(t.regHint, { prefix: regPrefix || 'HS-' })}
+              placeholder={fmt(L.regHint, { prefix: regPrefix || 'HS-' })}
               autoCapitalize="characters" autoCorrect="off"
               className={inputCls + ' font-mono uppercase'}
             />
@@ -657,7 +657,7 @@ export default function NewFlightPage() {
             )}
           </div>
           <div className="relative">
-            <label className="text-xs font-medium text-app-sub">{t.type}</label>
+            <label className="text-xs font-medium text-app-sub">{L.type}</label>
             <input
               value={typeCode}
               onChange={(e) => searchType(e.target.value)}
@@ -723,7 +723,7 @@ export default function NewFlightPage() {
               placeholder="11:30" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
-            <label className="text-xs font-medium text-app-sub">{t.blockTime}</label>
+            <label className="text-xs font-medium text-app-sub">{L.blockTime}</label>
             <input value={totalHM} onChange={(e) => setTotalHM(e.target.value)}
               onBlur={() => {
                 tidyDuration(totalHM, setTotalHM)
@@ -765,7 +765,7 @@ export default function NewFlightPage() {
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs font-medium text-app-sub">{t.report}</label>
+            <label className="text-xs font-medium text-app-sub">{L.report}</label>
             <input value={onDuty} onChange={(e) => setOnDuty(e.target.value)}
               onBlur={() => {
                 tidyClock(onDuty, setOnDuty)
@@ -774,7 +774,7 @@ export default function NewFlightPage() {
               placeholder="13:35" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
-            <label className="text-xs font-medium text-app-sub">{t.dutyEnd}</label>
+            <label className="text-xs font-medium text-app-sub">{L.dutyEnd}</label>
             <input value={offDuty} onChange={(e) => setOffDuty(e.target.value)}
               onBlur={() => {
                 tidyClock(offDuty, setOffDuty)
@@ -783,7 +783,7 @@ export default function NewFlightPage() {
               placeholder="21:45" inputMode="numeric" className={inputCls + ' font-mono'} />
           </div>
           <div>
-            <label className="text-xs font-medium text-app-sub">{t.dutyTime}</label>
+            <label className="text-xs font-medium text-app-sub">{L.dutyTime}</label>
             <input value={dutyHM} onChange={(e) => setDutyHM(e.target.value)}
               onBlur={() => {
                 tidyDuration(dutyHM, setDutyHM)
@@ -817,19 +817,19 @@ export default function NewFlightPage() {
 
           <div className="mt-3 grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-medium text-app-sub">{t.night}</label>
+              <label className="text-xs font-medium text-app-sub">{L.night}</label>
               <input value={nightHM} onChange={(e) => setNightHM(e.target.value)}
                 onBlur={() => tidyDuration(nightHM, setNightHM)} placeholder="0:00"
                 inputMode="numeric" className={inputCls + ' font-mono'} />
             </div>
             <div>
-              <label className="text-xs font-medium text-app-sub">{t.actualInst}</label>
+              <label className="text-xs font-medium text-app-sub">{L.actualInst}</label>
               <input value={instHM} onChange={(e) => setInstHM(e.target.value)}
                 onBlur={() => tidyDuration(instHM, setInstHM)} placeholder="0:00"
                 inputMode="numeric" className={inputCls + ' font-mono'} />
             </div>
             <div>
-              <label className="text-xs font-medium text-app-sub">{t.simulator}</label>
+              <label className="text-xs font-medium text-app-sub">{L.simulator}</label>
               <input value={simHM} onChange={(e) => setSimHM(e.target.value)}
                 onBlur={() => tidyDuration(simHM, setSimHM)} placeholder="0:00"
                 inputMode="numeric" className={inputCls + ' font-mono'} />
@@ -837,15 +837,15 @@ export default function NewFlightPage() {
           </div>
 
           <div className="mt-3 grid grid-cols-5 gap-2">
-            <Counter label={t.dayTO} value={dayTO} onChange={setDayTO} />
-            <Counter label={t.dayLDG} value={dayLDG} onChange={setDayLDG} />
-            <Counter label={t.nightTO} value={nightTO} onChange={setNightTO} />
-            <Counter label={t.nightLDG} value={nightLDG} onChange={setNightLDG} />
-            <Counter label={t.autoland} value={autolands} onChange={setAutolands} />
+            <Counter label={L.dayTO} value={dayTO} onChange={setDayTO} />
+            <Counter label={L.dayLDG} value={dayLDG} onChange={setDayLDG} />
+            <Counter label={L.nightTO} value={nightTO} onChange={setNightTO} />
+            <Counter label={L.nightLDG} value={nightLDG} onChange={setNightLDG} />
+            <Counter label={L.autoland} value={autolands} onChange={setAutolands} />
           </div>
 
           <div className="mt-3">
-            <label className="text-xs font-medium text-app-sub">{t.approaches}</label>
+            <label className="text-xs font-medium text-app-sub">{L.approaches}</label>
             <div className="mt-1 flex gap-2">
               <select
                 value={apType}
@@ -873,7 +873,7 @@ export default function NewFlightPage() {
                 }}
                 className="rounded-xl bg-app-btn px-4 py-2.5 text-sm font-semibold text-white"
               >
-                {t.add}
+                {L.add}
               </button>
             </div>
             {approaches.length > 0 && (
@@ -883,7 +883,7 @@ export default function NewFlightPage() {
                     {a}
                     <button
                       type="button"
-                      aria-label={t.removeApproach}
+                      aria-label={L.removeApproach}
                       onClick={() => setApproaches(approaches.filter((_, j) => j !== i))}
                       className="text-app-accent/70"
                     >
@@ -898,17 +898,17 @@ export default function NewFlightPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium text-app-sub">{t.crewPic}</label>
+            <label className="text-xs font-medium text-app-sub">{L.crewPic}</label>
             <input value={crewPic} onChange={(e) => setCrewPic(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className="text-xs font-medium text-app-sub">{t.crewSic}</label>
+            <label className="text-xs font-medium text-app-sub">{L.crewSic}</label>
             <input value={crewSic} onChange={(e) => setCrewSic(e.target.value)} className={inputCls} />
           </div>
         </div>
 
         <div>
-          <label className="text-xs font-medium text-app-sub">{t.remarks}</label>
+          <label className="text-xs font-medium text-app-sub">{L.remarks}</label>
           <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={2} className={inputCls} />
         </div>
 
@@ -917,7 +917,7 @@ export default function NewFlightPage() {
           onClick={save} disabled={busy}
           className="w-full rounded-xl bg-app-btn py-3.5 text-lg font-bold text-white disabled:opacity-50"
         >
-          {busy ? t.saving : editId ? t.saveEdit : t.save}
+          {busy ? L.saving : editId ? L.saveEdit : L.save}
         </button>
 
         {/* 삭제는 여기에만 — 목록에 두면 훑어보다 잘못 누르기 쉽고,
@@ -927,12 +927,12 @@ export default function NewFlightPage() {
             type="button"
             disabled={busy}
             onClick={() => {
-              if (!window.confirm(t.deleteConfirm)) return
+              if (!window.confirm(L.deleteConfirm)) return
               void deleteFlight(editId).then(() => router.push('/logbook'))
             }}
             className="w-full rounded-xl border border-app-line py-3 text-sm font-semibold text-red-600 disabled:opacity-50"
           >
-            {t.deleteThis}
+            {L.deleteThis}
           </button>
         )}
       </div>

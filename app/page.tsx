@@ -17,7 +17,7 @@ type ExpiryKey = 'medical' | 'englishProf' | 'recurrent'
 type LimitKey = 'd28' | 'd90' | 'm12'
 
 export default function HomePage() {
-  const t = useT(dict)
+  const L = useT(dict)
   const lang = useLang()
   const [totals, setTotals] = useState<Totals | null>(null)
   const [monthStat, setMonthStat] = useState({ flights: 0, min: 0 })
@@ -130,16 +130,16 @@ export default function HomePage() {
         <div className="flex items-center gap-2">
           {pending > 0 && (
             <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
-              {fmt(t.pendingUpload, { n: pending })}
+              {fmt(L.pendingUpload, { n: pending })}
             </span>
           )}
-          <Link href="/aircraft" aria-label={t.aircraft} className="p-1 text-app-hint">
+          <Link href="/aircraft" aria-label={L.aircraft} className="p-1 text-app-hint">
             <Plane size={20} />
           </Link>
-          <Link href="/people" aria-label={t.crew} className="p-1 text-app-hint">
+          <Link href="/people" aria-label={L.crew} className="p-1 text-app-hint">
             <Users size={20} />
           </Link>
-          <Link href="/settings" aria-label={t.settings} className="p-1 text-app-hint">
+          <Link href="/settings" aria-label={L.settings} className="p-1 text-app-hint">
             <SettingsIcon size={20} />
           </Link>
         </div>
@@ -147,25 +147,25 @@ export default function HomePage() {
 
       {!loaded ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">
-          {t.loading}
+          {L.loading}
         </div>
       ) : empty ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-6 text-center">
           <p className="text-4xl">✈️</p>
-          <h2 className="mt-3 text-lg font-bold">{t.welcomeTitle}</h2>
+          <h2 className="mt-3 text-lg font-bold">{L.welcomeTitle}</h2>
           <p className="mt-1 text-sm text-app-sub">
-            {t.welcomeBody1}<br />
-            {t.welcomeBody2}
+            {L.welcomeBody1}<br />
+            {L.welcomeBody2}
           </p>
           <div className="mt-5 space-y-2">
             <Link href="/settings" className="block rounded-xl bg-app-btn py-3 font-semibold text-white">
-              {t.setupFirst}
+              {L.setupFirst}
             </Link>
             <Link href="/import" className="block rounded-xl border border-app-line py-3 font-semibold">
-              {t.importLogbook}
+              {L.importLogbook}
             </Link>
             <Link href="/flights/new" className="block rounded-xl border border-app-line py-3 font-semibold">
-              {t.logManually}
+              {L.logManually}
             </Link>
           </div>
         </div>
@@ -174,12 +174,12 @@ export default function HomePage() {
           {/* 총시간·역할시간·이번 달을 한 카드로 압축 — 매일 볼 필요 없는 숫자가
               화면 절반을 먹고 정작 자주 쓰는 [기록] 버튼을 아래로 밀어내던 문제 해결 */}
           <div className="rounded-2xl bg-air-800 p-5 text-white">
-            <p className="text-sm text-air-200">{t.totalTime}</p>
+            <p className="text-sm text-air-200">{L.totalTime}</p>
             <p className="mt-1 text-4xl font-extrabold tabular-nums">
               {minToHMGrouped(totals?.total_min ?? 0)}
             </p>
             <p className="mt-1.5 text-sm text-air-100">
-              {fmt(t.flightsLandings, {
+              {fmt(L.flightsLandings, {
                 f: (totals?.flights ?? 0).toLocaleString(),
                 l: (totals?.landings ?? 0).toLocaleString(),
               })}
@@ -191,18 +191,18 @@ export default function HomePage() {
             </div>
             <Link href="/stats" className="mt-2 flex items-center justify-between text-xs text-air-100">
               <span>
-                {t.thisMonth}{' '}
-                <b className="tabular-nums text-white">{fmt(t.monthFlights, { n: monthStat.flights })}</b>
+                {L.thisMonth}{' '}
+                <b className="tabular-nums text-white">{fmt(L.monthFlights, { n: monthStat.flights })}</b>
                 {monthStat.min > 0 && <> · <b className="tabular-nums text-white">{minToHMGrouped(monthStat.min)}</b></>}
               </span>
-              <span className="text-air-200">{t.recap}</span>
+              <span className="text-air-200">{L.recap}</span>
             </Link>
           </div>
 
           {rosterCard && (
             <div className="mt-3 rounded-2xl border border-app-accent-soft bg-app-surface p-4">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold text-app-accent">
-                🛫 {rosterCard.isToday ? t.todayFlights : fmt(t.nextFlight, { date: rosterCard.date })}
+                🛫 {rosterCard.isToday ? L.todayFlights : fmt(L.nextFlight, { date: rosterCard.date })}
               </h2>
               <div className="mt-2 divide-y divide-app-line">
                 {rosterCard.flights.map((r) => (
@@ -217,13 +217,13 @@ export default function HomePage() {
                       </p>
                     </div>
                     {r.status === 'logged' ? (
-                      <span className="text-sm font-semibold text-green-600">{t.logged}</span>
+                      <span className="text-sm font-semibold text-green-600">{L.logged}</span>
                     ) : (
                       <Link
                         href={`/flights/new?roster=${r.id}`}
                         className="rounded-lg bg-app-btn px-3 py-1.5 text-sm font-semibold text-white"
                       >
-                        {t.logIt}
+                        {L.logIt}
                       </Link>
                     )}
                   </div>
@@ -234,11 +234,11 @@ export default function HomePage() {
 
           {expiries.length > 0 && (
             <div className="mt-3 rounded-2xl border border-app-line bg-app-surface p-4">
-              <h2 className="text-sm font-semibold text-app-sub">{t.expiriesTitle}</h2>
+              <h2 className="text-sm font-semibold text-app-sub">{L.expiriesTitle}</h2>
               <div className="mt-2 space-y-1.5">
                 {expiries.map((e) => (
                   <div key={e.key} className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{t[e.key]}</span>
+                    <span className="font-medium">{L[e.key]}</span>
                     <span className="text-xs text-app-hint">{e.date}</span>
                     <span className={
                       'rounded-full px-2 py-0.5 text-xs font-bold ' +
@@ -247,7 +247,7 @@ export default function HomePage() {
                         : e.dday <= 60 ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
                         : 'bg-app-bg text-app-sub')
                     }>
-                      {e.dday < 0 ? fmt(t.overdue, { n: -e.dday }) : `D-${e.dday}`}
+                      {e.dday < 0 ? fmt(L.overdue, { n: -e.dday }) : `D-${e.dday}`}
                     </span>
                   </div>
                 ))}
@@ -272,11 +272,11 @@ export default function HomePage() {
                 onClick={() => setLimitsOpen(!open)}
                 className="flex w-full items-center justify-between gap-2 text-left"
               >
-                <h2 className="text-sm font-semibold text-app-sub">{t.limitsTitle}</h2>
+                <h2 className="text-sm font-semibold text-app-sub">{L.limitsTitle}</h2>
                 <span className="flex items-center gap-1.5 text-xs">
                   {!open && (
                     <span className={alert ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-app-hint'}>
-                      {currencyShort ? t.currencyCheck : `${t[tightest.key]} ${Math.round(maxPct)}%`}
+                      {currencyShort ? L.currencyCheck : `${L[tightest.key]} ${Math.round(maxPct)}%`}
                     </span>
                   )}
                   <span className="text-app-hint">{open ? '▲' : '▼'}</span>
@@ -290,7 +290,7 @@ export default function HomePage() {
                   const barColor = pct >= 95 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-app-btn'
                   return (
                     <div key={l.key} className="flex items-center gap-2">
-                      <span className="w-16 text-xs font-medium text-app-sub">{t[l.key]}</span>
+                      <span className="w-16 text-xs font-medium text-app-sub">{L[l.key]}</span>
                       <div className="h-3 flex-1 overflow-hidden rounded-full bg-app-bg">
                         <div className={'h-full rounded-full ' + barColor} style={{ width: `${Math.min(100, pct)}%` }} />
                       </div>
@@ -303,16 +303,16 @@ export default function HomePage() {
               </div>
               {dutyMonth > 0 && (
                 <p className="mt-2 text-xs text-app-hint">
-                  {t.dutyThisMonth} <b className="text-app-text">{minToHMGrouped(dutyMonth)}</b>
+                  {L.dutyThisMonth} <b className="text-app-text">{minToHMGrouped(dutyMonth)}</b>
                 </p>
               )}
               {curr && (
                 <p className="mt-2 text-xs text-app-hint">
-                  {fmt(t.last90, { t: curr.takeoffs, l: curr.landings })}{' '}
+                  {fmt(L.last90, { t: curr.takeoffs, l: curr.landings })}{' '}
                   {curr.takeoffs >= 3 && curr.landings >= 3 ? (
-                    <span className="font-semibold text-green-600 dark:text-green-400">{t.currencyOk}</span>
+                    <span className="font-semibold text-green-600 dark:text-green-400">{L.currencyOk}</span>
                   ) : (
-                    <span className="font-semibold text-red-600 dark:text-red-400">{t.currencyShort}</span>
+                    <span className="font-semibold text-red-600 dark:text-red-400">{L.currencyShort}</span>
                   )}
                 </p>
               )}
@@ -324,7 +324,7 @@ export default function HomePage() {
 
           <div className="mt-6 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-app-sub">{t.weather}</h2>
+              <h2 className="text-sm font-semibold text-app-sub">{L.weather}</h2>
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
@@ -349,7 +349,7 @@ export default function HomePage() {
                   className="w-20 rounded-lg border border-app-line bg-app-surface px-2 py-1.5 text-center font-mono text-sm uppercase outline-none focus:border-air-400"
                 />
                 <button type="submit" className="rounded-lg bg-app-btn px-3 py-1.5 text-sm font-semibold text-white">
-                  {t.lookup}
+                  {L.lookup}
                 </button>
               </form>
             </div>
@@ -368,7 +368,7 @@ export default function HomePage() {
             ))}
             {wxList.length === 0 && (
               <p className="rounded-2xl border border-app-line bg-app-surface p-4 text-sm text-app-sub">
-                {t.wxEmpty}
+                {L.wxEmpty}
               </p>
             )}
           </div>
@@ -378,7 +378,7 @@ export default function HomePage() {
 
           {lastSync && (
             <p className="mt-4 text-center text-xs text-app-hint">
-              {fmt(t.lastSync, { when: new Date(lastSync).toLocaleString(LOCALE[lang]) })}
+              {fmt(L.lastSync, { when: new Date(lastSync).toLocaleString(LOCALE[lang]) })}
             </p>
           )}
         </>

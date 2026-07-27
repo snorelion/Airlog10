@@ -53,9 +53,26 @@ def load_dicts():
 
 
 def check_scope(problems):
-    """별도 컴포넌트에서 선언 없이 t/L을 쓰는 곳."""
+    """사전은 언제나 L로 받는다 — 그 규칙과, 스코프 밖 참조를 본다.
+
+    L로 통일한 이유: 파일에 따라 t가 이미 다른 뜻으로 쓰인다
+    (통계의 기종 항목, 설정의 테마, 문자열 다듬기의 const t = v.trim()).
+    사전 이름을 t로 두면 새 화면을 만들 때마다 충돌을 확인해야 한다.
+    """
     for p in screens():
-        lines = p.read_text(encoding='utf-8').split('\n')
+        src = p.read_text(encoding='utf-8')
+        if re.search(r'const\s+t\s*=\s*useT\(', src):
+            problems.append(
+                f'{p.relative_to(ROOT)}: 사전을 t로 받았다 — L로 받을 것 '
+                f'(t는 지역 변수와 부딪힌다)'
+            )
+        # 사전을 L로 통일했으므로, 사전 키를 t로 꺼내는 잔재가 남으면 안 된다
+        if '@/lib/i18n' in src:
+            for m in re.finditer(r'\bt\[(\w+)', strip_comments(src.split('\n'))):
+                problems.append(
+                    f'{p.relative_to(ROOT)}: t[{m.group(1)}...] — 사전은 L로 꺼낼 것'
+                )
+        lines = src.split('\n')
         starts = [
             i for i, ln in enumerate(lines)
             if re.match(r'^(export default function|export function|function)\s+\w+', ln)
@@ -65,19 +82,12 @@ def check_scope(problems):
             block = lines[a:b]
             name = re.match(r'^(?:export default |export )?function\s+(\w+)', lines[a]).group(1)
             body = '\n'.join(block)
-            uses = set(re.findall(r'\b([tL])\.\w+', strip_comments(block)))
-            declared = set()
-            if re.search(r'const\s+t\s*=\s*useT\(', body):
-                declared.add('t')
-            if re.search(r'const\s+L\s*=\s*useT\(', body):
-                declared.add('L')
-            # 지역 변수 t (const t = v.trim() 등)와 map 콜백의 t 도 선언으로 본다
-            if re.search(r'\bconst\s+t\s*=\s*(?!useT)', body) or re.search(r'\.map\(\(\[?t[,)\s\]]', body):
-                declared.add('t')
-            for miss in sorted(uses - declared):
+            # 점 접근 L.key 와 대괄호 접근 L[key] 를 모두 본다 —
+            # 점만 보다가 t[e.key] 3곳을 놓쳐 배포가 깨질 뻔했다(2026-07-26)
+            if re.search(r'\bL[.\[]', strip_comments(block)) and not re.search(r'const\s+L\s*=\s*useT\(', body):
                 problems.append(
-                    f'{p.relative_to(ROOT)}: {name}() 안에서 {miss}.* 를 쓰는데 '
-                    f'그 컴포넌트에 const {miss} = useT(...) 가 없다'
+                    f'{p.relative_to(ROOT)}: {name}() 안에서 L 을 쓰는데 '
+                    f'그 컴포넌트에 const L = useT(...) 가 없다'
                 )
 
 
@@ -93,13 +103,12 @@ def check_keys(dicts, warnings):
             warnings.append(f'{p.relative_to(ROOT)}: 사전 {name} 을 찾지 못했다')
             continue
         en_keys = dicts[name][0]
-        used = set(re.findall(r'\b[tL]\.(\w+)', strip_comments(src.split('\n'))))
+        used = set(re.findall(r'\bL\.(\w+)', strip_comments(src.split('\n'))))
         missing = sorted(used - en_keys)
         if missing:
-            warnings.append(
-                f'{p.relative_to(ROOT)}: 사전({name})에 없는 키 {missing} '
-                f'— 지역 변수의 속성이면 무시해도 된다'
-            )
+            # 사전을 L로만 받으므로 이건 진짜 누락이다 (지역 변수 t와 섞이지 않는다)
+            problems_note = f'{p.relative_to(ROOT)}: 사전({name})에 없는 키 사용 {missing}'
+            warnings.append(problems_note)
 
 
 def check_imports(problems):

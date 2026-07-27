@@ -77,7 +77,7 @@ const COLS: Col[] = [
 ]
 
 export default function LedgerPage() {
-  const t = useT(dict)
+  const L = useT(dict)
   const router = useRouter()
   const [all, setAll] = useState<Flight[]>([])
   const [page, setPage] = useState<number | null>(null) // null = 마지막 장
@@ -134,24 +134,24 @@ export default function LedgerPage() {
   return (
     <main className="mx-auto max-w-5xl px-3 pb-24 pt-6">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold">{t.title}</h1>
+        <h1 className="text-xl font-bold">{L.title}</h1>
         <div className="flex items-center gap-3 text-sm">
-          <Link href="/logbook/print" className="text-app-accent">{t.printPdf}</Link>
+          <Link href="/logbook/print" className="text-app-accent">{L.printPdf}</Link>
           <span className="text-app-hint">PAGE {p} / {lastPage}</span>
         </div>
       </div>
 
       {/* 목록 ↔ 장부 전환 (숨은 링크가 아니라 눈에 보이는 토글로) */}
       <div className="mb-3 flex overflow-hidden rounded-lg border border-app-line text-xs font-semibold">
-        <Link href="/logbook" className="px-3 py-1.5 text-app-sub">{t.list}</Link>
-        <span className="bg-app-btn px-3 py-1.5 text-white">{t.ledger}</span>
+        <Link href="/logbook" className="px-3 py-1.5 text-app-sub">{L.list}</Link>
+        <span className="bg-app-btn px-3 py-1.5 text-white">{L.ledger}</span>
       </div>
 
       {!loaded ? (
-        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{t.loading}</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{L.loading}</div>
       ) : all.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
-          {t.empty}
+          {L.empty}
         </div>
       ) : (
         <>
@@ -203,27 +203,27 @@ export default function LedgerPage() {
                     </tr>
                   )
                 })}
-                <SumRow label="TOTAL THIS PAGE" sub={t.subThisPage} s={pageSums} />
-                <SumRow label="AMOUNT FORWARDED" sub={t.subForwarded} s={forwarded} />
-                <SumRow label="TOTAL TO DATE" sub={t.subToDate} s={toDate} />
+                <SumRow label="TOTAL THIS PAGE" sub={L.subThisPage} s={pageSums} />
+                <SumRow label="AMOUNT FORWARDED" sub={L.subForwarded} s={forwarded} />
+                <SumRow label="TOTAL TO DATE" sub={L.subToDate} s={toDate} />
               </tbody>
             </table>
           </div>
           <p className="mt-2 text-center text-[11px] text-app-hint">
-            {t.hint}
+            {L.hint}
           </p>
         </>
       )}
 
       <div className="mt-4 flex items-center justify-center gap-4 text-sm">
         {p > 1 ? (
-          <button onClick={() => setPage(p - 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">{t.prevPage}</button>
-        ) : <span className="px-4 py-2 text-app-hint">{t.prevPage}</span>}
-        <button onClick={() => setPage(1)} className="text-xs text-app-hint">{t.first}</button>
-        <button onClick={() => setPage(null)} className="text-xs text-app-hint">{t.last}</button>
+          <button onClick={() => setPage(p - 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">{L.prevPage}</button>
+        ) : <span className="px-4 py-2 text-app-hint">{L.prevPage}</span>}
+        <button onClick={() => setPage(1)} className="text-xs text-app-hint">{L.first}</button>
+        <button onClick={() => setPage(null)} className="text-xs text-app-hint">{L.last}</button>
         {p < lastPage ? (
-          <button onClick={() => setPage(p + 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">{t.nextPage}</button>
-        ) : <span className="px-4 py-2 text-app-hint">{t.nextPage}</span>}
+          <button onClick={() => setPage(p + 1)} className="rounded-lg border border-app-line bg-app-surface px-4 py-2">{L.nextPage}</button>
+        ) : <span className="px-4 py-2 text-app-hint">{L.nextPage}</span>}
       </div>
 
       <Nav />

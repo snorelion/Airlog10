@@ -18,7 +18,7 @@ type AirportDot = { ident: string; x: number; y: number; visits: number }
 type Route = { x1: number; y1: number; x2: number; y2: number; count: number }
 
 export default function MapPage() {
-  const t = useT(dict)
+  const L = useT(dict)
   const [allFlights, setAllFlights] = useState<Flight[]>([])
   const [coords, setCoords] = useState<Record<string, Coord>>({})
   const [mapMode, setMapMode] = useState<'all' | 'weeks4' | 'lastMonth' | 'custom'>('all')
@@ -140,16 +140,16 @@ export default function MapPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-6">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold">{t.title}</h1>
+        <h1 className="text-xl font-bold">{L.title}</h1>
         {loaded && (
           <p className="text-sm text-app-hint">
-            {fmt(t.summary, { airports: dots.length, countries, routes: routes.length })}
+            {fmt(L.summary, { airports: dots.length, countries, routes: routes.length })}
           </p>
         )}
       </div>
 
       <div className="mb-3 flex overflow-hidden rounded-lg border border-app-line text-xs font-medium">
-        {([['all', t.all], ['weeks4', t.weeks4], ['lastMonth', t.lastMonth], ['custom', t.custom]] as const).map(([m, label]) => (
+        {([['all', L.all], ['weeks4', L.weeks4], ['lastMonth', L.lastMonth], ['custom', L.custom]] as const).map(([m, label]) => (
           <button
             key={m} type="button" onClick={() => setMapMode(m)}
             className={`flex-1 py-1.5 ${mapMode === m ? 'bg-app-btn text-white' : 'text-app-sub'}`}
@@ -174,12 +174,12 @@ export default function MapPage() {
       )}
 
       {!loaded ? (
-        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{t.loading}</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{L.loading}</div>
       ) : dots.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
           {mapMode === 'all'
-            ? t.emptyAll
-            : t.emptyRange}
+            ? L.emptyAll
+            : L.emptyRange}
         </div>
       ) : (
         <>
@@ -243,14 +243,14 @@ export default function MapPage() {
                 className="flex items-center justify-between border-b border-app-line px-4 py-2.5 last:border-0">
                 <span className="text-sm text-app-hint">{i + 1}</span>
                 <span className="font-mono font-semibold text-app-accent">{d.ident}</span>
-                <span className="text-sm tabular-nums text-app-sub">{fmt(t.visits, { n: d.visits.toLocaleString() })}</span>
+                <span className="text-sm tabular-nums text-app-sub">{fmt(L.visits, { n: d.visits.toLocaleString() })}</span>
               </a>
             ))}
           </div>
 
           {missingCount > 0 && (
             <p className="mt-2 text-center text-xs text-app-hint">
-              {fmt(t.missing, { n: missingCount })}
+              {fmt(L.missing, { n: missingCount })}
             </p>
           )}
         </>

@@ -9,7 +9,7 @@ import { wx as dict } from '@/lib/i18n/screens'
 // METAR/TAF 카드 — 저장본 먼저 보여주고, 온라인이면 새로 받아 갱신.
 // 받은 것은 영구 보관되어 오프라인·다음 날에도 계속 보인다.
 export default function WxCard({ ident, onClose }: { ident: string; onClose?: () => void }) {
-  const t = useT(dict)
+  const L = useT(dict)
   const lang = useLang()
   const [row, setRow] = useState<WxRow | null>(null)
   const [busy, setBusy] = useState(false)
@@ -45,20 +45,20 @@ export default function WxCard({ ident, onClose }: { ident: string; onClose?: ()
     <div className="rounded-2xl border border-app-line bg-app-surface p-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">
-          {fmt(t.heading, { ident: ident.toUpperCase() })} <span className="text-xs font-normal text-app-hint">METAR / TAF</span>
+          {fmt(L.heading, { ident: ident.toUpperCase() })} <span className="text-xs font-normal text-app-hint">METAR / TAF</span>
         </h2>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={refresh}
             disabled={busy}
-            aria-label={t.refresh}
+            aria-label={L.refresh}
             className="p-1 text-app-hint disabled:opacity-40"
           >
             <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
           </button>
           {onClose && (
-            <button type="button" onClick={onClose} aria-label={t.close} className="p-1 text-app-hint hover:text-red-500">
+            <button type="button" onClick={onClose} aria-label={L.close} className="p-1 text-app-hint hover:text-red-500">
               <X size={16} />
             </button>
           )}
@@ -67,7 +67,7 @@ export default function WxCard({ ident, onClose }: { ident: string; onClose?: ()
 
       {!row ? (
         <p className="mt-3 text-sm text-app-hint">
-          {!tried || busy ? t.fetching : t.none}
+          {!tried || busy ? L.fetching : L.none}
         </p>
       ) : (
         <>
@@ -84,9 +84,9 @@ export default function WxCard({ ident, onClose }: { ident: string; onClose?: ()
           {age && (
             <p className="mt-2 flex items-center gap-2 text-xs text-app-hint">
               <span className={age.stale ? 'rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-600 dark:bg-amber-900/30 dark:text-amber-300' : ''}>
-                {fmt(t.received, { age: relTime(age.minutes, lang) })}
+                {fmt(L.received, { age: relTime(age.minutes, lang) })}
               </span>
-              <span>{t.savedOffline}</span>
+              <span>{L.savedOffline}</span>
             </p>
           )}
         </>

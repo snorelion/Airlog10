@@ -40,7 +40,7 @@ function addRow(s: Sums, f: Flight) {
 type PilotInfo = { name: string; licence: string; airline: string; employee: string }
 
 export default function PrintPage() {
-  const t = useT(dict)
+  const L = useT(dict)
   const [all, setAll] = useState<Flight[]>([])
   const [pilot, setPilot] = useState<PilotInfo>({ name: '', licence: '', airline: '', employee: '' })
   const [totals, setTotals] = useState<Totals | null>(null)
@@ -112,18 +112,18 @@ export default function PrintPage() {
       ` }} />
 
       <div className="no-print mb-4 flex items-center justify-between rounded-xl border border-ink-line bg-ink-bg px-4 py-3">
-        <Link href="/logbook/ledger" className="text-sm text-air-600">{t.back}</Link>
-        <p className="text-xs text-ink-sub">{t.hint}</p>
+        <Link href="/logbook/ledger" className="text-sm text-air-600">{L.back}</Link>
+        <p className="text-xs text-ink-sub">{L.hint}</p>
         <button
           onClick={() => window.print()}
           className="rounded-lg bg-air-600 px-4 py-2 text-sm font-semibold text-white"
         >
-          {t.print}
+          {L.print}
         </button>
       </div>
 
       {!loaded ? (
-        <p className="p-8 text-center text-ink-hint">{t.loading}</p>
+        <p className="p-8 text-center text-ink-hint">{L.loading}</p>
       ) : (
         <>
           {/* 표지 요약 */}

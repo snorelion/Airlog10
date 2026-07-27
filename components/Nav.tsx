@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Home, BookOpen, PlusCircle, BarChart3, Map } from 'lucide-react'
 import clsx from 'clsx'
 import { useT } from '@/lib/i18n'
-import { nav } from '@/lib/i18n/nav'
+import { nav as dict } from '@/lib/i18n/nav'
 
 const TABS = [
   { href: '/', key: 'home', icon: Home },
@@ -17,7 +17,7 @@ const TABS = [
 
 export default function Nav() {
   const pathname = usePathname()
-  const t = useT(nav)
+  const L = useT(dict)
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-app-line bg-app-surface pb-safe">
       <div className="mx-auto flex max-w-lg">
@@ -33,7 +33,7 @@ export default function Nav() {
               )}
             >
               <Icon size={22} strokeWidth={active ? 2.4 : 1.8} />
-              <span className="whitespace-nowrap">{t[key]}</span>
+              <span className="whitespace-nowrap">{L[key]}</span>
             </Link>
           )
         })}

@@ -12,7 +12,7 @@ const SOFT = /otp.?expired|token has expired|invalid.*(code|token)|email link|pk
 
 export default function LoginPage() {
   const router = useRouter()
-  const t = useT(dict)
+  const L = useT(dict)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [step, setStep] = useState<'email' | 'code'>('email')
@@ -28,7 +28,7 @@ export default function LoginPage() {
   }, [])
 
   function show(msg: string) {
-    if (SOFT.test(msg)) setSoft(t.codeExpired)
+    if (SOFT.test(msg)) setSoft(L.codeExpired)
     else setError(msg)
   }
 
@@ -36,7 +36,7 @@ export default function LoginPage() {
   async function sendCode(e: React.FormEvent) {
     e.preventDefault()
     setError(''); setSoft('')
-    if (!agree) { setError(t.agreeRequired); return }
+    if (!agree) { setError(L.agreeRequired); return }
     setBusy(true)
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOtp({
@@ -82,14 +82,14 @@ export default function LoginPage() {
         <div className="text-3xl font-extrabold tracking-tight text-app-accent">
           Air<span className="text-air-400">Log</span>10
         </div>
-        <p className="mt-2 text-sm text-app-sub">{t.tagline}</p>
+        <p className="mt-2 text-sm text-app-sub">{L.tagline}</p>
       </div>
 
       {step === 'email' ? (
         <>
           <form onSubmit={sendCode} className="space-y-3">
             <input
-              type="email" required placeholder={t.emailPlaceholder}
+              type="email" required placeholder={L.emailPlaceholder}
               value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls}
             />
             <label className="flex items-start gap-2 text-xs text-app-sub">
@@ -97,44 +97,44 @@ export default function LoginPage() {
                 className="mt-0.5 h-4 w-4 accent-air-600" style={{ appearance: 'auto' }} />
               {/* 언어마다 링크 순서·조사가 달라 앞·사이·뒤 조각으로 나눠 조립한다 */}
               <span>
-                {t.agreePrefix}
-                <Link href="/terms" className="text-app-accent underline">{t.terms}</Link>
-                {t.agreeMiddle}
-                <Link href="/privacy" className="text-app-accent underline">{t.privacy}</Link>
-                {t.agreeSuffix}
+                {L.agreePrefix}
+                <Link href="/terms" className="text-app-accent underline">{L.terms}</Link>
+                {L.agreeMiddle}
+                <Link href="/privacy" className="text-app-accent underline">{L.privacy}</Link>
+                {L.agreeSuffix}
               </span>
             </label>
             {error && <p className="text-sm text-red-600">{error}</p>}
             {soft && <p className="rounded-xl bg-app-accent-soft p-3 text-sm text-app-accent">{soft}</p>}
             <button type="submit" disabled={busy}
               className="w-full rounded-xl bg-app-btn py-3 font-semibold text-white disabled:opacity-50">
-              {busy ? t.sending : t.sendCode}
+              {busy ? L.sending : L.sendCode}
             </button>
           </form>
 
           <div className="my-5 flex items-center gap-3 text-xs text-app-hint">
-            <div className="h-px flex-1 bg-app-line" /> {t.or} <div className="h-px flex-1 bg-app-line" />
+            <div className="h-px flex-1 bg-app-line" /> {L.or} <div className="h-px flex-1 bg-app-line" />
           </div>
 
           <div className="space-y-2">
             <button onClick={() => oauth('google')}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-app-line bg-app-surface py-3 font-semibold">
-              <span>🇬</span> {t.google}
+              <span>🇬</span> {L.google}
             </button>
             <button onClick={() => oauth('apple')}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-app-line bg-app-surface py-3 font-semibold">
-              <span></span> {t.apple}
+              <span></span> {L.apple}
             </button>
           </div>
-          <p className="mt-4 text-center text-xs text-app-hint">{t.noPassword}</p>
+          <p className="mt-4 text-center text-xs text-app-hint">{L.noPassword}</p>
         </>
       ) : (
         <form onSubmit={verify} className="space-y-3">
           <p className="text-sm text-app-sub">
-            {t.codeSentPrefix}<b className="break-all">{email}</b>{t.codeSentSuffix}
+            {L.codeSentPrefix}<b className="break-all">{email}</b>{L.codeSentSuffix}
           </p>
           <input
-            type="text" inputMode="numeric" required placeholder={t.codePlaceholder}
+            type="text" inputMode="numeric" required placeholder={L.codePlaceholder}
             value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
             className={inputCls + ' text-center font-mono text-2xl tracking-[0.3em]'}
             autoFocus
@@ -143,13 +143,13 @@ export default function LoginPage() {
           {soft && <p className="rounded-xl bg-app-accent-soft p-3 text-sm text-app-accent">{soft}</p>}
           <button type="submit" disabled={busy || code.length < 6}
             className="w-full rounded-xl bg-app-btn py-3 font-semibold text-white disabled:opacity-50">
-            {busy ? t.verifying : t.signIn}
+            {busy ? L.verifying : L.signIn}
           </button>
           <div className="flex items-center justify-between text-sm">
             <button type="button" onClick={() => { setStep('email'); setCode(''); setError(''); setSoft('') }}
-              className="text-app-hint">{t.backToEmail}</button>
+              className="text-app-hint">{L.backToEmail}</button>
             <button type="button" onClick={(e) => sendCode(e as unknown as React.FormEvent)}
-              className="text-app-accent">{t.resend}</button>
+              className="text-app-accent">{L.resend}</button>
           </div>
         </form>
       )}

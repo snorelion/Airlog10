@@ -10,7 +10,7 @@ import { fixTimes as dict } from '@/lib/i18n/screens'
 
 // 시간이 0:00으로 비어 있는 기록을 한 곳에서 정리하는 도구
 export default function FixPage() {
-  const t = useT(dict)
+  const L = useT(dict)
   const [rows, setRows] = useState<Flight[]>([])
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
@@ -51,21 +51,21 @@ export default function FixPage() {
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">{t.title}</h1>
-        <Link href="/logbook" className="text-sm text-app-accent">{t.toLogbook}</Link>
+        <h1 className="text-xl font-bold">{L.title}</h1>
+        <Link href="/logbook" className="text-sm text-app-accent">{L.toLogbook}</Link>
       </div>
 
       <p className="mb-3 text-sm text-app-sub">
-        {t.intro}{' '}
-        {fmt(t.example, { a: '1:05', b: '105' })}
+        {L.intro}{' '}
+        {fmt(L.example, { a: '1:05', b: '105' })}
       </p>
 
       {!loaded ? (
-        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{t.loading}</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{L.loading}</div>
       ) : remaining.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center">
           <p className="text-3xl">✨</p>
-          <p className="mt-2 font-semibold">{t.allDone}</p>
+          <p className="mt-2 font-semibold">{L.allDone}</p>
         </div>
       ) : (
         <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
@@ -98,7 +98,7 @@ export default function FixPage() {
                 disabled={hmToMin(inputs[f.id] ?? '') <= 0}
                 className="rounded-lg bg-app-btn px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {t.save}
+                {L.save}
               </button>
             </div>
           ))}
@@ -106,7 +106,7 @@ export default function FixPage() {
       )}
 
       {savedIds.size > 0 && (
-        <p className="mt-3 text-center text-sm text-green-600">{fmt(t.savedN, { n: savedIds.size })}</p>
+        <p className="mt-3 text-center text-sm text-green-600">{fmt(L.savedN, { n: savedIds.size })}</p>
       )}
 
       <Nav />

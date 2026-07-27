@@ -17,7 +17,7 @@ type CrewAgg = {
 }
 
 export default function PeoplePage() {
-  const t = useT(dict)
+  const L = useT(dict)
   const [aggs, setAggs] = useState<CrewAgg[]>([])
   const [query, setQuery] = useState('')
   const [openName, setOpenName] = useState<string | null>(null)
@@ -92,22 +92,22 @@ export default function PeoplePage() {
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">{t.title}</h1>
-        <Link href="/settings" className="text-sm text-app-accent">{t.toSettings}</Link>
+        <h1 className="text-xl font-bold">{L.title}</h1>
+        <Link href="/settings" className="text-sm text-app-accent">{L.toSettings}</Link>
       </div>
 
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={t.search}
+        placeholder={L.search}
         className="mb-3 w-full rounded-xl border border-app-line bg-app-surface px-4 py-2.5 outline-none focus:border-air-400"
       />
 
       {!loaded ? (
-        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{t.loading}</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{L.loading}</div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
-          {t.empty}
+          {L.empty}
         </div>
       ) : (
         <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
@@ -121,12 +121,12 @@ export default function PeoplePage() {
                       <span className="ml-2 text-xs font-normal text-app-hint">#{a.person.employee_no}</span>
                     )}
                   </p>
-                  <p className="text-sm tabular-nums text-app-sub">{fmt(t.flightsN, { n: a.flights.toLocaleString() })}</p>
+                  <p className="text-sm tabular-nums text-app-sub">{fmt(L.flightsN, { n: a.flights.toLocaleString() })}</p>
                 </div>
                 <div className="mt-0.5 flex items-center justify-between text-xs text-app-hint">
                   <span>
-                    {a.roles === 'both' ? t.roleBoth : a.roles === 'pic' ? t.rolePic : a.roles === 'sic' ? t.roleSic : ''}
-                    {a.lastDate ? fmt(t.lastFlown, { date: a.lastDate }) : ''}
+                    {a.roles === 'both' ? L.roleBoth : a.roles === 'pic' ? L.rolePic : a.roles === 'sic' ? L.roleSic : ''}
+                    {a.lastDate ? fmt(L.lastFlown, { date: a.lastDate }) : ''}
                   </span>
                   {a.person?.notes && <span>📝</span>}
                 </div>
@@ -139,21 +139,21 @@ export default function PeoplePage() {
                   <input
                     value={empNo}
                     onChange={(e) => setEmpNo(e.target.value)}
-                    placeholder={t.staffNo}
+                    placeholder={L.staffNo}
                     className="w-full rounded-lg border border-app-line bg-app-surface px-3 py-2 text-sm outline-none focus:border-air-400"
                   />
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
-                    placeholder={t.notes}
+                    placeholder={L.notes}
                     className="w-full rounded-lg border border-app-line bg-app-surface px-3 py-2 text-sm outline-none focus:border-air-400"
                   />
                   <div className="flex gap-2">
                     <button onClick={() => setOpenName(null)}
-                      className="flex-1 rounded-lg border border-app-line bg-app-surface py-2 text-sm font-medium">{t.cancel}</button>
+                      className="flex-1 rounded-lg border border-app-line bg-app-surface py-2 text-sm font-medium">{L.cancel}</button>
                     <button onClick={saveOpen}
-                      className="flex-1 rounded-lg bg-app-btn py-2 text-sm font-semibold text-white">{t.save}</button>
+                      className="flex-1 rounded-lg bg-app-btn py-2 text-sm font-semibold text-white">{L.save}</button>
                   </div>
                 </div>
               )}

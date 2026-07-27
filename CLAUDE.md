@@ -20,6 +20,22 @@ BJJ Log10과 같은 플레이북: Next.js 14 + Supabase + Vercel + PWA (+ 추후
 - 모바일 우선 UI, word-break: keep-all, iOS 입력 appearance-none.
 - 마이그레이션: migrations/*.sql — 라이언님이 Supabase SQL Editor에 붙여넣어 실행 (채팅에 전문 코드블록으로 전달).
 
+## 다국어 (lib/i18n) — 2026-07-26 도입
+
+- **기본 언어는 영어.** `en`이 기준이고 전부 채운다. `ko`/`th`는 `Partial` — 빠진 문장은 자동으로 영어.
+  덕분에 태국어를 100% 번역하기 전에도 켤 수 있다(`LANG_READY`에 넣으면 선택지에 뜬다).
+- **사전 변수는 언제나 `L`** — `const L = useT(dict)`.
+  `t`로 받지 말 것: 통계의 기종 항목, 설정의 테마, 문자열 다듬기의 `const t = v.trim()` 등
+  이미 `t`가 다른 뜻으로 쓰이는 파일이 있어 부딪힌다.
+- **한 파일에 컴포넌트가 여럿이면 각각 `useT`를 선언**한다. 밖에서 만든 `L`은 안 보인다.
+- **문구를 상태(state)에 담지 말 것.** 키만 담고 그릴 때 번역한다 —
+  담아두면 언어를 바꿔도 그 부분만 옛 언어로 남는다(화면을 열 때 한 번만 계산되므로).
+- **값이 끼어드는 문장은 `fmt()`**. 언어마다 어순이 달라 문자열을 이어붙이면 안 된다.
+  날짜·상대시각(`relTime`)·달 이름은 `Intl`에 맡긴다.
+- **필터·비교에 쓰이는 값은 번역하지 않는다** (`OTHER_TYPE`). 화면에 보일 때만 언어에 맞게 바꾼다.
+- **push 전 반드시** `python3 scripts/check_i18n.py` — 이 Mac엔 Node가 없어 타입 검사를
+  미리 못 돌린다. 실제 배포 실패 3건(스코프 밖 참조·역할/기종 착각·`t[key]` 잔재)을 이 검사로 잡았다.
+
 ## LogTen 임포트 파서 함정 (lib/logten.ts)
 - 내보내기 파일이 **UTF-16 LE** (BOM FF FE) — File.text() 금지, decodeLogbookFile 사용.
 - remarks/aircraft_notes 안 줄바꿈이 레코드를 쪼갬 → "YYYY-MM-DD\t" 시작 줄만 새 레코드.

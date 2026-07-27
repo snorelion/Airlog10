@@ -41,12 +41,10 @@ export async function fetchWx(ident: string): Promise<WxRow | undefined> {
 }
 
 // "12분 전" / "3시간 전" / "2일 전"
-export function wxAge(iso: string): { text: string; stale: boolean } {
-  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
-  let text: string
-  if (min < 1) text = '방금'
-  else if (min < 60) text = `${min}분 전`
-  else if (min < 60 * 24) text = `${Math.floor(min / 60)}시간 전`
-  else text = `${Math.floor(min / 1440)}일 전`
-  return { text, stale: min >= 60 * 6 }
+// 분 단위만 돌려준다 — "5분 전"·"5 minutes ago" 같은 표현은 언어마다 달라서
+// 화면에서 Intl.RelativeTimeFormat으로 만든다(태국어도 자동으로 따라온다).
+// 6시간이 넘으면 stale — 관측이 오래됐다고 눈에 띄게 표시하기 위한 기준.
+export function wxAge(iso: string): { minutes: number; stale: boolean } {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  return { minutes, stale: minutes >= 60 * 6 }
 }

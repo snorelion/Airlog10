@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { getFlights, getSetting, type Flight } from '@/lib/store'
 import { sortChrono, computeTotals, type Totals } from '@/lib/aggregate'
 import { minToHM, minToHMGrouped } from '@/lib/time'
+import { useT } from '@/lib/i18n'
+import { printView as dict } from '@/lib/i18n/screens'
 
 // 인쇄용 로그북 — 브라우저 인쇄에서 "PDF로 저장"을 누르면 표준 로그북 PDF가 된다.
 // 종이 로그북처럼 20행/장 + 장마다 3단 합계 + 서명란.
@@ -38,6 +40,7 @@ function addRow(s: Sums, f: Flight) {
 type PilotInfo = { name: string; licence: string; airline: string; employee: string }
 
 export default function PrintPage() {
+  const t = useT(dict)
   const [all, setAll] = useState<Flight[]>([])
   const [pilot, setPilot] = useState<PilotInfo>({ name: '', licence: '', airline: '', employee: '' })
   const [totals, setTotals] = useState<Totals | null>(null)
@@ -109,18 +112,18 @@ export default function PrintPage() {
       ` }} />
 
       <div className="no-print mb-4 flex items-center justify-between rounded-xl border border-ink-line bg-ink-bg px-4 py-3">
-        <Link href="/logbook/ledger" className="text-sm text-air-600">← 장부로</Link>
-        <p className="text-xs text-ink-sub">인쇄 창에서 "PDF로 저장" · 용지 방향 가로(landscape) 권장</p>
+        <Link href="/logbook/ledger" className="text-sm text-air-600">{t.back}</Link>
+        <p className="text-xs text-ink-sub">{t.hint}</p>
         <button
           onClick={() => window.print()}
           className="rounded-lg bg-air-600 px-4 py-2 text-sm font-semibold text-white"
         >
-          인쇄 / PDF 저장
+          {t.print}
         </button>
       </div>
 
       {!loaded ? (
-        <p className="p-8 text-center text-ink-hint">불러오는 중…</p>
+        <p className="p-8 text-center text-ink-hint">{t.loading}</p>
       ) : (
         <>
           {/* 표지 요약 */}

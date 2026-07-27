@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { getFlights, getAircraftList, sync, onStoreChange } from '@/lib/store'
 import { minToHMGrouped } from '@/lib/time'
 import Nav from '@/components/Nav'
+import { useT, fmt } from '@/lib/i18n'
+import { aircraft as dict } from '@/lib/i18n/screens'
 
 type Recent = { flight_date: string; origin: string | null; destination: string | null; total_min: number }
 type AcAgg = {
@@ -19,6 +21,7 @@ type AcAgg = {
 }
 
 export default function AircraftPage() {
+  const t = useT(dict)
   const [aggs, setAggs] = useState<AcAgg[]>([])
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
@@ -71,22 +74,22 @@ export default function AircraftPage() {
   return (
     <main className="mx-auto max-w-lg px-4 pb-24 pt-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">기체{fleetCount ? ` · ${fleetCount}대` : ''}</h1>
-        <Link href="/settings" className="text-sm text-app-accent">설정으로</Link>
+        <h1 className="text-xl font-bold">{fleetCount ? fmt(t.titleCount, { n: fleetCount }) : t.title}</h1>
+        <Link href="/settings" className="text-sm text-app-accent">{t.toSettings}</Link>
       </div>
 
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="등록번호·기종 검색"
+        placeholder={t.search}
         className="mb-3 w-full rounded-xl border border-app-line bg-app-surface px-4 py-2.5 outline-none focus:border-air-400"
       />
 
       {!loaded ? (
-        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">불러오는 중…</div>
+        <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">{t.loading}</div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-sub">
-          기록에서 탄 기체가 자동으로 모여요.
+          {t.empty}
         </div>
       ) : (
         <div className="divide-y divide-app-line overflow-hidden rounded-2xl border border-app-line bg-app-surface">
@@ -98,19 +101,19 @@ export default function AircraftPage() {
                     {a.reg}
                     {a.type && <span className="ml-2 text-xs font-normal text-app-hint">{a.type}</span>}
                   </p>
-                  <p className="text-sm tabular-nums text-app-sub">{a.flights.toLocaleString()}편 · {minToHMGrouped(a.totalMin)}</p>
+                  <p className="text-sm tabular-nums text-app-sub">{fmt(t.flightsTime, { n: a.flights.toLocaleString(), time: minToHMGrouped(a.totalMin) })}</p>
                 </div>
-                {a.lastDate && <div className="mt-0.5 text-xs text-app-hint">최근 {a.lastDate}</div>}
+                {a.lastDate && <div className="mt-0.5 text-xs text-app-hint">{fmt(t.lastFlown, { date: a.lastDate })}</div>}
               </button>
               {open === a.reg && (
                 <div className="border-t border-app-line bg-app-bg px-4 py-3">
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div><div className="text-xs text-app-hint">블록</div><div className="font-semibold tabular-nums">{minToHMGrouped(a.totalMin)}</div></div>
-                    <div><div className="text-xs text-app-hint">공중</div><div className="font-semibold tabular-nums">{minToHMGrouped(a.flightMin)}</div></div>
-                    <div><div className="text-xs text-app-hint">야간</div><div className="font-semibold tabular-nums">{minToHMGrouped(a.nightMin)}</div></div>
+                    <div><div className="text-xs text-app-hint">{t.block}</div><div className="font-semibold tabular-nums">{minToHMGrouped(a.totalMin)}</div></div>
+                    <div><div className="text-xs text-app-hint">{t.airborne}</div><div className="font-semibold tabular-nums">{minToHMGrouped(a.flightMin)}</div></div>
+                    <div><div className="text-xs text-app-hint">{t.night}</div><div className="font-semibold tabular-nums">{minToHMGrouped(a.nightMin)}</div></div>
                   </div>
                   <div className="mt-3 space-y-1">
-                    <div className="text-xs text-app-hint">최근 비행</div>
+                    <div className="text-xs text-app-hint">{t.recentFlights}</div>
                     {a.recent.slice(0, 5).map((r, i) => (
                       <div key={i} className="flex items-center justify-between text-xs">
                         <span>{r.flight_date} · {r.origin ?? '?'}→{r.destination ?? '?'}</span>

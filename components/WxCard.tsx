@@ -3,10 +3,14 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw, X } from 'lucide-react'
 import { getCachedWx, fetchWx, wxAge, type WxRow } from '@/lib/wx'
+import { useT, useLang, fmt, relTime } from '@/lib/i18n'
+import { wx as dict } from '@/lib/i18n/screens'
 
 // METAR/TAF 카드 — 저장본 먼저 보여주고, 온라인이면 새로 받아 갱신.
 // 받은 것은 영구 보관되어 오프라인·다음 날에도 계속 보인다.
 export default function WxCard({ ident, onClose }: { ident: string; onClose?: () => void }) {
+  const t = useT(dict)
+  const lang = useLang()
   const [row, setRow] = useState<WxRow | null>(null)
   const [busy, setBusy] = useState(false)
   const [tried, setTried] = useState(false)
@@ -41,20 +45,20 @@ export default function WxCard({ ident, onClose }: { ident: string; onClose?: ()
     <div className="rounded-2xl border border-app-line bg-app-surface p-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">
-          {ident.toUpperCase()} 날씨 <span className="text-xs font-normal text-app-hint">METAR / TAF</span>
+          {fmt(t.heading, { ident: ident.toUpperCase() })} <span className="text-xs font-normal text-app-hint">METAR / TAF</span>
         </h2>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={refresh}
             disabled={busy}
-            aria-label="새로고침"
+            aria-label={t.refresh}
             className="p-1 text-app-hint disabled:opacity-40"
           >
             <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
           </button>
           {onClose && (
-            <button type="button" onClick={onClose} aria-label="카드 닫기" className="p-1 text-app-hint hover:text-red-500">
+            <button type="button" onClick={onClose} aria-label={t.close} className="p-1 text-app-hint hover:text-red-500">
               <X size={16} />
             </button>
           )}
@@ -63,7 +67,7 @@ export default function WxCard({ ident, onClose }: { ident: string; onClose?: ()
 
       {!row ? (
         <p className="mt-3 text-sm text-app-hint">
-          {!tried || busy ? '관측 정보를 받아오는 중…' : '아직 받은 관측이 없어요. 온라인에서 한 번 열면 저장돼요.'}
+          {!tried || busy ? t.fetching : t.none}
         </p>
       ) : (
         <>
@@ -80,9 +84,9 @@ export default function WxCard({ ident, onClose }: { ident: string; onClose?: ()
           {age && (
             <p className="mt-2 flex items-center gap-2 text-xs text-app-hint">
               <span className={age.stale ? 'rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-600 dark:bg-amber-900/30 dark:text-amber-300' : ''}>
-                {age.text} 수신
+                {fmt(t.received, { age: relTime(age.minutes, lang) })}
               </span>
-              <span>· 저장됨 — 오프라인에서도 계속 보여요</span>
+              <span>{t.savedOffline}</span>
             </p>
           )}
         </>

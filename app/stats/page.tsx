@@ -226,6 +226,7 @@ async function makeRecapCard(opts: {
 
 // 주간/야간 시간 비율 도넛 (하늘색=주간, 남색=야간)
 function DayNightDonut({ dayMin, nightMin }: { dayMin: number; nightMin: number }) {
+  const L = useT(dict)
   const total = dayMin + nightMin
   const R = 34, C = 2 * Math.PI * R
   const nightLen = total > 0 ? (nightMin / total) * C : 0

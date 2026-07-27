@@ -194,7 +194,7 @@ export const wx = {
     close: 'Close card',
     fetching: 'Fetching the latest observation…',
     none: 'No observation yet. Open this once while online and it will be saved.',
-    received: '{age} old',
+    received: 'Observed {age}',
     savedOffline: '· Saved — stays readable offline',
   },
   ko: {

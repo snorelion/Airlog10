@@ -64,6 +64,16 @@ export function fmt(template: string, vars: Record<string, string | number>): st
   return template.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''))
 }
 
+// "5분 전" / "5 minutes ago" — 표현이 언어마다 달라 브라우저에 맡긴다.
+// 단위(분·시간·일)만 우리가 고르고, 문장은 Intl이 만든다(태국어도 자동).
+export function relTime(minutes: number, lang: Lang): string {
+  const rtf = new Intl.RelativeTimeFormat(LOCALE[lang], { numeric: 'auto' })
+  if (minutes < 1) return rtf.format(0, 'minute')
+  if (minutes < 60) return rtf.format(-minutes, 'minute')
+  if (minutes < 60 * 24) return rtf.format(-Math.floor(minutes / 60), 'hour')
+  return rtf.format(-Math.floor(minutes / 1440), 'day')
+}
+
 export function pick<T extends Record<string, string>>(dict: Dict<T>, lang: Lang): T {
   if (lang === 'en') return dict.en
   // Partial을 펼친 결과라 타입만으로는 T임을 못 보인다 — en이 전부 채워져 있으므로 안전

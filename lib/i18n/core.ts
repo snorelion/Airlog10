@@ -54,6 +54,16 @@ export function readLangSetting(cookieValue: string | null | undefined): LangSet
 // 덕분에 태국어를 100% 번역하기 전에도 켤 수 있다.
 export type Dict<T extends Record<string, string>> = { en: T } & Partial<Record<Lang, Partial<T>>>
 
+// 날짜·시각을 그 언어답게 찍을 때 쓰는 로케일
+export const LOCALE: Record<Lang, string> = { en: 'en-US', ko: 'ko-KR', th: 'th-TH' }
+
+// 값이 끼어드는 문장 — 언어마다 어순이 달라 문자열을 이어붙이면 안 된다.
+//   fmt(t.flightsLandings, { f: 993, l: 1200 })
+//   en "993 flights · 1,200 landings" / ko "993편 · 착륙 1,200회"
+export function fmt(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''))
+}
+
 export function pick<T extends Record<string, string>>(dict: Dict<T>, lang: Lang): T {
   if (lang === 'en') return dict.en
   // Partial을 펼친 결과라 타입만으로는 T임을 못 보인다 — en이 전부 채워져 있으므로 안전

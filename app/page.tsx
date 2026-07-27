@@ -8,16 +8,25 @@ import { computeTotals, windowTotalMin, currency90, monthDutyMin, type Totals } 
 import { minToHMGrouped } from '@/lib/time'
 import { Settings as SettingsIcon, Users, Plane } from 'lucide-react'
 import Nav from '@/components/Nav'
+import { useT, useLang, fmt, LOCALE } from '@/lib/i18n'
+import { home as dict } from '@/lib/i18n/home'
+
+// 라벨은 상태에 담지 않고 "키"만 담는다 — 문구를 담아두면 언어를 바꿔도
+// 그 부분만 옛 언어로 남는다(load()는 화면을 열 때 한 번만 도니까).
+type ExpiryKey = 'medical' | 'englishProf' | 'recurrent'
+type LimitKey = 'd28' | 'd90' | 'm12'
 
 export default function HomePage() {
+  const t = useT(dict)
+  const lang = useLang()
   const [totals, setTotals] = useState<Totals | null>(null)
   const [monthStat, setMonthStat] = useState({ flights: 0, min: 0 })
   const [limitsOpen, setLimitsOpen] = useState<boolean | null>(null) // null = 자동(임계일 때만 펼침)
   const [pending, setPending] = useState(0)
   const [lastSync, setLastSync] = useState<string | null>(null)
-  const [expiries, setExpiries] = useState<{ label: string; date: string; dday: number }[]>([])
-  const [rosterCard, setRosterCard] = useState<{ label: string; flights: RosterFlight[] } | null>(null)
-  const [limits, setLimits] = useState<{ label: string; used: number; cap: number }[]>([])
+  const [expiries, setExpiries] = useState<{ key: ExpiryKey; date: string; dday: number }[]>([])
+  const [rosterCard, setRosterCard] = useState<{ isToday: boolean; date: string; flights: RosterFlight[] } | null>(null)
+  const [limits, setLimits] = useState<{ key: LimitKey; used: number; cap: number }[]>([])
   const [curr, setCurr] = useState<{ takeoffs: number; landings: number } | null>(null)
   const [dutyMonth, setDutyMonth] = useState(0)
   const [homeBase, setHomeBase] = useState('')
@@ -41,18 +50,18 @@ export default function HomePage() {
 
     // 자격 만료 D-day (설정에 넣어둔 것만)
     const defs = [
-      ['medicalExpiry', '메디컬'],
-      ['englishExpiry', '영어 자격'],
-      ['recurrentExpiry', '리커런트'],
+      ['medicalExpiry', 'medical'],
+      ['englishExpiry', 'englishProf'],
+      ['recurrentExpiry', 'recurrent'],
     ] as const
-    const items: { label: string; date: string; dday: number }[] = []
+    const items: { key: ExpiryKey; date: string; dday: number }[] = []
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    for (const [key, label] of defs) {
-      const d = await getSetting(key)
+    for (const [settingKey, key] of defs) {
+      const d = await getSetting(settingKey)
       if (d) {
         const dday = Math.ceil((new Date(d + 'T00:00:00').getTime() - today.getTime()) / 86400000)
-        items.push({ label, date: d, dday })
+        items.push({ key, date: d, dday })
       }
     }
     items.sort((a, b) => a.dday - b.dday)
@@ -64,9 +73,9 @@ export default function HomePage() {
     const lim90 = parseInt((await getSetting('limit90')) || '270', 10)
     const lim365 = parseInt((await getSetting('limit365')) || '1000', 10)
     setLimits([
-      { label: '28일', used: windowTotalMin(flights, 28, todayLocal), cap: lim28 * 60 },
-      { label: '90일', used: windowTotalMin(flights, 90, todayLocal), cap: lim90 * 60 },
-      { label: '12개월', used: windowTotalMin(flights, 365, todayLocal), cap: lim365 * 60 },
+      { key: 'd28', used: windowTotalMin(flights, 28, todayLocal), cap: lim28 * 60 },
+      { key: 'd90', used: windowTotalMin(flights, 90, todayLocal), cap: lim90 * 60 },
+      { key: 'm12', used: windowTotalMin(flights, 365, todayLocal), cap: lim365 * 60 },
     ])
     setCurr(currency90(flights, todayLocal))
     setDutyMonth(monthDutyMin(flights, todayLocal))
@@ -93,7 +102,8 @@ export default function HomePage() {
         .filter((r) => r.flight_date === firstDate)
         .sort((a, b) => (a.std ?? '').localeCompare(b.std ?? ''))
       setRosterCard({
-        label: firstDate === todayStr ? '오늘의 비행' : `다음 비행 · ${firstDate}`,
+        isToday: firstDate === todayStr,
+        date: firstDate,
         flights: dayFlights,
       })
     } else {
@@ -120,16 +130,16 @@ export default function HomePage() {
         <div className="flex items-center gap-2">
           {pending > 0 && (
             <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
-              업로드 대기 {pending}
+              {fmt(t.pendingUpload, { n: pending })}
             </span>
           )}
-          <Link href="/aircraft" aria-label="기체" className="p-1 text-app-hint">
+          <Link href="/aircraft" aria-label={t.aircraft} className="p-1 text-app-hint">
             <Plane size={20} />
           </Link>
-          <Link href="/people" aria-label="크루" className="p-1 text-app-hint">
+          <Link href="/people" aria-label={t.crew} className="p-1 text-app-hint">
             <Users size={20} />
           </Link>
-          <Link href="/settings" aria-label="설정" className="p-1 text-app-hint">
+          <Link href="/settings" aria-label={t.settings} className="p-1 text-app-hint">
             <SettingsIcon size={20} />
           </Link>
         </div>
@@ -137,25 +147,25 @@ export default function HomePage() {
 
       {!loaded ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-8 text-center text-app-hint">
-          불러오는 중…
+          {t.loading}
         </div>
       ) : empty ? (
         <div className="rounded-2xl border border-app-line bg-app-surface p-6 text-center">
           <p className="text-4xl">✈️</p>
-          <h2 className="mt-3 text-lg font-bold">환영해요! 로그북을 시작해 볼까요?</h2>
+          <h2 className="mt-3 text-lg font-bold">{t.welcomeTitle}</h2>
           <p className="mt-1 text-sm text-app-sub">
-            먼저 ⚙️ 설정에서 이름·소속·홈베이스를 넣으면 기록이 훨씬 편해져요.<br />
-            그다음 기존 로그북을 가져오거나 첫 비행을 기록하세요.
+            {t.welcomeBody1}<br />
+            {t.welcomeBody2}
           </p>
           <div className="mt-5 space-y-2">
             <Link href="/settings" className="block rounded-xl bg-app-btn py-3 font-semibold text-white">
-              ⚙️ 내 정보 먼저 설정하기
+              {t.setupFirst}
             </Link>
             <Link href="/import" className="block rounded-xl border border-app-line py-3 font-semibold">
-              기존 로그북 가져오기
+              {t.importLogbook}
             </Link>
             <Link href="/flights/new" className="block rounded-xl border border-app-line py-3 font-semibold">
-              비행 직접 기록하기
+              {t.logManually}
             </Link>
           </div>
         </div>
@@ -164,12 +174,15 @@ export default function HomePage() {
           {/* 총시간·역할시간·이번 달을 한 카드로 압축 — 매일 볼 필요 없는 숫자가
               화면 절반을 먹고 정작 자주 쓰는 [기록] 버튼을 아래로 밀어내던 문제 해결 */}
           <div className="rounded-2xl bg-air-800 p-5 text-white">
-            <p className="text-sm text-air-200">총 비행시간</p>
+            <p className="text-sm text-air-200">{t.totalTime}</p>
             <p className="mt-1 text-4xl font-extrabold tabular-nums">
               {minToHMGrouped(totals?.total_min ?? 0)}
             </p>
             <p className="mt-1.5 text-sm text-air-100">
-              {(totals?.flights ?? 0).toLocaleString()}편 · 착륙 {(totals?.landings ?? 0).toLocaleString()}회
+              {fmt(t.flightsLandings, {
+                f: (totals?.flights ?? 0).toLocaleString(),
+                l: (totals?.landings ?? 0).toLocaleString(),
+              })}
             </p>
             <div className="mt-3 flex items-center gap-3 border-t border-white/15 pt-2.5 text-xs text-air-100">
               <span>PIC <b className="tabular-nums text-white">{minToHMGrouped(totals?.pic_min ?? 0)}</b></span>
@@ -178,17 +191,18 @@ export default function HomePage() {
             </div>
             <Link href="/stats" className="mt-2 flex items-center justify-between text-xs text-air-100">
               <span>
-                이번 달 <b className="tabular-nums text-white">{monthStat.flights}편</b>
+                {t.thisMonth}{' '}
+                <b className="tabular-nums text-white">{fmt(t.monthFlights, { n: monthStat.flights })}</b>
                 {monthStat.min > 0 && <> · <b className="tabular-nums text-white">{minToHMGrouped(monthStat.min)}</b></>}
               </span>
-              <span className="text-air-200">돌아보기 ›</span>
+              <span className="text-air-200">{t.recap}</span>
             </Link>
           </div>
 
           {rosterCard && (
             <div className="mt-3 rounded-2xl border border-app-accent-soft bg-app-surface p-4">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold text-app-accent">
-                🛫 {rosterCard.label}
+                🛫 {rosterCard.isToday ? t.todayFlights : fmt(t.nextFlight, { date: rosterCard.date })}
               </h2>
               <div className="mt-2 divide-y divide-app-line">
                 {rosterCard.flights.map((r) => (
@@ -203,13 +217,13 @@ export default function HomePage() {
                       </p>
                     </div>
                     {r.status === 'logged' ? (
-                      <span className="text-sm font-semibold text-green-600">✓ 기록됨</span>
+                      <span className="text-sm font-semibold text-green-600">{t.logged}</span>
                     ) : (
                       <Link
                         href={`/flights/new?roster=${r.id}`}
                         className="rounded-lg bg-app-btn px-3 py-1.5 text-sm font-semibold text-white"
                       >
-                        기록
+                        {t.logIt}
                       </Link>
                     )}
                   </div>
@@ -220,11 +234,11 @@ export default function HomePage() {
 
           {expiries.length > 0 && (
             <div className="mt-3 rounded-2xl border border-app-line bg-app-surface p-4">
-              <h2 className="text-sm font-semibold text-app-sub">자격 만료</h2>
+              <h2 className="text-sm font-semibold text-app-sub">{t.expiriesTitle}</h2>
               <div className="mt-2 space-y-1.5">
                 {expiries.map((e) => (
-                  <div key={e.label} className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{e.label}</span>
+                  <div key={e.key} className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{t[e.key]}</span>
                     <span className="text-xs text-app-hint">{e.date}</span>
                     <span className={
                       'rounded-full px-2 py-0.5 text-xs font-bold ' +
@@ -233,7 +247,7 @@ export default function HomePage() {
                         : e.dday <= 60 ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
                         : 'bg-app-bg text-app-sub')
                     }>
-                      {e.dday < 0 ? `만료 ${-e.dday}일 지남` : `D-${e.dday}`}
+                      {e.dday < 0 ? fmt(t.overdue, { n: -e.dday }) : `D-${e.dday}`}
                     </span>
                   </div>
                 ))}
@@ -258,11 +272,11 @@ export default function HomePage() {
                 onClick={() => setLimitsOpen(!open)}
                 className="flex w-full items-center justify-between gap-2 text-left"
               >
-                <h2 className="text-sm font-semibold text-app-sub">비행시간 리밋 · 기량유지</h2>
+                <h2 className="text-sm font-semibold text-app-sub">{t.limitsTitle}</h2>
                 <span className="flex items-center gap-1.5 text-xs">
                   {!open && (
                     <span className={alert ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-app-hint'}>
-                      {currencyShort ? '⚠️ 기량유지 확인' : `${tightest.label} ${Math.round(maxPct)}%`}
+                      {currencyShort ? t.currencyCheck : `${t[tightest.key]} ${Math.round(maxPct)}%`}
                     </span>
                   )}
                   <span className="text-app-hint">{open ? '▲' : '▼'}</span>
@@ -275,8 +289,8 @@ export default function HomePage() {
                   const pct = l.cap > 0 ? (l.used / l.cap) * 100 : 0
                   const barColor = pct >= 95 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-app-btn'
                   return (
-                    <div key={l.label} className="flex items-center gap-2">
-                      <span className="w-14 text-xs font-medium text-app-sub">{l.label}</span>
+                    <div key={l.key} className="flex items-center gap-2">
+                      <span className="w-16 text-xs font-medium text-app-sub">{t[l.key]}</span>
                       <div className="h-3 flex-1 overflow-hidden rounded-full bg-app-bg">
                         <div className={'h-full rounded-full ' + barColor} style={{ width: `${Math.min(100, pct)}%` }} />
                       </div>
@@ -289,16 +303,16 @@ export default function HomePage() {
               </div>
               {dutyMonth > 0 && (
                 <p className="mt-2 text-xs text-app-hint">
-                  이번 달 듀티 <b className="text-app-text">{minToHMGrouped(dutyMonth)}</b>
+                  {t.dutyThisMonth} <b className="text-app-text">{minToHMGrouped(dutyMonth)}</b>
                 </p>
               )}
               {curr && (
                 <p className="mt-2 text-xs text-app-hint">
-                  최근 90일 이륙 <b className="text-app-text">{curr.takeoffs}</b> · 착륙 <b className="text-app-text">{curr.landings}</b>{' '}
+                  {fmt(t.last90, { t: curr.takeoffs, l: curr.landings })}{' '}
                   {curr.takeoffs >= 3 && curr.landings >= 3 ? (
-                    <span className="font-semibold text-green-600 dark:text-green-400">✓ 기량유지 충족 (3회 이상)</span>
+                    <span className="font-semibold text-green-600 dark:text-green-400">{t.currencyOk}</span>
                   ) : (
-                    <span className="font-semibold text-red-600 dark:text-red-400">⚠️ 90일 3회 미달 — 확인 필요</span>
+                    <span className="font-semibold text-red-600 dark:text-red-400">{t.currencyShort}</span>
                   )}
                 </p>
               )}
@@ -310,7 +324,7 @@ export default function HomePage() {
 
           <div className="mt-6 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-app-sub">날씨 (METAR / TAF)</h2>
+              <h2 className="text-sm font-semibold text-app-sub">{t.weather}</h2>
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
@@ -335,7 +349,7 @@ export default function HomePage() {
                   className="w-20 rounded-lg border border-app-line bg-app-surface px-2 py-1.5 text-center font-mono text-sm uppercase outline-none focus:border-air-400"
                 />
                 <button type="submit" className="rounded-lg bg-app-btn px-3 py-1.5 text-sm font-semibold text-white">
-                  조회
+                  {t.lookup}
                 </button>
               </form>
             </div>
@@ -354,7 +368,7 @@ export default function HomePage() {
             ))}
             {wxList.length === 0 && (
               <p className="rounded-2xl border border-app-line bg-app-surface p-4 text-sm text-app-sub">
-                위 ICAO 칸에 공항 코드를 넣고 조회하면 날씨 카드가 쌓여요. (여러 공항 가능, ✕로 닫기)
+                {t.wxEmpty}
               </p>
             )}
           </div>
@@ -364,7 +378,7 @@ export default function HomePage() {
 
           {lastSync && (
             <p className="mt-4 text-center text-xs text-app-hint">
-              마지막 동기화 {new Date(lastSync).toLocaleString('ko-KR')} · 오프라인에서도 모든 기록을 볼 수 있어요
+              {fmt(t.lastSync, { when: new Date(lastSync).toLocaleString(LOCALE[lang]) })}
             </p>
           )}
         </>

@@ -9,6 +9,7 @@ import { sortChrono } from '@/lib/aggregate'
 import { minToHM } from '@/lib/time'
 import { applyTheme, setThemeCookie, readTheme, THEMES, type Theme } from '@/lib/theme'
 import Nav from '@/components/Nav'
+import LanguagePicker from '@/components/LanguagePicker'
 import { PROFILE_FIELDS as FIELDS } from '@/lib/profile-fields'
 
 // 회사 표기 규칙 (로컬 전용 — 서버 프로필엔 없는 값)
@@ -216,6 +217,9 @@ export default function SettingsPage() {
       <h1 className="mb-4 text-xl font-bold">설정</h1>
 
       <div className="space-y-4">
+        {/* 맨 위 — 읽을 수 없는 언어로 앱이 떴을 때 가장 먼저 찾아야 하는 항목 */}
+        <LanguagePicker />
+
         <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <h2 className="font-semibold">내 정보</h2>
           <p className="mt-1 text-xs text-app-hint">

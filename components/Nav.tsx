@@ -4,21 +4,24 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, BookOpen, PlusCircle, BarChart3, Map } from 'lucide-react'
 import clsx from 'clsx'
+import { useT } from '@/lib/i18n'
+import { nav } from '@/lib/i18n/nav'
 
 const TABS = [
-  { href: '/', label: '홈', icon: Home },
-  { href: '/logbook', label: '로그북', icon: BookOpen },
-  { href: '/flights/new', label: '기록', icon: PlusCircle },
-  { href: '/stats', label: '통계', icon: BarChart3 },
-  { href: '/map', label: '지도', icon: Map },
-]
+  { href: '/', key: 'home', icon: Home },
+  { href: '/logbook', key: 'logbook', icon: BookOpen },
+  { href: '/flights/new', key: 'log', icon: PlusCircle },
+  { href: '/stats', key: 'stats', icon: BarChart3 },
+  { href: '/map', key: 'map', icon: Map },
+] as const
 
 export default function Nav() {
   const pathname = usePathname()
+  const t = useT(nav)
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-app-line bg-app-surface pb-safe">
       <div className="mx-auto flex max-w-lg">
-        {TABS.map(({ href, label, icon: Icon }) => {
+        {TABS.map(({ href, key, icon: Icon }) => {
           const active = pathname === href || (href !== '/' && pathname.startsWith(href))
           return (
             <Link
@@ -30,7 +33,7 @@ export default function Nav() {
               )}
             >
               <Icon size={22} strokeWidth={active ? 2.4 : 1.8} />
-              {label}
+              <span className="whitespace-nowrap">{t[key]}</span>
             </Link>
           )
         })}

@@ -156,8 +156,14 @@ def check_korean(warnings):
     여러 줄 주석은 시작 줄에만 표시가 있고 이어지는 줄은 평범한 텍스트라,
     블록 안인지를 따라가며 판단해야 한다.
     """
+    # 법적 문서는 사전을 쓰지 않고 문서 단위로 en/ko 판을 나란히 둔다
+    # (문단이 길고 언어마다 문장 나누기가 달라, 통째로 검토해야 유지보수가 된다)
+    skip = {'app/privacy/page.tsx', 'app/terms/page.tsx'}
+
     rows = []
     for p in screens():
+        if str(p.relative_to(ROOT)) in skip:
+            continue
         n = 0
         in_block = False
         for line in p.read_text(encoding='utf-8').split('\n'):

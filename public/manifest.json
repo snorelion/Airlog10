@@ -1,9 +1,14 @@
 {
-  "name": "AirLog10",
+  "id": "/",
+  "name": "AirLog10 — Pilot Logbook",
   "short_name": "AirLog10",
-  "description": "파일럿 로그북 — 비행 기록, 통계, 어디서나.",
+  "description": "Pilot logbook — your flights, hours and stats anywhere. Works offline, so you can log in the air and it syncs when you land.",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "categories": ["travel", "productivity", "utilities"],
   "background_color": "#F9FAFB",
   "theme_color": "#0D3D6E",
   "icons": [

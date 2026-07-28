@@ -3,7 +3,8 @@
 //  - 정적 자산(/_next/static, 아이콘, manifest): cache-first (내용이 해시로 불변)
 //  - 페이지·RSC 요청: network-first → 실패 시 캐시 → 최후엔 '/' 캐시
 //  - /api/ 와 외부(supabase 등) 요청은 절대 캐시하지 않음
-const CACHE = 'airlog10-v4'
+// manifest.json도 cache-first라, 매니페스트를 고치면 이 번호를 올려야 전달된다
+const CACHE = 'airlog10-v5'
 
 self.addEventListener('install', () => {
   self.skipWaiting()

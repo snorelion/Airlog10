@@ -3,6 +3,7 @@ import { cookies, headers } from 'next/headers'
 import './globals.css'
 import SWRegister from '@/components/SWRegister'
 import LangProvider from '@/components/LangProvider'
+import OfflineWarmup from '@/components/OfflineWarmup'
 import { THEME_INIT_SCRIPT } from '@/lib/theme'
 import { LANG_COOKIE, resolveLang } from '@/lib/i18n/core'
 
@@ -47,6 +48,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen antialiased">
         <LangProvider initial={lang}>{children}</LangProvider>
         <SWRegister />
+        {/* 온라인일 때 주요 화면을 미리 받아둔다 — 비행 전에 안 열어본 화면도 열리게 */}
+        <OfflineWarmup />
       </body>
     </html>
   )

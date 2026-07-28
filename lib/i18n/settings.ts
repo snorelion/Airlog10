@@ -64,6 +64,19 @@ type SettingsStrings = {
   deleteConfirm2: string
   deleteFailed: string
   deleteFailedAlert: string
+  // 오프라인 준비 상태 (화면 이름은 lib/offline-routes.ts의 labelKey와 짝을 이룬다)
+  offlineTitle: string
+  offlineHint: string
+  offlineAllReady: string
+  scrHome: string
+  scrLogbook: string
+  scrLog: string
+  scrStats: string
+  scrMap: string
+  scrLedger: string
+  scrAircraft: string
+  scrCrew: string
+  scrSettings: string
 }
 
 export const settings = {
@@ -130,6 +143,18 @@ export const settings = {
     deleteConfirm2: 'Last check. Have you downloaded a CSV backup? Proceed with deletion?',
     deleteFailed: 'Deletion failed',
     deleteFailedAlert: 'Deletion failed: ',
+    offlineTitle: 'Ready for offline',
+    offlineHint: 'Screens saved on this device. They fill in on their own while you are online.',
+    offlineAllReady: 'All screens are saved — everything opens in airplane mode.',
+    scrHome: 'Home',
+    scrLogbook: 'Logbook',
+    scrLog: 'Log a flight',
+    scrStats: 'Statistics',
+    scrMap: 'Map',
+    scrLedger: 'Ledger',
+    scrAircraft: 'Aircraft',
+    scrCrew: 'Crew',
+    scrSettings: 'Settings',
   },
   ko: {
     language: '언어',
@@ -194,5 +219,17 @@ export const settings = {
     deleteConfirm2: '마지막 확인이에요. 백업(CSV)을 받아두셨나요? 삭제를 진행할까요?',
     deleteFailed: '삭제 실패',
     deleteFailedAlert: '삭제에 실패했어요: ',
+    offlineTitle: '오프라인 준비 상태',
+    offlineHint: '이 기기에 저장된 화면이에요. 온라인일 때 알아서 채워집니다.',
+    offlineAllReady: '모든 화면이 저장됐어요 — 비행기모드에서도 다 열립니다.',
+    scrHome: '홈',
+    scrLogbook: '로그북',
+    scrLog: '기록하기',
+    scrStats: '통계',
+    scrMap: '지도',
+    scrLedger: '장부',
+    scrAircraft: '기체',
+    scrCrew: '크루',
+    scrSettings: '설정',
   },
 } satisfies Dict<SettingsStrings>

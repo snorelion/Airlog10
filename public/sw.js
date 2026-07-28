@@ -15,6 +15,19 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // 새 서비스워커가 켜지면 옛 캐시를 지우고 빈 상태로 시작한다. 그런데 지금
+      // 보고 있는 페이지는 이미 그 전에 받아버려서 새 캐시에 안 들어간다 →
+      // 그대로 비행기모드로 들어가면 앱이 아예 안 켜진다(2026-07-28 실측).
+      // 그래서 홈만은 여기서 확보한다. 홈이 있으면 최소한 앱은 열린다.
+      .then(async () => {
+        const c = await caches.open(CACHE)
+        try {
+          const res = await fetch('/', { credentials: 'same-origin' })
+          // 로그인이 풀린 상태라면 /login으로 리다이렉트된다 — 그걸 홈으로
+          // 저장하면 오프라인에서 로그북이 로그인 화면에 잠긴다
+          if (res.ok && !res.redirected) await c.put(location.origin + '/', res)
+        } catch {}
+      })
       .then(() => self.clients.claim())
   )
 })

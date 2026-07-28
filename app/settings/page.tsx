@@ -10,6 +10,7 @@ import { minToHM } from '@/lib/time'
 import { applyTheme, setThemeCookie, readTheme, THEMES, type Theme } from '@/lib/theme'
 import Nav from '@/components/Nav'
 import LanguagePicker from '@/components/LanguagePicker'
+import OfflineStatus from '@/components/OfflineStatus'
 // 이 파일은 테마 map 콜백에서 t를 이미 쓰고 있어 사전은 L로 받는다
 import { useT, fmt } from '@/lib/i18n'
 import { settings as dict } from '@/lib/i18n/settings'
@@ -223,6 +224,9 @@ export default function SettingsPage() {
       <div className="space-y-4">
         {/* 맨 위 — 읽을 수 없는 언어로 앱이 떴을 때 가장 먼저 찾아야 하는 항목 */}
         <LanguagePicker />
+
+        {/* 비행 전에 눈으로 확인하는 자리라 위쪽에 둔다 */}
+        <OfflineStatus />
 
         <div className="rounded-2xl border border-app-line bg-app-surface p-4">
           <h2 className="font-semibold">{L.myInfo}</h2>

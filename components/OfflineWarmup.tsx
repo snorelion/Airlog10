@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { OFFLINE_ROUTES } from '@/lib/offline-routes'
 
 // 비행 전에 앱을 한 번도 안 열어본 화면도 비행기모드에서 열리게 —
 // 온라인일 때 화면이 한가한 틈에 주요 화면을 미리 받아둔다.
@@ -11,17 +12,8 @@ import { usePathname, useRouter } from 'next/navigation'
 // router.prefetch를 쓰면 브라우저가 코드까지 받아오고, 그 요청이 서비스워커를
 // 지나가며 평소 방문과 똑같이 캐시에 담긴다.
 //
-// 자주 쓰는 순서 — 중간에 끊겨도 중요한 것부터 남는다
-const ROUTES = [
-  '/logbook',
-  '/flights/new',
-  '/stats',
-  '/map',
-  '/logbook/ledger',
-  '/aircraft',
-  '/people',
-  '/settings',
-]
+// 목록은 lib/offline-routes.ts 한 곳에만 — 상태 표시(OfflineStatus)와 같은 것을 본다
+const ROUTES = OFFLINE_ROUTES.map((r) => r.path)
 
 // 로그인 전 화면에서는 돌 필요가 없다 (미들웨어가 로그인으로 되돌린다)
 const SKIP = ['/login', '/privacy', '/terms']
@@ -56,7 +48,14 @@ export default function OfflineWarmup() {
     const step = () => {
       if (cancelled || i >= ROUTES.length) return
       const route = ROUTES[i++]
-      if (route !== pathname) router.prefetch(route)
+      if (route !== pathname) {
+        // 조각(RSC) — 앱 안에서 탭을 눌러 이동할 때 쓰인다
+        router.prefetch(route)
+        // 완성된 페이지(HTML) — 주소로 직접 열거나, 조각이 없어 하드 이동으로
+        // 넘어갈 때 쓰인다. 조각만 받아두면 그 상황에서 아무것도 안 열린다
+        // (2026-07-28 실측: 비행기모드에서 화면 전환이 아예 안 되던 원인).
+        void fetch(route, { credentials: 'same-origin' }).catch(() => {})
+      }
       schedule()
     }
 

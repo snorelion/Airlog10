@@ -11,10 +11,10 @@ import { OFFLINE_ROUTES } from '@/lib/offline-routes'
 // 이게 없으면 확인할 방법이 "비행기모드로 바꿔서 하나씩 눌러보기"뿐이라,
 // 한 번 확인에 몇 분씩 걸리고 안 될 때 원인도 추측이 된다.
 //
-// 한 화면이 열리려면 두 가지가 다 있어야 한다:
-//   · 완성된 페이지(HTML) — 주소로 직접 열 때
-//   · 조각(RSC)          — 앱 안에서 탭을 눌러 이동할 때
-// 하나만 있으면 어떤 경로로 들어가느냐에 따라 열리기도 하고 안 열리기도 한다.
+// 판정 기준 (서비스워커 v6, 2026-07-29 이후):
+//   · 완성된 페이지(HTML)가 있으면 ✓ — 어떤 경로로 들어가도 확실히 열린다.
+//     (조각이 없으면 서비스워커가 일부러 실패시켜 하드 이동 → HTML로 연다)
+//   · 실제 방문 조각(RSC)만 있으면 ◐ — 탭 이동은 되지만 주소로 직접 열면 홈으로 감
 type Readiness = 'full' | 'partial' | 'none'
 
 export default function OfflineStatus() {
@@ -37,9 +37,8 @@ export default function OfflineStatus() {
         const base = location.origin + r.path
         // caches.match는 모든 캐시를 뒤진다 — 캐시 이름을 몰라도 된다
         const html = await caches.match(base)
-        const rsc =
-          (await caches.match(base + '?__rsc=1')) || (await caches.match(base + '?__rscp=1'))
-        next[r.path] = html && rsc ? 'full' : html || rsc ? 'partial' : 'none'
+        const rsc = await caches.match(base + '?__rsc=1')
+        next[r.path] = html ? 'full' : rsc ? 'partial' : 'none'
       }
       if (cancelled) return
       setState(next)

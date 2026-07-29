@@ -21,6 +21,13 @@ self.addEventListener('activate', (e) => {
       // 그래서 홈만은 여기서 확보한다. 홈이 있으면 최소한 앱은 열린다.
       .then(async () => {
         const c = await caches.open(CACHE)
+        // 예전에 담아둔 미리받기 조각(?__rscp=1)은 더 이상 안 쓴다(아래 fetch 참고) — 청소
+        try {
+          const reqs = await c.keys()
+          await Promise.all(
+            reqs.filter((r) => new URL(r.url).search === '?__rscp=1').map((r) => c.delete(r))
+          )
+        } catch {}
         try {
           const res = await fetch('/', { credentials: 'same-origin' })
           // 로그인이 풀린 상태라면 /login으로 리다이렉트된다 — 그걸 홈으로
@@ -69,20 +76,22 @@ self.addEventListener('fetch', (e) => {
   //
   // 그래서 캐시 키를 이렇게 정한다:
   //   실제로 이동한 조각 → <경로>?__rsc=1    (매번 바뀌는 _rsc 해시를 지운다)
-  //   미리 받아둔 조각   → <경로>?__rscp=1
   //   그 외(HTML)        → <경로>            (쿼리를 지운다)
   //
-  // 미리 받기를 따로 두는 이유: Next.js가 미리 받기에 주는 조각은 실제로 이동할 때
-  // 받는 것보다 내용이 적을 수 있다. 한 서랍에 담으면 온라인에서 제대로 받아둔 것을
-  // 덜 완전한 것이 덮어써, 정작 오프라인에서 화면이 부실해진다.
+  // 미리받기(prefetch) 조각은 저장도, 대접도 하지 않는다. Next.js가 미리받기에
+  // 주는 조각은 알맹이가 빠진 반쪽이라, 오프라인에서 그걸 내주면 Next.js가
+  // 나머지를 마저 달라다 실패해 화면 전환이 조용히 멈춘다(2026-07-29 실측:
+  // 비행기모드 몇 분 뒤 기록+ 탭이 안 눌리던 원인). 차라리 실패시키면 Next.js가
+  // 하드 이동으로 넘어가고, 미리 받아둔 완성 HTML이 확실히 열린다.
   //
   // 쿼리를 지워도 되는 이유: 이 앱의 쿼리(?year=·?edit=)는 서버가 아니라 클라이언트
   // 코드가 읽어 처리한다. 덕분에 /flights/new?edit=<id> 도 미리 받아둔 /flights/new
   // 캐시로 열린다(예전 ignoreSearch 폴백이 하던 일).
   const isRSC = url.searchParams.has('_rsc') || req.headers.get('RSC') === '1'
   const isPrefetch = req.headers.get('Next-Router-Prefetch') === '1'
+  if (isPrefetch) return // 미리받기는 브라우저에 맡긴다 — 캐시에 손대지 않음
   const base = url.origin + url.pathname
-  const key = base + (isRSC ? (isPrefetch ? '?__rscp=1' : '?__rsc=1') : '')
+  const key = base + (isRSC ? '?__rsc=1' : '')
 
   // 주의: 세션 만료로 /login으로 리다이렉트된 응답을 원래 URL로 캐시하면
   // 오프라인에서 홈 대신 로그인 화면이 떠 로그북이 잠긴다 → 리다이렉트는 캐시 금지
@@ -97,10 +106,9 @@ self.addEventListener('fetch', (e) => {
       })
       .catch(async () => {
         const c = await caches.open(CACHE)
-        let hit = await c.match(key)
-        // 실제로 방문해 받아둔 조각이 없으면, 미리 받아둔 조각이라도 쓴다
-        // (한 번도 안 가본 화면이 여기에 해당한다 — 이 폴백이 그 화면을 살린다)
-        if (!hit && isRSC && !isPrefetch) hit = await c.match(base + '?__rscp=1')
+        // 실제 방문 때 받아둔 것만 대접한다. 조각이 없으면 일부러 실패시켜
+        // Next.js가 하드 이동으로 넘어가게 한다 → 아래 navigate 폴백이 받는다
+        const hit = await c.match(key)
         if (hit) return hit
         // 마지막 수단은 홈 — 주소로 직접 열었을 때만. 조각(RSC) 요청에 홈 HTML을
         // 내주면 Next.js가 못 읽으므로 차라리 실패시켜 하드 이동으로 넘긴다.

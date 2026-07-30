@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
-import { createServerSupabase } from '@/lib/supabase-server'
+import { createApiSupabase } from '@/lib/supabase-server'
 import { parseCompanyLog } from '@/lib/company-log'
 
 // Thai Lion Air 회사 로그북(PilotLogBookReport) 엑셀 파서
@@ -34,8 +34,9 @@ function cellText(v: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createServerSupabase()
-  const { data: { user } } = await supabase.auth.getUser()
+  // 쿠키 세션(웹) 또는 Bearer 토큰(iOS 앱) 둘 다 허용
+  const { supabase, getUser } = createApiSupabase(req)
+  const user = await getUser()
   if (!user) return NextResponse.json({ error: '로그인이 필요해요.' }, { status: 401 })
 
   const form = await req.formData()

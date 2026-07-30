@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentProxy } from 'unpdf'
-import { createServerSupabase } from '@/lib/supabase-server'
+import { createApiSupabase } from '@/lib/supabase-server'
 
 // Lion Air "Personal Crew Schedule Report" PDF 파서
 // 방식: 1페이지 글자들의 좌표(x,y)를 읽어 날짜 컬럼(dd/mm 헤더의 x)별로 묶고,
@@ -36,11 +36,10 @@ const SBY = new Set(['SB', 'SB1', 'SB2', 'SB3', 'SMS'])
 const DOW = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
 
 export async function POST(req: NextRequest) {
-  // 세션 또는 시크릿(관리 테스트용)으로 인증
+  // 세션(쿠키 또는 Bearer 토큰) 또는 시크릿(관리 테스트용)으로 인증
   const secret = req.nextUrl.searchParams.get('secret')
   if (!process.env.SEED_SECRET || secret !== process.env.SEED_SECRET) {
-    const supabase = createServerSupabase()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await createApiSupabase(req).getUser()
     if (!user) return NextResponse.json({ error: '로그인이 필요해요.' }, { status: 401 })
   }
 

@@ -93,11 +93,13 @@ export default function ImportPage() {
     setFileBusy(true)
     try {
       // 엑셀(.xlsx)은 zip이라 'PK'로 시작한다. 회사 로그북은 확장자가 .csv여도 실제는 엑셀.
-      const head = new Uint8Array(await file.slice(0, 2).arrayBuffer())
+      // 같은 로그의 PDF 출력본(%PDF)도 서버가 같은 값으로 읽는다.
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer())
       const isExcel = head[0] === 0x50 && head[1] === 0x4b
+      const isPdf = head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46
 
       let parsed: ParseResult
-      if (isExcel) {
+      if (isExcel || isPdf) {
         const fd = new FormData()
         fd.append('file', file)
         const res = await fetch('/api/company-log/parse', { method: 'POST', body: fd })
@@ -197,7 +199,7 @@ export default function ImportPage() {
             </p>
             <ul className="mt-3 space-y-1 text-sm text-app-sub">
               <li>· LogTen Pro 내보내기 · Dynamic Export (.txt)</li>
-              <li>· 🇹🇭 <b>라이언에어 회사 로그북</b> (PilotLogBookReport, 엑셀)</li>
+              <li>· 🇹🇭 <b>라이언에어 회사 로그북</b> (PilotLogBookReport — 엑셀·PDF 출력본 둘 다)</li>
             </ul>
             <label className="mt-4 block">
               <span className="inline-block cursor-pointer rounded-xl bg-app-btn px-5 py-3 font-semibold text-white">
@@ -205,7 +207,7 @@ export default function ImportPage() {
               </span>
               <input
                 type="file"
-                accept=".txt,.tsv,.csv,.xlsx,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                accept=".txt,.tsv,.csv,.xlsx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
                 onChange={onFile}
               />

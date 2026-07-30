@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { createApiSupabase } from '@/lib/supabase-server'
 import { parseCompanyLog } from '@/lib/company-log'
+import { pdfToCompanyRows } from '@/lib/company-log-pdf'
 
 // Thai Lion Air 회사 로그북(PilotLogBookReport) 엑셀 파서
 // 확장자가 .csv로 내려오지만 실제 내용은 xlsx다 (파일 시그니처 'PK').
@@ -48,11 +49,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '파일이 너무 커요 (10MB까지).' }, { status: 400 })
   }
 
-  // 1) 엑셀 → 문자열 행 배열
+  // 1) 파일 → 문자열 행 배열 (엑셀 또는 같은 로그의 PDF 출력본 — 값이 1:1 동일)
+  const buf = await file.arrayBuffer()
+  const head = new Uint8Array(buf.slice(0, 4))
+  const isPdf = head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46 // %PDF
   let rows: string[][] = []
-  try {
+  if (isPdf) {
+    try {
+      rows = await pdfToCompanyRows(new Uint8Array(buf))
+    } catch (err) {
+      return NextResponse.json(
+        { error: 'PDF를 읽지 못했어요. 회사 시스템에서 받은 파일 그대로 올려주세요. (' + String(err) + ')' },
+        { status: 422 }
+      )
+    }
+    if (rows.length < 2) {
+      return NextResponse.json(
+        { error: '회사 로그북 PDF 형식이 아니에요. (비행 줄을 찾지 못함 — 로스터 PDF는 로스터 칸에 올려주세요)' },
+        { status: 422 }
+      )
+    }
+  } else try {
     const wb = new ExcelJS.Workbook()
-    await wb.xlsx.load(await file.arrayBuffer())
+    await wb.xlsx.load(buf)
     const ws = wb.worksheets[0]
     if (!ws) throw new Error('시트가 없어요')
     ws.eachRow({ includeEmpty: false }, (row) => {
@@ -108,6 +127,9 @@ export async function POST(req: NextRequest) {
   const result = parseCompanyLog(rows, { iataToIcao })
   if (!result.flights.length && result.errors.length) {
     return NextResponse.json({ error: result.errors[0] }, { status: 422 })
+  }
+  if (isPdf) {
+    result.notes = ['회사 로그북 PDF 출력본으로 읽었어요 — 엑셀 파일과 같은 값이에요.', ...(result.notes ?? [])]
   }
   return NextResponse.json(result)
 }

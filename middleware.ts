@@ -2,10 +2,12 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // 로그인 없이 접근 가능한 경로
-// /api/roster/parse는 라우트 안에서 세션 또는 시크릿으로 자체 인증
+// /api/roster/parse·/api/company-log/parse는 라우트 안에서
+// 세션(쿠키 또는 Bearer 토큰) 또는 시크릿으로 자체 인증
 const PUBLIC_PATHS = [
   '/login', '/privacy', '/terms',
   '/api/auth/callback', '/api/airports/seed', '/api/roster/parse',
+  '/api/company-log/parse',
 ]
 
 export async function middleware(request: NextRequest) {

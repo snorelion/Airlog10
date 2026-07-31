@@ -132,7 +132,8 @@ export async function kalExtract(data: Uint8Array): Promise<KalExtract | null> {
     }
 
     // 시각 7개: RO RI BT Company Molit Night ... INST
-    const times = [...rest.matchAll(/\d{1,2}:\d{2}/g)]
+    // (이터레이터 스프레드 [...matchAll]은 이 tsconfig에서 빌드가 깨진다 — Array.from)
+    const times = Array.from(rest.matchAll(/\d{1,2}:\d{2}/g))
     if (times.length < 7) {
       ex.errors.push(line.trim())
       continue

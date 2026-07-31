@@ -86,26 +86,43 @@ function hmToMinLocal(s: string): number {
 export async function kalExtract(data: Uint8Array): Promise<KalExtract | null> {
   const pdf = await getDocumentProxy(data)
 
-  // 글자 좌표를 읽어 y로 줄을 묶는다 (Lion PDF 파서와 같은 방식) — 줄은 토큰 배열로 유지
+  // 글자 좌표를 읽어 y로 줄을 묶고, x 간격으로 "런"(붙은 글자 묶음)을 복원한다.
+  // 이 리포트는 글자가 낱자 단위로 저장돼 있어(실측 775조각), 조각을 그대로 쓰면
+  // '2026-02-07'이 '2','0','2','6'…으로 흩어진다 — 간격 3pt 미만이면 같은 값으로 이어붙임
   const allLines: string[][] = []
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
     const tc = await page.getTextContent()
-    const items: { x: number; y: number; t: string }[] = []
-    for (const raw of tc.items as { str?: string; transform?: number[] }[]) {
-      const t = (raw.str ?? '').replace(/\u200B/g, '').trim()
-      if (t && raw.transform) items.push({ t, x: raw.transform[4], y: raw.transform[5] })
-    }
-    items.sort((a, b) => (Math.abs(a.y - b.y) > 2 ? b.y - a.y : a.x - b.x))
-    let cur: { y: number; parts: string[] } | null = null
-    for (const it of items) {
-      if (cur && Math.abs(cur.y - it.y) <= 2) cur.parts.push(it.t)
-      else {
-        if (cur) allLines.push(cur.parts)
-        cur = { y: it.y, parts: [it.t] }
+    const items: { x: number; y: number; w: number; t: string }[] = []
+    for (const raw of tc.items as { str?: string; width?: number; transform?: number[] }[]) {
+      const t = (raw.str ?? '').replace(/\u200B/g, '')
+      if (t.trim() && raw.transform) {
+        const w = raw.width && raw.width > 0 ? raw.width : t.length * 4.5
+        items.push({ t, x: raw.transform[4], y: raw.transform[5], w })
       }
     }
-    if (cur) allLines.push(cur.parts)
+    items.sort((a, b) => (Math.abs(a.y - b.y) > 2 ? b.y - a.y : a.x - b.x))
+
+    let cur: { y: number; parts: { x: number; w: number; t: string }[] } | null = null
+    const flush = () => {
+      if (!cur) return
+      const runs: string[] = []
+      let run = ''
+      let endX = -Infinity
+      for (const it of cur.parts) {
+        if (run && it.x - endX > 3) { runs.push(run); run = '' }
+        run += it.t
+        endX = Math.max(endX, it.x + it.w)
+      }
+      if (run) runs.push(run)
+      const cleaned = runs.map((r) => r.trim()).filter(Boolean)
+      if (cleaned.length) allLines.push(cleaned)
+    }
+    for (const it of items) {
+      if (cur && Math.abs(cur.y - it.y) <= 2) cur.parts.push(it)
+      else { flush(); cur = { y: it.y, parts: [it] } }
+    }
+    flush()
   }
   const fullText = allLines.map((l) => l.join(' ')).join('\n')
 

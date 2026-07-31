@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs'
 import { createApiSupabase } from '@/lib/supabase-server'
 import { parseCompanyLog } from '@/lib/company-log'
 import { pdfToCompanyRows } from '@/lib/company-log-pdf'
+import { kalExtract, kalBuildFlights } from '@/lib/company-log-kal'
 
 // Thai Lion Air 회사 로그북(PilotLogBookReport) 엑셀 파서
 // 확장자가 .csv로 내려오지만 실제 내용은 xlsx다 (파일 시그니처 'PK').
@@ -34,6 +35,30 @@ function cellText(v: unknown): string {
   return String(v).trim()
 }
 
+// 파일에 나온 IATA 코드들 → ICAO. 같은 IATA가 여러 공항이면 큰 공항 우선.
+async function lookupIcao(
+  supabase: ReturnType<typeof createApiSupabase>['supabase'],
+  codes: Set<string>
+): Promise<Record<string, string>> {
+  const iataToIcao: Record<string, string> = {}
+  if (!codes.size) return iataToIcao
+  const { data } = await supabase
+    .from('airports')
+    .select('ident, iata, type')
+    .in('iata', Array.from(codes))
+  const rank = (t: string | null) =>
+    t === 'large_airport' ? 3 : t === 'medium_airport' ? 2 : t === 'small_airport' ? 1 : 0
+  const best: Record<string, { ident: string; r: number }> = {}
+  for (const a of data ?? []) {
+    const key = (a.iata ?? '').toUpperCase()
+    if (!key) continue
+    const r = rank(a.type)
+    if (!best[key] || r > best[key].r) best[key] = { ident: a.ident, r }
+  }
+  for (const k of Object.keys(best)) iataToIcao[k] = best[k].ident
+  return iataToIcao
+}
+
 export async function POST(req: NextRequest) {
   // 쿠키 세션(웹) 또는 Bearer 토큰(iOS 앱) 둘 다 허용
   const { supabase, getUser } = createApiSupabase(req)
@@ -55,6 +80,20 @@ export async function POST(req: NextRequest) {
   const isPdf = head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46 // %PDF
   let rows: string[][] = []
   if (isPdf) {
+    // 대한항공 "Flight Log Report"인지 먼저 자동 감지 — 맞으면 전용 파서로 끝낸다
+    const kal = await kalExtract(new Uint8Array(buf)).catch(() => null)
+    if (kal) {
+      const codes = new Set<string>()
+      for (const r of kal.rows) {
+        codes.add(r.dep.toUpperCase())
+        codes.add(r.arr.toUpperCase())
+      }
+      const result = kalBuildFlights(kal, await lookupIcao(supabase, codes))
+      if (!result.flights.length) {
+        return NextResponse.json({ error: result.errors[0] }, { status: 422 })
+      }
+      return NextResponse.json(result)
+    }
     try {
       rows = await pdfToCompanyRows(new Uint8Array(buf))
     } catch (err) {
@@ -104,24 +143,7 @@ export async function POST(req: NextRequest) {
       if (v && v.length === 3) codes.add(v)
     }
   }
-  const iataToIcao: Record<string, string> = {}
-  if (codes.size) {
-    const { data } = await supabase
-      .from('airports')
-      .select('ident, iata, type')
-      .in('iata', Array.from(codes))
-    // 같은 IATA가 여러 공항에 붙어 있으면 큰 공항을 우선
-    const rank = (t: string | null) =>
-      t === 'large_airport' ? 3 : t === 'medium_airport' ? 2 : t === 'small_airport' ? 1 : 0
-    const best: Record<string, { ident: string; r: number }> = {}
-    for (const a of data ?? []) {
-      const key = (a.iata ?? '').toUpperCase()
-      if (!key) continue
-      const r = rank(a.type)
-      if (!best[key] || r > best[key].r) best[key] = { ident: a.ident, r }
-    }
-    for (const k of Object.keys(best)) iataToIcao[k] = best[k].ident
-  }
+  const iataToIcao = await lookupIcao(supabase, codes)
 
   // 3) 파싱
   const result = parseCompanyLog(rows, { iataToIcao })

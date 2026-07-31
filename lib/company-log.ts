@@ -286,7 +286,7 @@ export function parseCompanyLog(rows: string[][], opts: CompanyParseOptions = {}
 }
 
 // ParsedFlight의 기본값 (필수 필드가 많아 한곳에 모아둠)
-function blankFlight(): ParsedFlight {
+export function blankFlight(): ParsedFlight {
   return {
     flight_date: '',
     flight_number: null,

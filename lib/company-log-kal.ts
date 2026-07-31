@@ -68,8 +68,13 @@ const KAL_TYPE_MAP: Record<string, string> = {
   '223': 'A220-300',
 }
 
-const ROW_RE = /^(\d{4}-\d{2}-\d{2})\s+(HL\d{4})\s+(\S{2,4})\s+(KE\d{2,4}[A-Z]?)\s+([A-Z]{3})\s+([A-Z]{3})\s+(.*)$/
 const PILOT_RE = /Flight Log Report\s+(.+?)\s*\|\s*(\d+)\s*\|\s*\S+\s*\|\s*(\S+)/
+
+// 한 줄의 원시 텍스트 조각들 → 의미 단위 토큰.
+// PDF 라이브러리에 따라 "N09:50EX"처럼 붙거나 칸 순서가 다르게 읽히므로
+// (실측: 서버 pdfjs는 x좌표순이라 HL No가 날짜보다 앞) 순서에 기대지 않고
+// 토큰을 "종류"로 분류한다: 날짜·HL기체·KE편명·시각·기종코드·Y/N·공항·듀티코드
+const TOKEN_RE = /\d{4}-\d{2}-\d{2}|HL\d{4}|KE\d{2,4}[A-Z]?|\d{1,2}:\d{2}|\d{2}[A-Z0-9]|[A-Z]+|\d+/g
 
 function hmToMinLocal(s: string): number {
   const m = s.match(/^(\d{1,2}):(\d{2})$/)
@@ -81,9 +86,8 @@ function hmToMinLocal(s: string): number {
 export async function kalExtract(data: Uint8Array): Promise<KalExtract | null> {
   const pdf = await getDocumentProxy(data)
 
-  // 글자 좌표를 읽어 y로 줄을 묶는다 (Lion PDF 파서와 같은 방식)
-  const allLines: string[] = []
-  let fullText = ''
+  // 글자 좌표를 읽어 y로 줄을 묶는다 (Lion PDF 파서와 같은 방식) — 줄은 토큰 배열로 유지
+  const allLines: string[][] = []
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
     const tc = await page.getTextContent()
@@ -97,13 +101,13 @@ export async function kalExtract(data: Uint8Array): Promise<KalExtract | null> {
     for (const it of items) {
       if (cur && Math.abs(cur.y - it.y) <= 2) cur.parts.push(it.t)
       else {
-        if (cur) allLines.push(cur.parts.join(' '))
+        if (cur) allLines.push(cur.parts)
         cur = { y: it.y, parts: [it.t] }
       }
     }
-    if (cur) allLines.push(cur.parts.join(' '))
+    if (cur) allLines.push(cur.parts)
   }
-  fullText = allLines.join('\n')
+  const fullText = allLines.map((l) => l.join(' ')).join('\n')
 
   if (!fullText.includes('Flight Log Report')) return null
 
@@ -117,46 +121,44 @@ export async function kalExtract(data: Uint8Array): Promise<KalExtract | null> {
     ex.rank = pm[3].toUpperCase()
   }
 
-  for (const line of allLines) {
-    const m = line.trim().match(ROW_RE)
-    if (!m) continue
-    const [, date, reg, typeCode, fltNo, dep, arr, restRaw] = m
-    let rest = restRaw.trim()
+  for (const parts of allLines) {
+    // 원시 조각 → 의미 토큰 (붙어 나온 "N09:50EX"도 "N","09:50","EX"로 분리)
+    const toks: string[] = []
+    for (const raw of parts) {
+      for (const m of raw.match(TOKEN_RE) ?? []) toks.push(m)
+    }
+    const date = toks.find((t) => /^\d{4}-\d{2}-\d{2}$/.test(t))
+    const reg = toks.find((t) => /^HL\d{4}$/.test(t))
+    if (!date || !reg) continue   // 데이터 줄이 아님 (헤더·합계·꼬리말)
 
-    // Duty Code — 표 순서상 ARR 뒤에 오지만, 추출 순서에 따라 줄 끝에 붙기도 한다
+    const fltNo = toks.find((t) => /^KE\d{2,4}[A-Z]?$/.test(t)) ?? ''
+    const times = toks.filter((t) => /^\d{1,2}:\d{2}$/.test(t))
+    let dep = ''
+    let arr = ''
+    let typeCode = ''
     let dutyCode: string | null = null
-    const lead = rest.match(/^([A-Z]{1,4})\s+/)
-    if (lead && !/^\d/.test(lead[1])) {
-      dutyCode = lead[1]
-      rest = rest.slice(lead[0].length)
+    const yn: string[] = []
+    for (const t of toks) {
+      if (t === date || t === reg || /^KE\d/.test(t) || /^\d{1,2}:\d{2}$/.test(t)) continue
+      if (t === 'Y' || t === 'N') { yn.push(t); continue }                 // T/O·L/D·A/L (x순)
+      if (!arr && /^[A-Z]{3}$/.test(t)) { if (!dep) dep = t; else arr = t; continue }  // DEP→ARR
+      if (!typeCode && /^\d{2}[A-Z0-9]$/.test(t)) { typeCode = t; continue }          // 74I·772…
+      if (!dutyCode && /^[A-Z]{1,4}$/.test(t)) { dutyCode = t; continue }              // EX·GF·NF·F
     }
 
-    // 시각 7개: RO RI BT Company Molit Night ... INST
-    // (이터레이터 스프레드 [...matchAll]은 이 tsconfig에서 빌드가 깨진다 — Array.from)
-    const times = Array.from(rest.matchAll(/\d{1,2}:\d{2}/g))
-    if (times.length < 7) {
-      ex.errors.push(line.trim())
+    if (!dep || !arr || times.length < 7) {
+      ex.errors.push(parts.join(' '))
       continue
-    }
-    const val = (i: number) => times[i][0]
-    const last = times[times.length - 1]
-
-    // T/O·L/D 플래그: Night 시각과 INST 시각 사이의 Y/N
-    const between = rest.slice((times[5].index ?? 0) + times[5][0].length, last.index ?? rest.length)
-    const yn = between.match(/[YN]/g) ?? []
-
-    // 줄 끝에 붙은 duty code (앞에서 못 찾은 경우): "…05:00F" / "…09:50EX"
-    if (!dutyCode) {
-      const trail = rest.slice((last.index ?? 0) + last[0].length).match(/([A-Z]{1,4})\s*$/)
-      if (trail) dutyCode = trail[1]
     }
 
     ex.rows.push({
-      date, reg, typeCode, fltNo, dep, arr,
-      ro: val(0), ri: val(1),
-      blockMin: hmToMinLocal(val(2)),
-      nightMin: hmToMinLocal(val(5)),
-      instMin: hmToMinLocal(last[0]),
+      date, reg,
+      typeCode: typeCode || '?',
+      fltNo, dep, arr,
+      ro: times[0], ri: times[1],
+      blockMin: hmToMinLocal(times[2]),
+      nightMin: hmToMinLocal(times[5]),
+      instMin: hmToMinLocal(times[times.length - 1]),
       tkoff: yn[0] === 'Y',
       landing: yn[1] === 'Y',
       dutyCode,
@@ -179,8 +181,8 @@ export function kalBuildFlights(ex: KalExtract, iataToIcao: Record<string, strin
   const capacity = /^(CA|CPT|CAPT)/.test(rank) ? 'PIC' : rank.startsWith('FO') ? 'SIC' : null
   if (!capacity) {
     warnings.push(rank
-      ? `직책 '${rank}'을 몰라 역할(PIC/SIC)을 비워뒀어요.`
-      : '헤더에서 직책(FO/CA)을 찾지 못해 역할을 비워뒀어요 — 필요하면 저장 후 일괄 수정하세요.')
+      ? `Unknown rank '${rank}' — capacity (PIC/SIC) left blank.`
+      : 'Rank (FO/CA) not found in the header — capacity left blank.')
   }
 
   for (const r of ex.rows) {
@@ -223,20 +225,20 @@ export function kalBuildFlights(ex: KalExtract, iataToIcao: Record<string, strin
   }
 
   if (unknownTypes.size) {
-    warnings.push(`처음 보는 기종 코드가 있어 원문 그대로 뒀어요: ${Array.from(unknownTypes).join(', ')}`)
+    warnings.push(`Unfamiliar aircraft type codes kept as-is: ${Array.from(unknownTypes).join(', ')}`)
   }
-  if (dupInFile) warnings.push(`파일 안 중복 ${dupInFile}건은 건너뛰었어요.`)
-  if (ex.errors.length) warnings.push(`형식이 달라 못 읽은 줄 ${ex.errors.length}개를 건너뛰었어요.`)
+  if (dupInFile) warnings.push(`Skipped ${dupInFile} duplicate rows in the file.`)
+  if (ex.errors.length) warnings.push(`Skipped ${ex.errors.length} lines that didn't match the expected format.`)
 
   return {
     flights,
     aircraft: Array.from(acMap.values()),
-    errors: flights.length ? [] : ['비행 줄을 찾지 못했어요. 회사 시스템의 Flight Log Report PDF 그대로 올려주세요.'],
+    errors: flights.length ? [] : ['No flight rows found. Please upload the Flight Log Report PDF from the company system as-is.'],
     warnings: warnings.length ? warnings : undefined,
     notes: [
-      'Korean Air Flight Log Report로 읽었어요 — 시각은 GMT, 날짜는 UTC 기준 그대로예요.',
-      '블록·야간·계기시간은 회사 값 그대로 가져왔어요 (보정 없음).',
-      'T/O·L/D의 주간/야간 구분은 파일에 없어 주간 칸으로 넣었어요.',
+      'Read as a Korean Air Flight Log Report — times are GMT and dates are UTC, exactly as recorded.',
+      'Block, night and instrument times are imported as-is from the company file (no adjustments).',
+      "Day/night split for takeoffs and landings isn't in the file — counts were put in the day columns.",
     ],
   }
 }

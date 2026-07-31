@@ -93,16 +93,21 @@ export async function kalExtract(data: Uint8Array): Promise<KalExtract | null> {
   const allLines: string[][] = []
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
+    // ⚠️ 이 리포트는 페이지가 회전 저장돼 있어(실측: 행·열이 뒤바뀌어 읽힘)
+    // 원시 좌표 대신 뷰포트(화면 표시) 좌표로 변환한다 — 어떤 회전이든 행이 행이 된다
+    const vp = page.getViewport({ scale: 1 })
     const tc = await page.getTextContent()
     const items: { x: number; y: number; w: number; t: string }[] = []
     for (const raw of tc.items as { str?: string; width?: number; transform?: number[] }[]) {
       const t = (raw.str ?? '').replace(/\u200B/g, '')
       if (t.trim() && raw.transform) {
         const w = raw.width && raw.width > 0 ? raw.width : t.length * 4.5
-        items.push({ t, x: raw.transform[4], y: raw.transform[5], w })
+        const [vx, vy] = vp.convertToViewportPoint(raw.transform[4], raw.transform[5]) as [number, number]
+        items.push({ t, x: vx, y: vy, w })
       }
     }
-    items.sort((a, b) => (Math.abs(a.y - b.y) > 2 ? b.y - a.y : a.x - b.x))
+    // 뷰포트 y는 아래로 갈수록 커진다 — 위에서 아래로, 같은 줄은 왼→오
+    items.sort((a, b) => (Math.abs(a.y - b.y) > 2 ? a.y - b.y : a.x - b.x))
 
     let cur: { y: number; parts: { x: number; w: number; t: string }[] } | null = null
     const flush = () => {

@@ -126,16 +126,26 @@ export async function kalExtract(data: Uint8Array): Promise<KalExtract | null> {
   }
   const fullText = allLines.map((l) => l.join(' ')).join('\n')
 
-  if (!fullText.includes('Flight Log Report')) return null
+  // 감지는 공백을 무시하고 — 낱글자 병합 시 헤더가 "Flight Log R"+"eport"로
+  // 갈라질 수 있다 (실측: 큰 글씨는 글자 간격이 병합 문턱을 넘는다)
+  const flat = fullText.replace(/\s+/g, '')
+  if (!flat.includes('FlightLogReport')) return null
 
   const ex: KalExtract = { rows: [], pilotName: null, pilotId: null, rank: null, errors: [] }
-  // 헤더 줄이 추출 과정에서 쪼개져도 "이름 | 사번 | 기종 | 직책" 패턴은 찾도록 폴백
+  // 헤더 줄이 쪼개져도 "이름 | 사번 | 기종 | 직책" 패턴은 찾도록 다단 폴백
   const pm = fullText.match(PILOT_RE)
     ?? fullText.match(/([A-Z][A-Z .'-]+?)\s*\|\s*(\d{5,})\s*\|\s*\S+\s*\|\s*([A-Z]{2,4})/)
   if (pm) {
     ex.pilotName = pm[1].trim()
     ex.pilotId = pm[2]
     ex.rank = pm[3].toUpperCase()
+  } else {
+    // 공백 제거본에서 직책만이라도 (역할 PIC/SIC 판정에 필요)
+    const fm = flat.match(/\|(\d{5,})\|[A-Z0-9]{1,6}\|([A-Z]{2,4})/)
+    if (fm) {
+      ex.pilotId = fm[1]
+      ex.rank = fm[2].toUpperCase()
+    }
   }
 
   for (const parts of allLines) {

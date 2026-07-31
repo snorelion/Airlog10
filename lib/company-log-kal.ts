@@ -45,6 +45,7 @@ export type KalExtract = {
   pilotId: string | null
   rank: string | null    // FO / CA …
   errors: string[]       // 못 읽은 줄 (날짜로 시작하는데 형식이 안 맞는 것)
+  debugLines: string[]   // 진단용: 서버가 실제로 읽은 줄 (행 복원 결과 앞부분)
 }
 
 // 대한항공 기종 코드 → 표준 표기 (실파일 등록번호로 확인된 것만).
@@ -131,7 +132,10 @@ export async function kalExtract(data: Uint8Array): Promise<KalExtract | null> {
   const flat = fullText.replace(/\s+/g, '')
   if (!flat.includes('FlightLogReport')) return null
 
-  const ex: KalExtract = { rows: [], pilotName: null, pilotId: null, rank: null, errors: [] }
+  const ex: KalExtract = {
+    rows: [], pilotName: null, pilotId: null, rank: null, errors: [],
+    debugLines: allLines.slice(0, 14).map((l) => l.join('|')),
+  }
   // 헤더 줄이 쪼개져도 "이름 | 사번 | 기종 | 직책" 패턴은 찾도록 다단 폴백
   const pm = fullText.match(PILOT_RE)
     ?? fullText.match(/([A-Z][A-Z .'-]+?)\s*\|\s*(\d{5,})\s*\|\s*\S+\s*\|\s*([A-Z]{2,4})/)

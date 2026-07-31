@@ -90,7 +90,12 @@ export async function POST(req: NextRequest) {
       }
       const result = kalBuildFlights(kal, await lookupIcao(supabase, codes))
       if (!result.flights.length) {
-        return NextResponse.json({ error: result.errors[0] }, { status: 422 })
+        // 진단 모드(임시): 서버가 실제로 읽은 줄을 에러에 담아 사용자 화면으로 보여준다
+        const dbg = kal.debugLines.join(' ⏎ ').slice(0, 600)
+        return NextResponse.json(
+          { error: `${result.errors[0]} [debug ${kal.rows.length} rows / ${kal.errors.length} errs: ${dbg}]` },
+          { status: 422 }
+        )
       }
       return NextResponse.json(result)
     }

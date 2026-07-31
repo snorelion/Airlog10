@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentProxy } from 'unpdf'
 import { createApiSupabase } from '@/lib/supabase-server'
+import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 
 // Lion Air "Personal Crew Schedule Report" PDF 파서
 // 방식: 1페이지 글자들의 좌표(x,y)를 읽어 날짜 컬럼(dd/mm 헤더의 x)별로 묶고,
@@ -50,8 +51,10 @@ export async function POST(req: NextRequest) {
   }
 
   let items: Item[] = []
+  let pdfDoc: Awaited<ReturnType<typeof getDocumentProxy>> | null = null
   try {
     const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()))
+    pdfDoc = pdf
     const page = await pdf.getPage(1)
     const tc = await page.getTextContent()
     for (const raw of tc.items as { str?: string; transform?: number[] }[]) {
@@ -64,6 +67,16 @@ export async function POST(req: NextRequest) {
 
   // 기간(연도)
   const full = items.map((i) => i.t).join(' ')
+
+  // Peach Aviation 로스터는 형식이 전혀 달라 전용 파서로 (문구로 자동 감지)
+  if (pdfDoc && isPeachRoster(full)) {
+    const result = await parsePeachRoster(pdfDoc as unknown as Parameters<typeof parsePeachRoster>[0])
+    if (!result.period || !result.flights.length) {
+      return NextResponse.json({ error: 'Peach 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    return NextResponse.json(result)
+  }
+
   const period = full.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2})\/(\d{2})\/(\d{4})/)
   if (!period) {
     return NextResponse.json({ error: '로스터 형식이 아니에요. (기간 표기를 찾지 못함)' }, { status: 422 })

@@ -213,8 +213,8 @@ export default function ImportPage() {
               />
             </label>
             <p className="mt-3 text-xs text-app-hint">
-              회사 파일은 확장자가 .csv여도 그대로 올리시면 돼요. 공중시간이 없는 파일이라
-              블록시간에서 15분을 뺀 값으로 추정합니다(이륙 = OUT+10분, 착륙 = IN−5분).
+              회사 파일은 확장자가 .csv여도 그대로 올리시면 돼요. 시간은 회사 로그북
+              그대로 들어갑니다 (보정·추정 없음).
             </p>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}

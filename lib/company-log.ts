@@ -10,7 +10,8 @@
 //   * 편명(Flight #)이 아예 없음 → 같은 날 같은 구간 왕복 2회가 흔함.
 //     중복 판정 키에 반드시 출발시각을 포함해야 한다.
 //   * FltTime은 블록타임(ArrTime-DepTime). 공중시간 컬럼이 없음
-//     → 보정: 이륙 = OUT+10분, 착륙 = IN-5분, flight_min = 블록-15분
+//     → 회사 로그북을 그대로 따른다: flight_min = FltTime(블록) 그대로, 추정 보정 없음
+//       (2026-07-31 라이언님 확정 — 회사 로그북이 공식 기록이므로 시간을 만들어내지 않는다)
 //   * 야간 비행"시간" 컬럼이 없음 (야간 이착륙 여부만 있음)
 //     → A안: 태국 야간 19:00~06:00(= UTC 12:00~23:00)과 블록시간의 겹침으로 계산
 //   * 계기시간(instrument)·접근(approach) 컬럼은 회사 파일에 존재하지 않음 → 빈칸
@@ -38,10 +39,6 @@ const TYPE_MAP: Record<string, string> = {
 // 태국 야간(19:00~06:00)을 UTC로: 12:00 ~ 23:00
 const NIGHT_FROM = 12 * 60
 const NIGHT_TO = 23 * 60
-
-// 블록타임에서 빼는 지상 활주 시간 (이륙 +10분, 착륙 -5분)
-const TAXI_OUT_MIN = 10
-const TAXI_IN_MIN = 5
 
 // 첫 줄이 회사 리포트 헤더인지
 export function isCompanyLog(header: string[]): boolean {
@@ -229,8 +226,8 @@ export function parseCompanyLog(rows: string[][], opts: CompanyParseOptions = {}
       })
     }
 
-    // 공중시간 = 블록 - 15분 (이륙 OUT+10, 착륙 IN-5)
-    const flightMin = Math.max(0, blockMin - TAXI_OUT_MIN - TAXI_IN_MIN)
+    // 회사 로그북 그대로 — 비행시간 = FltTime(블록), 추정 보정 없음
+    const flightMin = blockMin
     const nightMin = outMin !== null && inMin !== null ? nightMinutes(outMin, inMin) : 0
 
     let capacity: string | null = null
@@ -247,7 +244,7 @@ export function parseCompanyLog(rows: string[][], opts: CompanyParseOptions = {}
       aircraft_reg: reg,
       aircraft_type: type,
       total_min: blockMin,              // 블록
-      flight_min: flightMin,            // 공중 (추정)
+      flight_min: flightMin,            // = 블록 (회사 값 그대로)
       pic_min: picMin,
       sic_min: sicMin,
       night_min: Math.min(nightMin, blockMin || nightMin),
@@ -279,7 +276,7 @@ export function parseCompanyLog(rows: string[][], opts: CompanyParseOptions = {}
   }
 
   const notes = [
-    '회사 파일엔 공중시간이 없어 블록시간에서 15분을 뺀 값으로 추정했어요 (이륙 = OUT+10분, 착륙 = IN−5분).',
+    '시간은 회사 로그북 그대로 넣었어요 — 비행시간 = 회사 FltTime(블록), 보정 없음.',
     '야간시간도 컬럼이 없어 태국 기준 야간(19:00~06:00)과 겹치는 만큼으로 계산했어요.',
     '계기시간·접근(approach)은 회사 파일에 아예 없어서 빈칸이에요 — 앱에서 직접 채우시면 돼요.',
   ]

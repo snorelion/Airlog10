@@ -47,5 +47,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // 정적 파일·이미지 제외한 모든 경로
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js).*)'],
+  //
+  // ⚠️ public/ 아래 폴더를 새로 만들면 여기에도 넣어야 한다. 안 그러면 미들웨어가
+  //    로그인 검사를 하고, 비로그인 방문자에겐 이미지 대신 로그인 페이지 HTML이 간다
+  //    (2026-08-03: /shots를 빠뜨려 /welcome의 스크린샷이 전부 안 보였다).
+  //    next/image도 원본을 같은 주소로 가져오므로 함께 깨진다.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|shots|manifest.json|sw.js).*)'],
 }

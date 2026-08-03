@@ -178,9 +178,9 @@ export default function WelcomeClient({ initial }: { initial: WelcomeLang }) {
 
         {/* ── 왜 만들었나 ── */}
         <section className="px-5 pb-16 sm:pb-20">
-          <div className="mx-auto max-w-5xl rounded-3xl bg-air-900 p-8 text-center text-white sm:p-12 lg:p-14">
-            <p className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-air-200">{t.offline.kicker}</p>
-            <p className="mx-auto mt-4 max-w-3xl text-[19px] font-medium leading-[1.6] text-air-50 sm:text-[23px]">
+          <div className="mx-auto max-w-5xl rounded-3xl border border-app-line bg-app-surface p-8 text-center sm:p-12 lg:p-14">
+            <p className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-app-accent">{t.offline.kicker}</p>
+            <p className="mx-auto mt-4 max-w-3xl text-[19px] font-medium leading-[1.6] text-app-text sm:text-[23px]">
               {t.offline.body}
             </p>
           </div>

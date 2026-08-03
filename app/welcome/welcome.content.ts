@@ -70,7 +70,7 @@ const en: WelcomeContent = {
   strip: [
     { t: 'Works in airplane mode', d: 'Your flights, totals and logbook are already on the phone.' },
     { t: 'Night time, calculated', d: 'Civil twilight along the great-circle route — your own number always wins.' },
-    { t: 'A logbook, not a spreadsheet', d: 'FAA and EASA layouts with page totals carried forward.' },
+    { t: 'A real logbook, not scattered files', d: 'FAA and EASA layouts with page totals carried forward.' },
   ],
   offline: {
     kicker: 'Why it exists',
@@ -183,7 +183,7 @@ const ko: WelcomeContent = {
   strip: [
     { t: '비행기모드에서도 작동', d: '비행 기록도 합계도 장부도 이미 폰 안에 있습니다.' },
     { t: '야간시간 자동 계산', d: '대권항로를 따라 시민박명 기준으로. 직접 넣은 값이 언제나 우선입니다.' },
-    { t: '엑셀이 아니라 진짜 장부', d: 'FAA·EASA 양식, 페이지 이월 합계까지 그대로.' },
+    { t: '흩어진 파일이 아니라 진짜 로그북', d: 'FAA·EASA 양식, 페이지 이월 합계까지 그대로.' },
   ],
   offline: {
     kicker: '왜 만들었나',
@@ -195,7 +195,7 @@ const ko: WelcomeContent = {
     items: ['기록 · 통계', '시간 관리', '자격 관리', '날씨'],
   },
   how: {
-    heading: '쓰는 방법',
+    heading: '사용 방법',
     sub: '세 단계면 끝입니다.',
     steps: [
       {
@@ -289,7 +289,7 @@ const th: WelcomeContent = {
   strip: [
     { t: 'ใช้ได้ในโหมดเครื่องบิน', d: 'เที่ยวบิน ยอดสะสม และสมุดบันทึก อยู่ในเครื่องอยู่แล้ว' },
     { t: 'คำนวณเวลากลางคืนให้', d: 'อ้างอิง civil twilight ตามเส้นทางวงกลมใหญ่ ค่าที่คุณกรอกเองมาก่อนเสมอ' },
-    { t: 'สมุดบันทึกจริง ไม่ใช่ตารางคำนวณ', d: 'รูปแบบ FAA และ EASA พร้อมยอดยกมาของแต่ละหน้า' },
+    { t: 'สมุดบันทึกจริง ไม่ใช่ไฟล์กระจัดกระจาย', d: 'รูปแบบ FAA และ EASA พร้อมยอดยกมาของแต่ละหน้า' },
   ],
   offline: {
     kicker: 'ทำไมถึงมีแอปนี้',

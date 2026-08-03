@@ -32,6 +32,13 @@ export type WelcomeContent = {
   strip: Pair[]
   offline: { kicker: string; body: string }
   allinone: { heading: string; body: string; items: string[] }
+  offscreen: {
+    heading: string
+    sub: string
+    widget: { t: string; items: string[] }
+    alerts: { t: string; items: string[] }
+    note: string
+  }
   how: { heading: string; sub: string; steps: Pair[] }
   shots: { hint: string; caps: string[] }
   features: { heading: string; items: Pair[] }
@@ -81,6 +88,28 @@ const en: WelcomeContent = {
     body: 'Your logbook and stats, your duty limits and currency, your medical and licence expiries, and the weather for today’s airports — all in one place. No spreadsheet on the side, no second app to open.',
     items: ['Logbook & stats', 'Duty & currency', 'Expiries', 'Weather'],
   },
+  offscreen: {
+    heading: 'Without opening the app',
+    sub: 'The things you check before every flight, on the outside of your phone.',
+    widget: {
+      t: 'Widgets',
+      items: [
+        'Home screen — your next flight: route, times, aircraft, and how many legs are left today',
+        'The medium size adds the departure METAR',
+        'Lock screen — next flight with departure and arrival METAR, one line each',
+      ],
+    },
+    alerts: {
+      t: 'Alerts',
+      items: [
+        'Departure alarm — hours before STD, with route, STD and report time. You choose how many hours',
+        'Tomorrow’s briefing — the evening before, at a time you pick',
+        'A warning when your 28-day block time passes 90% of the limit',
+        'Medical, English proficiency and recurrent expiries',
+      ],
+    },
+    note: 'Every alert is scheduled on the phone itself. No server, no connection — they fire even with the app closed.',
+  },
   how: {
     heading: 'How it works',
     sub: 'Three steps, and you are done for good.',
@@ -118,8 +147,6 @@ const en: WelcomeContent = {
       { t: 'METAR & TAF', d: 'Your next flight’s airports, plus any you add yourself. Refreshed twice an hour from aviationweather.gov.' },
       { t: 'Flying map', d: 'Every route you have flown, drawn on one map — airports, countries, and how many times around the Earth.' },
       { t: 'Limits & currency', d: '28-day, 90-day and 12-month totals, with takeoffs and landings, in one line on the home screen.' },
-      { t: 'Expiry reminders', d: 'Medical, English proficiency and recurrent — warned as early as you like.' },
-      { t: 'Lock screen widget', d: 'Your next flight and its METAR, without unlocking the phone.' },
       { t: 'Stats that answer questions', d: 'By month, year, aircraft type and airport. Day against night, domestic against international.' },
       { t: 'Yours, offline', d: 'Everything is on the phone. Sync is a backup, not a requirement.' },
     ],
@@ -194,6 +221,28 @@ const ko: WelcomeContent = {
     body: '비행 기록과 통계, 시간 리밋과 커런시, 자격 만료일, 그리고 오늘 갈 공항의 날씨까지 한곳에 있습니다. 따로 엑셀을 만들 필요도, 다른 앱을 열 필요도 없습니다.',
     items: ['기록 · 통계', '시간 관리', '자격 관리', '날씨'],
   },
+  offscreen: {
+    heading: '폰을 열지 않아도',
+    sub: '비행 전에 늘 확인하는 것들을, 잠금 해제 전에.',
+    widget: {
+      t: '위젯',
+      items: [
+        '홈 화면 — 다음 비행의 노선·시각·기체, 오늘 남은 구간 수까지',
+        '중간 크기에는 출발 공항 METAR가 함께 나옵니다',
+        '잠금화면 — 다음 비행과 출발·도착 METAR를 한 줄씩',
+      ],
+    },
+    alerts: {
+      t: '알림',
+      items: [
+        '출발 알람 — STD 몇 시간 전에 노선·STD·리포트 시각. 몇 시간 전인지는 직접 정합니다',
+        '내일 브리핑 — 전날 저녁, 정해둔 시각에 내일 첫 비행 요약',
+        '28일 블록타임이 한도의 90%를 넘으면 경고',
+        '신체검사·영어자격·리커런트 만료 알림',
+      ],
+    },
+    note: '모든 알림은 폰 안에서 예약됩니다. 서버도 인터넷도 필요 없고, 앱이 꺼져 있어도 울립니다.',
+  },
   how: {
     heading: '사용 방법',
     sub: '세 단계면 끝입니다.',
@@ -223,8 +272,6 @@ const ko: WelcomeContent = {
       { t: 'METAR · TAF', d: '다음 비행의 공항은 물론, 직접 추가한 공항까지. aviationweather.gov에서 30분마다 갱신합니다.' },
       { t: '비행 지도', d: '지금까지 날아온 모든 노선을 한 장에. 공항 수, 나라 수, 지구를 몇 바퀴 돌았는지까지.' },
       { t: '리밋 · 커런시', d: '28일·90일·12개월 누적과 이착륙 횟수를 홈 화면 한 줄에서 봅니다.' },
-      { t: '자격 만료 알림', d: '신체검사·영어자격·리커런트를 원하는 시점에 미리 알려줍니다.' },
-      { t: '잠금화면 위젯', d: '폰을 열지 않아도 다음 비행과 그 공항 METAR가 보입니다.' },
       { t: '궁금한 걸 답하는 통계', d: '월·연도·기종·공항별로. 주간과 야간, 국내선과 국제선을 나눠서.' },
       { t: '오프라인이 기본', d: '모든 것이 폰 안에 있습니다. 동기화는 백업일 뿐, 필수가 아닙니다.' },
     ],
@@ -300,6 +347,28 @@ const th: WelcomeContent = {
     body: 'สมุดบันทึกและสถิติ ลิมิตชั่วโมงบินและ currency วันหมดอายุใบอนุญาต และสภาพอากาศของสนามบินวันนี้ อยู่ในที่เดียวกันทั้งหมด ไม่ต้องทำสเปรดชีตแยก ไม่ต้องเปิดแอปอื่น',
     items: ['บันทึกและสถิติ', 'ลิมิตและ currency', 'วันหมดอายุ', 'สภาพอากาศ'],
   },
+  offscreen: {
+    heading: 'โดยไม่ต้องเปิดแอป',
+    sub: 'สิ่งที่คุณเช็กก่อนบินทุกครั้ง อยู่บนหน้าจอตั้งแต่ยังไม่ปลดล็อก',
+    widget: {
+      t: 'วิดเจ็ต',
+      items: [
+        'หน้าจอโฮม — เที่ยวบินถัดไป ทั้งเส้นทาง เวลา เครื่องบิน และเหลืออีกกี่เลกในวันนี้',
+        'ขนาดกลางจะมี METAR ของสนามบินต้นทางเพิ่มมาด้วย',
+        'หน้าจอล็อก — เที่ยวบินถัดไปพร้อม METAR ต้นทางและปลายทาง อย่างละบรรทัด',
+      ],
+    },
+    alerts: {
+      t: 'การแจ้งเตือน',
+      items: [
+        'เตือนก่อนออกเดินทาง — ก่อน STD ตามจำนวนชั่วโมงที่คุณตั้งเอง พร้อมเส้นทาง STD และเวลารายงานตัว',
+        'บรีฟพรุ่งนี้ — เย็นวันก่อน ตามเวลาที่คุณกำหนด',
+        'เตือนเมื่อชั่วโมงบิน 28 วันเกิน 90% ของลิมิต',
+        'เตือนวันหมดอายุใบตรวจร่างกาย ภาษาอังกฤษ และ recurrent',
+      ],
+    },
+    note: 'การแจ้งเตือนทั้งหมดตั้งไว้ในเครื่อง ไม่ต้องใช้เซิร์ฟเวอร์หรืออินเทอร์เน็ต และเตือนแม้ปิดแอปอยู่',
+  },
   how: {
     heading: 'ใช้งานอย่างไร',
     sub: 'สามขั้นตอน แล้วจบ',
@@ -337,8 +406,6 @@ const th: WelcomeContent = {
       { t: 'METAR และ TAF', d: 'สนามบินของเที่ยวบินถัดไป และสนามบินที่คุณเพิ่มเอง อัปเดตทุกครึ่งชั่วโมงจาก aviationweather.gov' },
       { t: 'แผนที่การบิน', d: 'ทุกเส้นทางที่คุณเคยบิน รวมอยู่ในแผนที่เดียว ทั้งจำนวนสนามบิน ประเทศ และรอบโลกที่บินไปแล้ว' },
       { t: 'ลิมิตและ currency', d: 'ยอดสะสม 28 วัน 90 วัน และ 12 เดือน พร้อมจำนวนขึ้นลง ในบรรทัดเดียวบนหน้าแรก' },
-      { t: 'เตือนวันหมดอายุ', d: 'ใบตรวจร่างกาย ภาษาอังกฤษ และ recurrent เตือนล่วงหน้าตามที่คุณตั้งไว้' },
-      { t: 'วิดเจ็ตหน้าจอล็อก', d: 'เห็นเที่ยวบินถัดไปและ METAR ได้โดยไม่ต้องปลดล็อกเครื่อง' },
       { t: 'สถิติที่ตอบคำถามได้', d: 'แยกตามเดือน ปี แบบเครื่องบิน และสนามบิน ทั้งกลางวันกับกลางคืน ในประเทศกับต่างประเทศ' },
       { t: 'ออฟไลน์เป็นพื้นฐาน', d: 'ทุกอย่างอยู่ในเครื่อง การซิงก์เป็นแค่การสำรองข้อมูล ไม่ใช่สิ่งจำเป็น' },
     ],
@@ -394,6 +461,13 @@ const th: WelcomeContent = {
 export const WELCOME: Record<WelcomeLang, WelcomeContent> = { en, ko, th }
 
 const isWelcomeLang = (v: unknown): v is WelcomeLang => v === 'en' || v === 'ko' || v === 'th'
+
+// ?lang=th 처럼 주소로 대놓고 지정한 언어. 없으면 null.
+// 상대에 맞춰 링크를 골라 보낼 수 있게 하려고 둔다 (태국 동료에겐 ?lang=th).
+export function langFromQuery(v: string | string[] | undefined): WelcomeLang | null {
+  const q = Array.isArray(v) ? v[0] : v
+  return isWelcomeLang(q) ? q : null
+}
 
 // 랜딩 전용 언어 판정 — 앱과 달리 태국어도 인정한다.
 // 쿠키(설정)가 먼저, 없으면 브라우저가 보낸 Accept-Language, 그것도 없으면 영어.

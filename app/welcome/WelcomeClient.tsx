@@ -47,7 +47,8 @@ const P = {
 }
 const STRIP_ICONS = [P.offline, P.moon, P.book]
 const ALLIN_ICONS = [P.chart, P.gauge, P.bell, P.cloud]
-const FEAT_ICONS = [P.moon, P.cloud, P.map, P.gauge, P.bell, P.widget, P.chart, P.phone]
+// 위젯·알림은 '폰을 열지 않아도' 섹션이 자세히 다루므로 이 그리드에서는 뺐다
+const FEAT_ICONS = [P.moon, P.cloud, P.map, P.gauge, P.chart, P.phone]
 
 const AppleGlyph = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6" aria-hidden>
@@ -206,7 +207,41 @@ export default function WelcomeClient({ initial }: { initial: WelcomeLang }) {
           </div>
         </section>
 
-        {/* ── 쓰는 방법 ── */}
+        {/* ── 폰을 열지 않아도 (위젯·알림) ── */}
+        <section className="mx-auto max-w-5xl px-5 pb-16 sm:pb-20">
+          <h2 className="text-center text-[24px] font-bold tracking-tight text-app-text sm:text-[30px]">
+            {t.offscreen.heading}
+          </h2>
+          <p className="mt-2 text-center text-[15px] text-app-sub">{t.offscreen.sub}</p>
+
+          <div className="mt-9 grid gap-4 md:grid-cols-2">
+            {[
+              { icon: P.widget, block: t.offscreen.widget },
+              { icon: P.bell, block: t.offscreen.alerts },
+            ].map(({ icon, block }) => (
+              <div key={block.t} className="rounded-2xl border border-app-line bg-app-surface p-6">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-9 w-9 place-items-center rounded-xl bg-app-accent-soft text-app-accent">
+                    <Icon d={icon} />
+                  </div>
+                  <h3 className="text-[17px] font-semibold text-app-text">{block.t}</h3>
+                </div>
+                <ul className="mt-4 space-y-2.5">
+                  {block.items.map((line) => (
+                    <li key={line} className="flex gap-2.5 text-[14.5px] leading-relaxed text-app-sub">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-app-accent" />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-5 text-center text-[14px] leading-relaxed text-app-sub">{t.offscreen.note}</p>
+        </section>
+
+        {/* ── 사용 방법 ── */}
         <section className="mx-auto max-w-5xl px-5 pb-16 sm:pb-20">
           <h2 className="text-center text-[24px] font-bold tracking-tight text-app-text sm:text-[30px]">{t.how.heading}</h2>
           <p className="mt-2 text-center text-[15px] text-app-sub">{t.how.sub}</p>
@@ -226,7 +261,7 @@ export default function WelcomeClient({ initial }: { initial: WelcomeLang }) {
         {/* ── 기능 ── */}
         <section className="mx-auto max-w-5xl px-5 pb-16 sm:pb-20">
           <h2 className="text-center text-[24px] font-bold tracking-tight text-app-text sm:text-[30px]">{t.features.heading}</h2>
-          <div className="mt-9 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+          <div className="mt-9 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {t.features.items.map((f, i) => (
               <div key={f.t} className="rounded-2xl border border-app-line bg-app-surface p-5">
                 <div className="text-app-accent"><Icon d={FEAT_ICONS[i]} /></div>

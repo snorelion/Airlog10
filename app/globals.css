@@ -51,3 +51,21 @@ input, select, textarea {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* 타이어는 낱말 사이에 공백이 없다.
+   body의 keep-all이면 줄이 안 끊겨 넘치고, break-word/anywhere면 낱말 한가운데서
+   끊긴다(เชื่อม|ต่อ). normal로 두면 브라우저의 타이어 사전이 낱말 경계를 찾아준다.
+   lang="th"가 붙은 곳에만 적용된다 (지금은 /welcome). */
+[lang='th'] {
+  word-break: normal;
+  overflow-wrap: normal;
+  line-break: auto;
+}
+
+/* 가로로 넘기는 목록(스크린샷 갤러리) — 막대가 보이면 지저분하다 */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

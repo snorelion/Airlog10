@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // /api/roster/parse·/api/company-log/parse는 라우트 안에서
 // 세션(쿠키 또는 Bearer 토큰) 또는 시크릿으로 자체 인증
 const PUBLIC_PATHS = [
-  '/login', '/privacy', '/terms',
+  '/login', '/privacy', '/terms', '/welcome',
   '/api/auth/callback', '/api/airports/seed', '/api/roster/parse',
   '/api/company-log/parse',
 ]
@@ -37,7 +37,9 @@ export async function middleware(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + '/'))
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    // 주소만 치고 처음 들어온 사람에게 로그인 폼부터 들이밀지 않는다.
+    // 앱스토어의 지원·마케팅 URL이 이 사이트라 여기가 첫인상이 된다.
+    url.pathname = path === '/' ? '/welcome' : '/login'
     return NextResponse.redirect(url)
   }
   return response

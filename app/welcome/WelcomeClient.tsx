@@ -214,6 +214,21 @@ export default function WelcomeClient({ initial }: { initial: WelcomeLang }) {
           </h2>
           <p className="mt-2 text-center text-[15px] text-app-sub">{t.offscreen.sub}</p>
 
+          {/* 시뮬레이터에서 찍은 실제 화면 — 폰 두 대는 늘 2열로 (세로로 쌓으면 페이지가 길어진다) */}
+          <div className="mx-auto mt-9 grid max-w-md grid-cols-2 gap-4 sm:gap-6">
+            {[
+              { src: '/shots/widget-home.png', cap: t.offscreen.shots.home },
+              { src: '/shots/widget-lock.png', cap: t.offscreen.shots.lock },
+            ].map(({ src, cap }) => (
+              <figure key={src}>
+                <div className="overflow-hidden rounded-[1.7rem] border-[6px] border-neutral-900 shadow-xl shadow-air-900/15 dark:border-neutral-700">
+                  <Image src={src} alt={cap} width={620} height={1348} sizes="220px" className="block h-auto w-full" />
+                </div>
+                <figcaption className="mt-2.5 text-center text-[12.5px] text-app-sub">{cap}</figcaption>
+              </figure>
+            ))}
+          </div>
+
           <div className="mt-9 grid gap-4 md:grid-cols-2">
             {[
               { icon: P.widget, block: t.offscreen.widget },

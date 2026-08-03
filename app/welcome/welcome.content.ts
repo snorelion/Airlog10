@@ -35,6 +35,7 @@ export type WelcomeContent = {
   offscreen: {
     heading: string
     sub: string
+    shots: { home: string; lock: string }
     widget: { t: string; items: string[] }
     alerts: { t: string; items: string[] }
     note: string
@@ -91,6 +92,7 @@ const en: WelcomeContent = {
   offscreen: {
     heading: 'Without opening the app',
     sub: 'The things you check before every flight, on the outside of your phone.',
+    shots: { home: 'Home screen', lock: 'Lock screen' },
     widget: {
       t: 'Widgets',
       items: [
@@ -224,6 +226,7 @@ const ko: WelcomeContent = {
   offscreen: {
     heading: '폰을 열지 않아도',
     sub: '비행 전에 늘 확인하는 것들을, 잠금 해제 전에.',
+    shots: { home: '홈 화면', lock: '잠금화면' },
     widget: {
       t: '위젯',
       items: [
@@ -350,6 +353,7 @@ const th: WelcomeContent = {
   offscreen: {
     heading: 'โดยไม่ต้องเปิดแอป',
     sub: 'สิ่งที่คุณเช็กก่อนบินทุกครั้ง อยู่บนหน้าจอตั้งแต่ยังไม่ปลดล็อก',
+    shots: { home: 'หน้าจอโฮม', lock: 'หน้าจอล็อก' },
     widget: {
       t: 'วิดเจ็ต',
       items: [

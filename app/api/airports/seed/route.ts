@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
+import tzlookup from '@photostructure/tz-lookup'
 
 // 전세계 공항·활주로 시딩 — OurAirports 오픈데이터(퍼블릭 도메인)
 // 호출: GET /api/airports/seed?secret=SEED_SECRET&what=airports|runways
@@ -37,6 +38,21 @@ function num(s: string): number | null {
   return isNaN(n) ? null : n
 }
 
+// 좌표 → IANA 시간대(Asia/Bangkok). 공항이 스스로 시간대를 알게 하려는 것 —
+// 항공사마다 오프셋을 코드에 박던 방식은 미국(시간대 4개)·유럽(서머타임)에서 깨진다.
+// 이름만 저장하면 서머타임 규칙은 기기의 tzdata가 최신으로 알아서 처리한다.
+// ⚠️ tzlookup은 좌표가 범위 밖이거나 숫자가 아니면 throw 한다 — 전부 막고 null로.
+function tzOf(lat: number | null, lon: number | null): string | null {
+  if (lat === null || lon === null) return null
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+  try {
+    return tzlookup(lat, lon) || null
+  } catch {
+    return null
+  }
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get('secret')
   if (!process.env.SEED_SECRET || secret !== process.env.SEED_SECRET) {
@@ -62,16 +78,19 @@ export async function GET(req: NextRequest) {
       if (!['large_airport', 'medium_airport', 'small_airport', 'seaplane_base'].includes(type)) continue
       const ident = col(c, 'ident').trim().toUpperCase()
       if (!ident) continue
+      const lat = num(col(c, 'latitude_deg'))
+      const lon = num(col(c, 'longitude_deg'))
       rows.push({
         ident,
         iata: col(c, 'iata_code').trim().toUpperCase() || null,
         name: col(c, 'name').trim() || null,
         type,
-        lat: num(col(c, 'latitude_deg')),
-        lon: num(col(c, 'longitude_deg')),
+        lat,
+        lon,
         elevation_ft: num(col(c, 'elevation_ft')) === null ? null : Math.round(num(col(c, 'elevation_ft'))!),
         country: col(c, 'iso_country').trim() || null,
         municipality: col(c, 'municipality').trim() || null,
+        tz: tzOf(lat, lon),
       })
     }
     let saved = 0
@@ -80,7 +99,9 @@ export async function GET(req: NextRequest) {
       if (error) return NextResponse.json({ error: error.message, saved }, { status: 500 })
       saved += Math.min(1000, rows.length - i)
     }
-    return NextResponse.json({ ok: true, what, saved })
+    // 시간대가 몇 개나 붙었는지 바로 보이게 — 호출 결과만으로 1차 검증이 된다
+    const withTz = rows.filter((r) => r.tz).length
+    return NextResponse.json({ ok: true, what, saved, withTz, withoutTz: rows.length - withTz })
   }
 
   if (what === 'runways') {

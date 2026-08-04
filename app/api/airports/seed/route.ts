@@ -38,11 +38,49 @@ function num(s: string): number | null {
   return isNaN(n) ? null : n
 }
 
+// 나라 전체가 한 시간대인 곳은 국가코드로 확정한다.
+//
+// 좌표 계산은 국경 근처에서 옆 나라로 넘어간다 (2026-08-05 실측):
+//   · 태국 베통(BTZ)      → Asia/Kuala_Lumpur  ⚠️ 1시간 틀어짐
+//   · 대만 마쭈(RCFG·RCMT) → Asia/Shanghai     (오프셋은 같아 무해했지만 부정확)
+//   · 한국 울릉(KR-1113)   → Asia/Shanghai     ← 이건 OurAirports 좌표가 아예 틀렸다
+//                                                (내몽골 좌표). 국가코드로 확정하면 이런
+//                                                소스 오류까지 함께 막힌다.
+//
+// ⚠️ 나라 안에 시간대가 여럿인 곳은 절대 넣지 말 것 — 좌표 계산을 그대로 믿어야 한다.
+//    미국·캐나다·러시아·호주·브라질·멕시코·인도네시아·카자흐스탄·몽골·칠레·에콰도르
+//    ·포르투갈(아조레스)·스페인(카나리아)·프랑스(해외령)·뉴질랜드(채텀) 등.
+//    말레이시아도 뺐다 — KL/쿠칭 두 존이 실제로 있고, 오프셋이 같아 무해하다.
+const COUNTRY_TZ: Record<string, string> = {
+  // 동아시아·동남아
+  TH: 'Asia/Bangkok',      KR: 'Asia/Seoul',       JP: 'Asia/Tokyo',
+  TW: 'Asia/Taipei',       CN: 'Asia/Shanghai',    HK: 'Asia/Hong_Kong',
+  MO: 'Asia/Macau',        SG: 'Asia/Singapore',   VN: 'Asia/Ho_Chi_Minh',
+  KH: 'Asia/Phnom_Penh',   LA: 'Asia/Vientiane',   MM: 'Asia/Yangon',
+  PH: 'Asia/Manila',       BN: 'Asia/Brunei',
+  // 남아시아
+  IN: 'Asia/Kolkata',      BD: 'Asia/Dhaka',       LK: 'Asia/Colombo',
+  NP: 'Asia/Kathmandu',    PK: 'Asia/Karachi',     BT: 'Asia/Thimphu',
+  MV: 'Indian/Maldives',   AF: 'Asia/Kabul',
+  // 중앙아시아
+  UZ: 'Asia/Tashkent',     KG: 'Asia/Bishkek',     TJ: 'Asia/Dushanbe',
+  TM: 'Asia/Ashgabat',
+  // 중동
+  AE: 'Asia/Dubai',        QA: 'Asia/Qatar',       KW: 'Asia/Kuwait',
+  BH: 'Asia/Bahrain',      OM: 'Asia/Muscat',      SA: 'Asia/Riyadh',
+  JO: 'Asia/Amman',        IL: 'Asia/Jerusalem',   LB: 'Asia/Beirut',
+  IQ: 'Asia/Baghdad',      IR: 'Asia/Tehran',      TR: 'Europe/Istanbul',
+  // 유럽 — 대륙은 대부분 오프셋이 같아 급하지 않다. 경계가 다른 곳만.
+  GB: 'Europe/London',     IE: 'Europe/Dublin',
+}
+
 // 좌표 → IANA 시간대(Asia/Bangkok). 공항이 스스로 시간대를 알게 하려는 것 —
 // 항공사마다 오프셋을 코드에 박던 방식은 미국(시간대 4개)·유럽(서머타임)에서 깨진다.
 // 이름만 저장하면 서머타임 규칙은 기기의 tzdata가 최신으로 알아서 처리한다.
 // ⚠️ tzlookup은 좌표가 범위 밖이거나 숫자가 아니면 throw 한다 — 전부 막고 null로.
-function tzOf(lat: number | null, lon: number | null): string | null {
+function tzOf(lat: number | null, lon: number | null, country: string | null): string | null {
+  // 나라가 확실하면 좌표를 보지 않는다 — 좌표가 틀려도 시간대는 맞는다
+  if (country && COUNTRY_TZ[country]) return COUNTRY_TZ[country]
   if (lat === null || lon === null) return null
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
@@ -80,6 +118,7 @@ export async function GET(req: NextRequest) {
       if (!ident) continue
       const lat = num(col(c, 'latitude_deg'))
       const lon = num(col(c, 'longitude_deg'))
+      const country = col(c, 'iso_country').trim() || null
       rows.push({
         ident,
         iata: col(c, 'iata_code').trim().toUpperCase() || null,
@@ -88,9 +127,9 @@ export async function GET(req: NextRequest) {
         lat,
         lon,
         elevation_ft: num(col(c, 'elevation_ft')) === null ? null : Math.round(num(col(c, 'elevation_ft'))!),
-        country: col(c, 'iso_country').trim() || null,
+        country,
         municipality: col(c, 'municipality').trim() || null,
-        tz: tzOf(lat, lon),
+        tz: tzOf(lat, lon, country),
       })
     }
     let saved = 0

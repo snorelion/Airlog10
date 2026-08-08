@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentProxy } from 'unpdf'
 import { createApiSupabase } from '@/lib/supabase-server'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
+import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
 
 // Lion Air "Personal Crew Schedule Report" PDF 파서
 // 방식: 1페이지 글자들의 좌표(x,y)를 읽어 날짜 컬럼(dd/mm 헤더의 x)별로 묶고,
@@ -10,7 +11,8 @@ import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-type Item = { t: string; x: number; y: number }
+// w(폭)는 Thai Airways 파서용 — 날짜 헤더가 한 덩어리로 올 때 글자 위치를 비례 계산한다
+type Item = { t: string; x: number; y: number; w?: number }
 type ParsedRosterFlight = {
   flight_date: string
   flight_number: string
@@ -57,9 +59,9 @@ export async function POST(req: NextRequest) {
     pdfDoc = pdf
     const page = await pdf.getPage(1)
     const tc = await page.getTextContent()
-    for (const raw of tc.items as { str?: string; transform?: number[] }[]) {
+    for (const raw of tc.items as { str?: string; transform?: number[]; width?: number }[]) {
       const t = (raw.str ?? '').replace(/\u200B/g, '').trim()
-      if (t && raw.transform) items.push({ t, x: raw.transform[4], y: raw.transform[5] })
+      if (t && raw.transform) items.push({ t, x: raw.transform[4], y: raw.transform[5], w: raw.width })
     }
   } catch (err) {
     return NextResponse.json({ error: 'PDF를 읽지 못했어요: ' + String(err) }, { status: 422 })
@@ -75,6 +77,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Peach 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
     }
     return NextResponse.json(result)
+  }
+
+  // Thai Airways는 가로 31일 달력 격자라 Lion 파서(세로 컬럼)로는 못 읽는다 → 전용 파서
+  if (isThaiRoster(full)) {
+    const result = parseThaiRoster(items)
+    if (!result.period || !result.flights.length) {
+      return NextResponse.json({ error: 'Thai Airways 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    const { year, month } = result.period
+    const mm = String(month).padStart(2, '0')
+    const last = new Date(year, month, 0).getDate()
+    // 반환 모양은 Lion·Peach와 똑같이 — 앱이 period.start/end 와 stats 를 그대로 읽는다
+    return NextResponse.json({
+      period: { start: `${year}-${mm}-01`, end: `${year}-${mm}-${last}` },
+      flights: result.flights,
+      stats: { flights: result.flights.length, offDays: 0, standbyDays: 0 },
+    })
   }
 
   const period = full.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2})\/(\d{2})\/(\d{4})/)

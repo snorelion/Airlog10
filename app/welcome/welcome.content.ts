@@ -21,9 +21,9 @@ export const WELCOME_LANGS: { code: WelcomeLang; label: string }[] = [
 /// 세 언어의 "지난 기록 가져오기" 문구가 이 값을 끼워 쓰므로, 문장을 세 번 찾아
 /// 고칠 필요가 없다 (2026-08-08 — 앞으로 계속 늘어날 목록이라 한 곳에 모았다).
 export const IMPORT_FORMATS = {
-  en: 'Thai Lion Air, Korean Air, Peach Aviation and LogTen Pro',
-  ko: '타이라이언에어 · 대한항공 · 피치항공 · LogTen Pro',
-  th: 'Thai Lion Air, Korean Air, Peach Aviation และ LogTen Pro',
+  en: 'Thai Airways, Thai Lion Air, Korean Air, Peach Aviation and LogTen Pro',
+  ko: '타이항공 · 타이라이언에어 · 대한항공 · 피치항공 · LogTen Pro',
+  th: 'การบินไทย, Thai Lion Air, Korean Air, Peach Aviation และ LogTen Pro',
 } as const
 
 type Pair = { t: string; d: string }

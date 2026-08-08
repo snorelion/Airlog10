@@ -17,6 +17,15 @@ export const WELCOME_LANGS: { code: WelcomeLang; label: string }[] = [
   { code: 'th', label: 'ไทย' },
 ]
 
+/// 자동으로 알아보는 회사 양식 — **새 항공사를 지원하면 여기만 고친다.**
+/// 세 언어의 "지난 기록 가져오기" 문구가 이 값을 끼워 쓰므로, 문장을 세 번 찾아
+/// 고칠 필요가 없다 (2026-08-08 — 앞으로 계속 늘어날 목록이라 한 곳에 모았다).
+export const IMPORT_FORMATS = {
+  en: 'Thai Lion Air, Korean Air, Peach Aviation and LogTen Pro',
+  ko: '타이라이언에어 · 대한항공 · 피치항공 · LogTen Pro',
+  th: 'Thai Lion Air, Korean Air, Peach Aviation และ LogTen Pro',
+} as const
+
 type Pair = { t: string; d: string }
 
 export type WelcomeContent = {
@@ -65,19 +74,19 @@ const en: WelcomeContent = {
   meta: {
     title: 'AirLog10 — Pilot logbook that works offline',
     description:
-      'A pilot logbook that keeps every flight on your iPhone. Import your company logbook, check METAR/TAF, and print an FAA or EASA logbook — with or without a signal.',
+      'A pilot logbook that keeps every flight on your iPhone and iPad. Import your company logbook, check METAR/TAF, and print an FAA or EASA logbook — with or without a signal.',
   },
   hero: {
     title: 'Your logbook still works at FL350.',
-    sub: 'Every flight lives on your iPhone. No spinner, no signal bars, no “connect to continue.”',
+    sub: 'Every flight lives on your iPhone and iPad. No spinner, no signal bars, no “connect to continue.”',
     byline: 'Built by a working airline pilot.',
     cta: 'Download on the App Store',
     ctaSoon: 'Coming soon to the App Store',
-    note: 'iPhone · iOS 17 or later',
+    note: 'iPhone · iPad · iOS 17 or later',
   },
   strip: [
-    { t: 'Works in airplane mode', d: 'Your flights, totals and logbook are already on the phone.' },
-    { t: 'Night time, calculated', d: 'Civil twilight along the great-circle route — your own number always wins.' },
+    { t: 'Your company logbook, imported', d: `${IMPORT_FORMATS.en} are recognised automatically. Duplicates are skipped.` },
+    { t: 'Works in airplane mode', d: 'Your flights, totals and logbook are already on the device.' },
     { t: 'A real logbook, not scattered files', d: 'FAA and EASA layouts with page totals carried forward.' },
   ],
   offline: {
@@ -118,7 +127,7 @@ const en: WelcomeContent = {
     steps: [
       {
         t: 'Bring your history',
-        d: 'Import an Excel roster, your company’s printed PDF, or a photo of the roster on the crew room wall. Thai Lion Air and Korean Air formats are recognised automatically, and duplicate flights are skipped — so re-importing is always safe.',
+        d: `Import an Excel roster, your company’s printed PDF, or a photo of the roster on the crew room wall. ${IMPORT_FORMATS.en} formats are recognised automatically, and duplicate flights are skipped — so re-importing is always safe.`,
       },
       {
         t: 'Log a flight in seconds',
@@ -150,7 +159,10 @@ const en: WelcomeContent = {
       { t: 'Flying map', d: 'Every route you have flown, drawn on one map — airports, countries, and how many times around the Earth.' },
       { t: 'Limits & currency', d: '28-day, 90-day and 12-month totals, with takeoffs and landings, in one line on the home screen.' },
       { t: 'Stats that answer questions', d: 'By month, year, aircraft type and airport. Day against night, domestic against international.' },
-      { t: 'Yours, offline', d: 'Everything is on the phone. Sync is a backup, not a requirement.' },
+      { t: 'Yours, offline', d: 'Everything is on the device. Sync is a backup, not a requirement.' },
+      { t: 'Built for iPad', d: 'The logbook opens side by side — pick a flight on the left, read it on the right, like a paper logbook lying open.' },
+      { t: 'One purchase, both devices', d: 'Your subscription is tied to your Apple Account, so iPhone and iPad come together. Nothing to buy twice.' },
+      { t: 'Notes on crews, airports and aircraft', d: 'Jot down that the runway is short, or how a captain likes the briefing. It comes back the next time you fly there — or with them.' },
     ],
   },
   pricing: {
@@ -199,7 +211,7 @@ const ko: WelcomeContent = {
   meta: {
     title: 'AirLog10 — 오프라인에서도 열리는 파일럿 로그북',
     description:
-      '모든 비행이 아이폰 안에 있는 파일럿 로그북. 회사 로그북 가져오기, METAR·TAF, FAA·EASA 로그북 인쇄까지 — 신호가 없어도 그대로 됩니다.',
+      '모든 비행이 아이폰과 아이패드 안에 있는 파일럿 로그북. 회사 로그북 가져오기, METAR·TAF, FAA·EASA 로그북 인쇄까지 — 신호가 없어도 그대로 됩니다.',
   },
   hero: {
     title: 'FL350 위에서도 언제나 당신과 함께',
@@ -207,11 +219,11 @@ const ko: WelcomeContent = {
     byline: '파일럿이 만든 로그북',
     cta: 'App Store에서 받기',
     ctaSoon: 'App Store 출시 예정',
-    note: '아이폰 · iOS 17 이상',
+    note: '아이폰 · 아이패드 · iOS 17 이상',
   },
   strip: [
-    { t: '비행기모드에서도 작동', d: '비행 기록도 합계도 로그북도 이미 폰 안에 있습니다.' },
-    { t: '야간시간 자동 계산', d: '대권항로를 따라 시민박명 기준으로. 직접 넣은 값이 언제나 우선입니다.' },
+    { t: '회사 로그북 그대로 가져오기', d: `${IMPORT_FORMATS.ko} 양식을 자동으로 알아봅니다. 중복은 건너뜁니다.` },
+    { t: '비행기모드에서도 작동', d: '비행 기록도 합계도 로그북도 이미 기기 안에 있습니다.' },
     { t: '흩어진 파일이 아니라 진짜 로그북', d: 'FAA·EASA 양식, 페이지 이월 합계까지 그대로.' },
   ],
   offline: {
@@ -252,7 +264,7 @@ const ko: WelcomeContent = {
     steps: [
       {
         t: '지난 기록 가져오기',
-        d: '회사 엑셀, 인쇄된 PDF, 크루룸 벽에 붙은 로스터 사진까지 넣을 수 있습니다. 타이라이언에어·대한항공 양식은 자동으로 알아봅니다. 중복된 비행은 건너뛰니 같은 파일을 두 번 넣어도 안전합니다.',
+        d: `회사 엑셀, 인쇄된 PDF, 크루룸 벽에 붙은 로스터 사진까지 넣을 수 있습니다. ${IMPORT_FORMATS.ko} 양식은 자동으로 알아봅니다. 중복된 비행은 건너뛰니 같은 파일을 두 번 넣어도 안전합니다.`,
       },
       {
         t: '몇 초 만에 기록',
@@ -276,7 +288,10 @@ const ko: WelcomeContent = {
       { t: '비행 지도', d: '지금까지 날아온 모든 노선을 한 장에. 공항 수, 나라 수, 지구를 몇 바퀴 돌았는지까지.' },
       { t: '리밋 · 커런시', d: '28일·90일·12개월 누적과 이착륙 횟수를 홈 화면 한 줄에서 봅니다.' },
       { t: '궁금한 걸 답하는 통계', d: '월·연도·기종·공항별로. 주간과 야간, 국내선과 국제선을 나눠서.' },
-      { t: '오프라인이 기본', d: '모든 것이 폰 안에 있습니다. 동기화는 백업일 뿐, 필수가 아닙니다.' },
+      { t: '오프라인이 기본', d: '모든 것이 기기 안에 있습니다. 동기화는 백업일 뿐, 필수가 아닙니다.' },
+      { t: '아이패드에 맞춰', d: '로그북이 좌우로 열립니다. 왼쪽에서 비행을 고르면 오른쪽에 펼쳐집니다 — 종이 로그북을 펼쳐 놓은 것처럼.' },
+      { t: '한 번 결제로 두 기기', d: '구독은 Apple 계정에 묶여 있어 아이폰과 아이패드가 함께 됩니다. 두 번 사지 않아도 됩니다.' },
+      { t: '크루 · 공항 · 기체 메모', d: '“이 활주로는 짧다”, “이 기장님은 브리핑을 이렇게 하신다” — 적어두면 그 공항에 다시 가거나 그 사람과 다시 날 때 알아서 올라옵니다.' },
     ],
   },
   pricing: {
@@ -326,7 +341,7 @@ const th: WelcomeContent = {
   meta: {
     title: 'AirLog10 — สมุดบันทึกการบินที่ใช้ได้แบบออฟไลน์',
     description:
-      'สมุดบันทึกการบินที่เก็บทุกเที่ยวบินไว้ใน iPhone ของคุณ นำเข้าสมุดบันทึกของบริษัท ดู METAR/TAF และพิมพ์สมุดบันทึกแบบ FAA หรือ EASA ได้ แม้ไม่มีสัญญาณ',
+      'สมุดบันทึกการบินที่เก็บทุกเที่ยวบินไว้ใน iPhone และ iPad ของคุณ นำเข้าสมุดบันทึกของบริษัท ดู METAR/TAF และพิมพ์สมุดบันทึกแบบ FAA หรือ EASA ได้ แม้ไม่มีสัญญาณ',
   },
   hero: {
     title: 'อยู่กับคุณเสมอ แม้ที่ FL350',
@@ -334,11 +349,11 @@ const th: WelcomeContent = {
     byline: 'สมุดบันทึกที่นักบินสร้างเอง',
     cta: 'ดาวน์โหลดบน App Store',
     ctaSoon: 'เร็ว ๆ นี้บน App Store',
-    note: 'iPhone · iOS 17 ขึ้นไป',
+    note: 'iPhone · iPad · iOS 17 ขึ้นไป',
   },
   strip: [
+    { t: 'นำเข้าสมุดบันทึกของบริษัทได้เลย', d: `รู้จักรูปแบบของ ${IMPORT_FORMATS.th} โดยอัตโนมัติ และข้ามเที่ยวบินที่ซ้ำให้` },
     { t: 'ใช้ได้ในโหมดเครื่องบิน', d: 'เที่ยวบิน ยอดสะสม และสมุดบันทึก อยู่ในเครื่องอยู่แล้ว' },
-    { t: 'คำนวณเวลากลางคืนให้', d: 'อ้างอิง civil twilight ตามเส้นทางวงกลมใหญ่ ค่าที่คุณกรอกเองมาก่อนเสมอ' },
     { t: 'สมุดบันทึกจริง ไม่ใช่ไฟล์กระจัดกระจาย', d: 'รูปแบบ FAA และ EASA พร้อมยอดยกมาของแต่ละหน้า' },
   ],
   offline: {
@@ -379,7 +394,7 @@ const th: WelcomeContent = {
     steps: [
       {
         t: 'นำประวัติเดิมเข้ามา',
-        d: 'นำเข้าไฟล์ Excel, ไฟล์ PDF ที่บริษัทพิมพ์ให้ หรือรูปถ่ายตารางบินที่ติดบนผนังห้องลูกเรือ ระบบรู้จักรูปแบบของ Thai Lion Air และ Korean Air โดยอัตโนมัติ และข้ามเที่ยวบินที่ซ้ำให้ จึงนำเข้าซ้ำได้อย่างปลอดภัย',
+        d: `นำเข้าไฟล์ Excel, ไฟล์ PDF ที่บริษัทพิมพ์ให้ หรือรูปถ่ายตารางบินที่ติดบนผนังห้องลูกเรือ ระบบรู้จักรูปแบบของ ${IMPORT_FORMATS.th} โดยอัตโนมัติ และข้ามเที่ยวบินที่ซ้ำให้ จึงนำเข้าซ้ำได้อย่างปลอดภัย`,
       },
       {
         t: 'บันทึกเที่ยวบินในไม่กี่วินาที',
@@ -412,6 +427,9 @@ const th: WelcomeContent = {
       { t: 'ลิมิตและ currency', d: 'ยอดสะสม 28 วัน 90 วัน และ 12 เดือน พร้อมจำนวนขึ้นลง ในบรรทัดเดียวบนหน้าแรก' },
       { t: 'สถิติที่ตอบคำถามได้', d: 'แยกตามเดือน ปี แบบเครื่องบิน และสนามบิน ทั้งกลางวันกับกลางคืน ในประเทศกับต่างประเทศ' },
       { t: 'ออฟไลน์เป็นพื้นฐาน', d: 'ทุกอย่างอยู่ในเครื่อง การซิงก์เป็นแค่การสำรองข้อมูล ไม่ใช่สิ่งจำเป็น' },
+      { t: 'ออกแบบมาเพื่อ iPad', d: 'สมุดบันทึกเปิดแบบสองฝั่ง เลือกเที่ยวบินทางซ้าย อ่านรายละเอียดทางขวา เหมือนเปิดสมุดบันทึกกระดาษวางไว้' },
+      { t: 'ซื้อครั้งเดียว ใช้ได้ทั้งสองเครื่อง', d: 'การสมัครสมาชิกผูกกับ Apple Account ของคุณ iPhone และ iPad จึงใช้ร่วมกัน ไม่ต้องซื้อซ้ำ' },
+      { t: 'บันทึกเรื่องลูกเรือ สนามบิน และเครื่องบิน', d: 'จดไว้ว่ารันเวย์สั้น หรือกัปตันท่านนี้ชอบบรีฟแบบไหน แล้วมันจะกลับมาให้เห็นอีกครั้งเมื่อคุณบินไปที่นั่น หรือบินกับคนคนนั้น' },
     ],
   },
   pricing: {

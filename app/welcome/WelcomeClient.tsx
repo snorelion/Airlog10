@@ -44,11 +44,21 @@ const P = {
   widget: <><rect x="3" y="3" width="8" height="8" rx="2" /><rect x="13" y="3" width="8" height="8" rx="2" /><rect x="3" y="13" width="8" height="8" rx="2" /><rect x="13" y="13" width="8" height="8" rx="2" /></>,
   chart: <><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M22 20H2" /></>,
   phone: <><rect x="6" y="2" width="12" height="20" rx="3" /><path d="M10.5 18.5h3" /></>,
+  // 아이패드 — 가로로 눕힌 화면을 세로선으로 나눠 '분할 화면'을 나타낸다 (2026-08-08)
+  tablet: <><rect x="2" y="4.5" width="20" height="15" rx="2.5" /><path d="M9 4.5v15" /></>,
+  // 두 기기 — 큰 화면(아이패드) 옆에 작은 화면(아이폰)
+  devices: <><rect x="2" y="5" width="13" height="11" rx="2" /><rect x="16" y="8" width="6" height="11" rx="1.5" /><path d="M18 16.5h2" /></>,
+  // 메모 — 접힌 귀퉁이가 있는 노트에 글줄
+  note: <><path d="M5 3.5h9L19 8v12.5H5z" /><path d="M14 3.5V8h5" /><path d="M8 12h8" /><path d="M8 15.5h5" /></>,
+  // 가져오기 — 파일이 아래 상자로 들어간다
+  importIn: <><path d="M12 3v10" /><path d="M8.5 9.5 12 13l3.5-3.5" /><path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15" /></>,
 }
-const STRIP_ICONS = [P.offline, P.moon, P.book]
+// 첫 화면 3칸 — 파일럿이 궁금해하는 순서: 옮길 수 있나 → 쓸 만한가 → 결국 인쇄되나
+// (야간시간은 아래 '들어 있는 것'에 같은 내용이 있어 여기서는 가져오기에 자리를 내줬다)
+const STRIP_ICONS = [P.importIn, P.offline, P.book]
 const ALLIN_ICONS = [P.chart, P.gauge, P.bell, P.cloud]
 // 위젯·알림은 '폰을 열지 않아도' 섹션이 자세히 다루므로 이 그리드에서는 뺐다
-const FEAT_ICONS = [P.moon, P.cloud, P.map, P.gauge, P.chart, P.phone]
+const FEAT_ICONS = [P.moon, P.cloud, P.map, P.gauge, P.chart, P.phone, P.tablet, P.devices, P.note]
 
 const AppleGlyph = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6" aria-hidden>

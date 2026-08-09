@@ -134,7 +134,10 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
         rawCount++
         if (x < rawMinX) rawMinX = x
         if (x > rawMaxX) rawMaxX = x
-        if (rawSample.length < 10) rawSample.push(`${t}@${Math.round(x)},${Math.round(raw.transform[5])}`)
+        // 헤더(실측 y≈774) **아래**에서만 뽑는다 — 데이터 행이 어떤 모양으로 오는지가 핵심이다
+        if (raw.transform[5] < 770 && rawSample.length < 16) {
+          rawSample.push(`${t}@${Math.round(x)},${Math.round(raw.transform[5])}`)
+        }
       }
       if (x >= CREW_X) continue                      // 크루 명단은 통째로 버린다
       items.push({ t, x, y: raw.transform[5] })

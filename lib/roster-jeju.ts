@@ -1,23 +1,28 @@
 // Jeju Air (CrewConnex) "Roster" 파서
-// 실파일(01Aug26 to 31Aug26, 2쪽)로 검증 — 2026-08-09
+// 실파일(01Aug26 to 31Aug26, 2쪽)로 26편 검증 — 2026-08-10
 //
-// 형식 (Lion·Peach·Thai·Eastar와 또 다르다):
-//  · 컬럼이 일정한 x에 서는 표. 실측:
-//      Date18 · Pairing79 · T/L176 · C/I194 · C/O222 · Roster260 · Activity304 ·
-//      From351 · STD(L)377 · STD(B)410 · To455 · STA(L)476 · STA(B)514 ·
-//      ACType563 · BLH651 · ACReg689 · **크루 명단 761 이상**
-//  · ⚠️ **크루 명단(사번·이름·직책·자격)이 편마다 여러 줄 딸려온다.** x가 720을 넘으므로
-//    좌표로 잘라낸다. 안 자르면 이름 조각이 값으로 섞여 들어온다
-//  · ⚠️ **시각이 두 벌이다** — (L)은 공항 현지, (B)는 베이스(한국). **(L)을 쓴다.**
-//    UTC 변환은 앱의 RosterTime이 맡는 정책이라 Thai·Peach·Eastar와 같은 자리에 맞춘다
-//    (실파일 HAN 출발이 현지 0045 / 베이스 0245 — 베트남과 한국의 두 시간 차이가 그대로 보인다)
-//  · ⚠️ **편명이 두 줄에 걸쳐 렌더된다.** Activity 칸(x304)의 아랫줄에 "7C", 그 윗줄에 번호가 온다.
-//    Roster 칸(x260)에도 같은 번호가 있지만 **그날 첫 편은 비어 있어서**, 둘 다 본다
-//  · ⚠️ **로스터가 역순이다.** 맨 위가 가장 나중 날짜이고, 같은 날의 편들은 **날짜 줄보다 위에**
-//    쌓인다. 그래서 위에서 아래로 읽으며 편을 모아 두었다가, 날짜 줄을 만나면 그때 몰아서
-//    그 날짜를 준다. 순서대로 읽으면 날짜가 통째로 하루씩 밀린다
-//  · 비행이 아닌 활동: OFF · ROFF · SA1/SB2(스탠바이) · RSV_F(예비) · LAYOV(숙박)
-//    → **Activity 칸에 "7C"가 있는 줄만** 비행으로 본다
+// ⚠️ 이 PDF는 **콘텐츠가 0.5 배율 + y축 뒤집기(CTM)** 로 그려져 있다.
+//    로컬 pypdf는 변환 전 텍스트 좌표(x 18~933)를, 서버 unpdf(pdfjs)는 변환 후
+//    좌표(x 36~563)를 준다. pypdf 좌표로 컬럼 경계를 박은 1차 버전은 그래서 전부
+//    빗나갔고, y가 뒤집힌 탓에 "로스터가 역순"이라는 오판까지 했다(실제로는 정상
+//    순서다). 게다가 서버는 칸을 합치기도("GMP 2359") 쪼개기도("Sat","01","Aug") 한다.
+//
+// → **좌표를 아예 쓰지 않는다.** 줄(y 묶음)만 만들고 토큰을 공백으로 쪼갠 뒤
+//    **종류로 판독**한다 — 공항 3글자 · 시각 4자리(+N) · 기종 3자리 · HL 등록번호.
+//    (메모리의 교훈 그대로: "칸 순서 의존 금지, 토큰을 종류로 분류하는 방식이 안전")
+//
+// 줄 판독 규칙:
+//  · 날짜: 줄 텍스트의 "Sat 01 Aug"(요일+일+월). 그날 첫 활동 줄에 함께 있고,
+//    이어지는 편은 날짜가 없으므로 직전 날짜를 물려받는다
+//  · 비행: **공항·시각·시각·공항·시각·시각 여섯 토큰이 연속**하고(출발지·STD(L)·STD(B)·
+//    도착지·STA(L)·STA(B)) 그 **뒤에 기종(738)이나 HL 등록번호가 있는** 줄.
+//    OFF·스탠바이도 "GMP 0000 0000 GMP 2359 2359"로 같은 여섯 토큰이 나오지만
+//    기종·등록번호가 없어 갈리고, LAYOV(숙박)는 그 자리에 호텔 이름이 온다
+//  · 시각은 (L)현지·(B)베이스 두 벌 — **(L)만 쓴다** (UTC 변환은 앱 RosterTime 몫)
+//  · 편명 찾기(우선순위): ① 줄 안의 "7C####"(붙어 나오는 경우) → ② **아래·위 줄의
+//    외딴 번호** — Activity 칸이 번호와 "7C"를 두 줄로 그려서, 번호만 있는 줄이
+//    비행 줄 바로 곁에 온다 → ③ 여섯 토큰 바로 앞의 번호("7C"는 건너뜀) → ④ 페어링(F119)
+//    로스터는 0을 채워 "0119"로 적지만 실제 편명은 7C119 — 앞의 0을 뗀다
 
 export type JejuRosterFlight = {
   flight_date: string
@@ -36,48 +41,26 @@ type PdfLike = {
   getPage(n: number): Promise<{ getTextContent(): Promise<{ items: unknown[] }> }>
 }
 
-type Item = { t: string; x: number; y: number }
-type Row = { y: number; items: Item[] }
-
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 }
 
-/** 컬럼 경계 [시작, 끝) — 실파일 실측. 값 형태로 한 번 더 거르므로 조금 어긋나도 버틴다 */
-const C_DATE = [0, 70] as const
-const C_PAIRING = [70, 170] as const
-const C_ROSTER = [250, 300] as const
-const C_ACT = [300, 345] as const
-const C_FROM = [345, 372] as const
-const C_STD_L = [372, 405] as const
-const C_TO = [450, 472] as const
-const C_STA_L = [472, 510] as const
-const C_TYPE = [555, 610] as const
-/** 크루 명단이 시작되는 x — 여기부터는 통째로 버린다 */
-const CREW_X = 720
-
-/** "Sun 23 Aug" — 요일이 붙어 있어 다른 숫자와 헷갈리지 않는다 */
-const DATE_CELL = /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{1,2})\s+([A-Za-z]{3})$/
-const NUM4 = /^\d{3,4}$/
+/** "Sat 01 Aug" — 서버가 "Sat","01","Aug"로 쪼개도 이어붙인 줄 텍스트에서는 이 모양이다 */
+const DATE_RE = /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s*(\d{1,2})\s*([A-Za-z]{3})/
 const AIRPORT_RE = /^[A-Z]{3}$/
+const NUM_RE = /^\d{3,4}$/
 const TYPE_RE = /^\d{3}$/
 
 const TYPE_MAP: Record<string, string> = {
   '738': 'B737-800',
   '739': 'B737-900',
-  '73H': 'B737-800',
-  '7M8': 'B737 MAX 8',
 }
 
 /**
  * ⚠️ 이 판정을 **편명이나 "CrewConnex"로 하면 안 된다** (2026-08-09 실기에서 잡았다).
  *  · "CrewConnex"는 **파일 이름에만** 있고 본문에는 없다
- *  · 편명은 PDF가 "7C"와 번호를 따로 뱉어서, 라우트가 이어붙인 텍스트에는
- *    "7C 1811"처럼 **떨어져 있다** — `\b7C\d{3,4}\b` 는 한 건도 안 걸린다
- * 그래서 처음엔 여기서 false가 나 기본(Lion) 파서까지 내려갔고
- * "로스터 형식이 아니에요"만 떴다.
- *
+ *  · 편명은 PDF가 "7C"와 번호를 따로 뱉어서 `\b7C\d{3,4}\b` 는 한 건도 안 걸린다
  * 베이스 시각 컬럼(STD(B)·STA(B))이 이 양식만의 표시다 — 현지·베이스를 나란히 적는
  * 로스터는 지금까지 이것뿐이다.
  */
@@ -94,7 +77,7 @@ function period(text: string): { year: number; month: number } | null {
 }
 
 /** "1455" → 14:55 · "0145+1" → 01:45 (다음 날). 시각이 아니면 null */
-function timeCell(s: string): { hm: string; plus: number } | null {
+function timeTok(s: string): { hm: string; plus: number } | null {
   const m = /^(\d{2})(\d{2})(?:\+(\d))?$/.exec(s)
   if (!m) return null
   if (Number(m[1]) > 23 || Number(m[2]) > 59) return null
@@ -104,28 +87,25 @@ function timeCell(s: string): { hm: string; plus: number } | null {
 const pad = (n: number) => String(n).padStart(2, '0')
 const iso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`
 
-const inCol = (items: Item[], c: readonly [number, number]) =>
-  items.filter((i) => i.x >= c[0] && i.x < c[1]).map((i) => i.t)
-
 export async function parseJejuRoster(pdf: PdfLike): Promise<{
   period: { year: number; month: number } | null
   flights: JejuRosterFlight[]
-  /** 못 읽었을 때 라우트가 에러에 실어 보내는 진단 — 서버가 실제로 본 좌표다.
-   *  로컬에 Node가 없어 unpdf를 돌려볼 수 없으므로, 이게 원인을 알아내는 가장 빠른 길이다
-   *  (대한항공 때도 이 방법으로 한 번에 잡았다). 안정되면 지워도 된다. */
+  /** 못 읽었을 때 라우트가 에러에 실어 보내는 진단 — 서버가 실제로 본 것.
+   *  로컬에 Node가 없어 unpdf를 못 돌리므로 이게 원인을 찾는 가장 빠른 길이다. */
   debug?: string
 }> {
-  // 쪽별로 줄을 만든다 — 날짜를 몰아 주는 처리가 쪽을 넘어가면 안 되므로 쪽 단위로 둔다
-  const pages: Row[][] = []
-  // 진단용 — 로컬에 Node가 없어 unpdf를 못 돌리므로 서버가 실제로 본 좌표를 담아 둔다
+  // 쪽 → 줄(위에서 아래) → 토큰(왼쪽에서 오른쪽, 공백으로 쪼갬)
+  const pages: string[][][] = []
+  const fullParts: string[] = []
   let rawCount = 0
   let rawMinX = Infinity
   let rawMaxX = -Infinity
   const rawSample: string[] = []
+
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
     const tc = await page.getTextContent()
-    const items: Item[] = []
+    const items: { t: string; x: number; y: number }[] = []
     for (const raw of tc.items as { str?: string; transform?: number[] }[]) {
       const t = (raw.str ?? '').replace(/\u200B/g, '').trim()
       if (!t || !raw.transform) continue
@@ -134,17 +114,14 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
         rawCount++
         if (x < rawMinX) rawMinX = x
         if (x > rawMaxX) rawMaxX = x
-        // 헤더(실측 y≈774) **아래**에서만 뽑는다 — 데이터 행이 어떤 모양으로 오는지가 핵심이다
-        if (raw.transform[5] < 770 && rawSample.length < 16) {
-          rawSample.push(`${t}@${Math.round(x)},${Math.round(raw.transform[5])}`)
-        }
+        if (rawSample.length < 12) rawSample.push(`${t}@${Math.round(x)},${Math.round(raw.transform[5])}`)
       }
-      if (x >= CREW_X) continue                      // 크루 명단은 통째로 버린다
       items.push({ t, x, y: raw.transform[5] })
+      fullParts.push(t)
     }
-    // 같은 y = 한 줄 (소수점 흔들림은 0.5 단위로 흡수)
+    // 같은 y = 한 줄 (0.5 단위로 흔들림 흡수)
     // ⚠️ Map 을 직접 for…of 로 돌리면 이 레포 빌드 타깃에서 깨진다 → Array.from
-    const byRow = new Map<number, Item[]>()
+    const byRow = new Map<number, { t: string; x: number }[]>()
     for (const it of items) {
       const key = Math.round(it.y * 2) / 2
       const bucket = byRow.get(key)
@@ -153,87 +130,107 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
     }
     pages.push(
       Array.from(byRow.entries())
-        .sort((a, b) => b[0] - a[0])                 // 위 → 아래
-        .map((e) => ({ y: e[0], items: e[1].sort((a, b) => a.x - b.x) }))
+        .sort((a, b) => b[0] - a[0])                     // 위 → 아래
+        .map((e) =>
+          e[1]
+            .sort((a, b) => a.x - b.x)
+            .flatMap((i) => i.t.split(/\s+/))
+            .filter(Boolean)
+        )
     )
   }
 
-  const all: string[] = []
-  for (const rows of pages) for (const r of rows) for (const it of r.items) all.push(it.t)
   const dbg =
     `쪽${pdf.numPages} 조각${rawCount} x${Math.round(rawMinX)}~${Math.round(rawMaxX)} | ` +
     rawSample.join(' ')
 
-  const p = period(all.join(' '))
+  const p = period(fullParts.join(' '))
   if (!p) return { period: null, flights: [], debug: `기간 못 읽음 · ${dbg}` }
 
   const lastDay = new Date(p.year, p.month, 0).getDate()
   const out: JejuRosterFlight[] = []
 
+  /** "번호만 있는 줄"의 번호 — 3~4자리 숫자 토큰이 정확히 하나일 때만.
+   *  비행 줄은 시각(4자리)이 여럿이라 절대 걸리지 않고, 크루 사번은 7자리라 안 걸린다. */
+  const loneNum = (row?: string[]): string | null => {
+    if (!row) return null
+    const nums = row.filter((t) => NUM_RE.test(t))
+    return nums.length === 1 ? nums[0] : null
+  }
+
   for (const rows of pages) {
-    // 날짜 줄을 만나기 전까지 모아 두는 편들 — 이 로스터는 날짜 줄이 **그날 편들의 맨 아래**에 온다
-    let pending: Omit<JejuRosterFlight, 'flight_date'>[] = []
+    let curDay: number | null = null
 
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i]
-      const act = inCol(row.items, C_ACT)
+      const toks = rows[i]
+      const joined = toks.join(' ')
 
-      // 비행 줄인가 — **기종 칸(738)이 있을 때만.**
-      //
-      // ⚠️ 편명의 "7C" 조각으로 판정하면 안 된다. 실파일에서 **어떤 편은 "7C"가 아예
-      //    추출되지 않는다**(8·9일 편들). 그걸 기준으로 삼았더니 그 이틀이 통째로 빠졌다.
-      //    기종은 비행에만 있다 — 휴무·스탠바이는 그 칸이 비고, 숙박(LAYOV)은 호텔 이름이 온다.
-      const type = inCol(row.items, C_TYPE).find((t) => TYPE_RE.test(t))
-      if (type) {
-        // 편명 번호: Roster 칸 → 없으면 **바로 윗줄**의 Activity 칸(그날 첫 편은 Roster가 빈다)
-        // → 그래도 없으면 Pairing 칸("F119")
-        let num = inCol(row.items, C_ROSTER).find((t) => NUM4.test(t))
-        if (!num && i > 0) num = inCol(rows[i - 1].items, C_ACT).find((t) => NUM4.test(t))
-        if (!num) num = act.find((t) => NUM4.test(t))
-        if (!num) {
-          const pair = inCol(row.items, C_PAIRING).find((t) => /^F\d{3,4}/.test(t))
-          if (pair) num = pair.replace(/^F/, '').replace(/[^\d].*$/, '')
+      // 날짜 — 그날 첫 활동 줄에 함께 있다 (다른 달이면 그 구간은 버린다)
+      const dm = DATE_RE.exec(joined)
+      if (dm) {
+        const mo = MONTHS[dm[2].toLowerCase()]
+        if (mo === p.month) {
+          const d = Number(dm[1])
+          curDay = d >= 1 && d <= lastDay ? d : null
+        } else if (mo !== undefined) {
+          curDay = null
         }
-        if (!num) continue                            // 번호를 못 찾으면 넣지 않는다
-
-        const st = timeCellOf(inCol(row.items, C_STD_L))
-        const fi = timeCellOf(inCol(row.items, C_STA_L))
-
-        pending.push({
-          // 로스터는 자리를 채워 "0119"로 적지만 실제 편명은 7C119다 — 앞의 0을 떼어 맞춘다
-          flight_number: `7C${Number(num)}`,
-          origin: inCol(row.items, C_FROM).find((t) => AIRPORT_RE.test(t)) ?? null,
-          destination: inCol(row.items, C_TO).find((t) => AIRPORT_RE.test(t)) ?? null,
-          std: st ? st.hm : null,
-          sta: fi ? fi.hm : null,
-          aircraft_type: type ? (TYPE_MAP[type] ?? type) : null,
-          overnight: (fi ? fi.plus : 0) > 0 || (!!st && !!fi && fi.hm < st.hm),
-        })
       }
 
-      // 날짜 줄이면 여기까지 모인 편들에게 이 날짜를 준다 (그 줄 자체가 비행일 수도 있어 위에서 먼저 담았다)
-      const dateCell = inCol(row.items, C_DATE).find((t) => DATE_CELL.test(t))
-      if (!dateCell) continue
-      const m = DATE_CELL.exec(dateCell)!
-      const day = Number(m[1])
-      const mo = MONTHS[m[2].toLowerCase()]
-      if (mo === p.month && day >= 1 && day <= lastDay) {
-        for (const f of pending) out.push({ flight_date: iso(p.year, p.month, day), ...f })
+      // 핵심 여섯 토큰: 공항 · 시각 · 시각 · 공항 · 시각 · 시각
+      let core = -1
+      for (let k = 0; k + 5 < toks.length; k++) {
+        if (
+          AIRPORT_RE.test(toks[k]) && timeTok(toks[k + 1]) && timeTok(toks[k + 2]) &&
+          AIRPORT_RE.test(toks[k + 3]) && timeTok(toks[k + 4]) && timeTok(toks[k + 5])
+        ) { core = k; break }
       }
-      pending = []                                    // 다른 달이면 그 편들은 버린다
+      if (core < 0 || curDay == null) continue
+
+      // 기종(738)이나 HL 등록번호가 핵심 뒤에 있어야 비행이다 — OFF·스탠바이·숙박을 거른다
+      const tail = toks.slice(core + 6)
+      const type = tail.find((t) => TYPE_RE.test(t))
+      const hasReg = tail.some((t) => /^HL/.test(t))     // 게이트와 붙어 "HL808920-54"로 올 수 있다
+      if (!type && !hasReg) continue
+
+      // 편명 번호
+      let num: string | null = null
+      const m7c = /7C\s?(\d{3,4})/.exec(joined)          // "18117C1811"처럼 붙어 나오는 경우까지
+      if (m7c) num = m7c[1]
+      if (!num) num = loneNum(rows[i + 1]) ?? loneNum(rows[i - 1])
+      if (!num) {
+        // 핵심 바로 앞의 번호 — "7C"만 건너뛰고 한 칸만 본다
+        // (더 거슬러 올라가면 체크인 시각을 편명으로 오인한다)
+        for (let k = core - 1; k >= 0; k--) {
+          if (toks[k] === '7C') continue
+          if (NUM_RE.test(toks[k])) num = toks[k]
+          break
+        }
+      }
+      if (!num) {
+        const pm = /\bF(\d{3,4})/.exec(joined)           // 페어링 F119 → 119 (최후의 수단)
+        if (pm) num = pm[1]
+      }
+      if (!num) continue
+
+      const st = timeTok(toks[core + 1])
+      const fi = timeTok(toks[core + 4])
+      if (!st || !fi) continue
+
+      out.push({
+        flight_date: iso(p.year, p.month, curDay),
+        flight_number: `7C${Number(num)}`,               // "0119" → 7C119
+        origin: toks[core],
+        destination: toks[core + 3],
+        std: st.hm,
+        sta: fi.hm,
+        aircraft_type: type ? (TYPE_MAP[type] ?? type) : null,
+        overnight: fi.plus > 0 || fi.hm < st.hm,
+      })
     }
   }
 
-  // 화면에는 역순으로 놓여 있어 파싱 결과도 역순이다 — 날짜·시각 순으로 바로 세운다
   out.sort((a, b) =>
     a.flight_date.localeCompare(b.flight_date) || (a.std ?? '').localeCompare(b.std ?? ''))
-  return { period: p, flights: out, debug: out.length ? undefined : `비행 0편 · ${dbg}` }
-}
-
-function timeCellOf(cells: string[]): { hm: string; plus: number } | null {
-  for (const s of cells) {
-    const v = timeCell(s)
-    if (v) return v
-  }
-  return null
+  return { period: p, flights: out, debug: out.length ? undefined : `비행 0편(v2) · ${dbg}` }
 }

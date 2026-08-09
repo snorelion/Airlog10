@@ -70,9 +70,19 @@ const TYPE_MAP: Record<string, string> = {
   '7M8': 'B737 MAX 8',
 }
 
+/**
+ * ⚠️ 이 판정을 **편명이나 "CrewConnex"로 하면 안 된다** (2026-08-09 실기에서 잡았다).
+ *  · "CrewConnex"는 **파일 이름에만** 있고 본문에는 없다
+ *  · 편명은 PDF가 "7C"와 번호를 따로 뱉어서, 라우트가 이어붙인 텍스트에는
+ *    "7C 1811"처럼 **떨어져 있다** — `\b7C\d{3,4}\b` 는 한 건도 안 걸린다
+ * 그래서 처음엔 여기서 false가 나 기본(Lion) 파서까지 내려갔고
+ * "로스터 형식이 아니에요"만 떴다.
+ *
+ * 베이스 시각 컬럼(STD(B)·STA(B))이 이 양식만의 표시다 — 현지·베이스를 나란히 적는
+ * 로스터는 지금까지 이것뿐이다.
+ */
 export function isJejuRoster(text: string): boolean {
-  // CrewConnex는 다른 회사도 쓸 수 있어 7C 편명을 함께 본다
-  return /CrewConnex/i.test(text) || (/\b7C\d{3,4}\b/.test(text) && /Pairing/i.test(text))
+  return /STD\(B\)/i.test(text) && /STA\(B\)/i.test(text)
 }
 
 /** "Period: 01Aug26 to 31Aug26" → 연·월 */

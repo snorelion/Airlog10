@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentProxy } from 'unpdf'
 import { createApiSupabase } from '@/lib/supabase-server'
+import { isEastarRoster, parseEastarRoster } from '@/lib/roster-eastar'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
 
@@ -77,6 +78,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Peach 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
     }
     return NextResponse.json(result)
+  }
+
+  // Eastar Jet은 "한 줄이 한 활동"인 표 형식이고 **여러 쪽**이다 —
+  // 여기서 모으는 items는 1쪽뿐이라 문서를 통째로 넘겨 파서가 쪽을 순회하게 한다 (Peach와 같은 방식)
+  if (pdfDoc && isEastarRoster(full)) {
+    const result = await parseEastarRoster(pdfDoc as unknown as Parameters<typeof parseEastarRoster>[0])
+    if (!result.period || !result.flights.length) {
+      return NextResponse.json({ error: 'Eastar Jet 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    const { year, month } = result.period
+    const mm = String(month).padStart(2, '0')
+    const last = new Date(year, month, 0).getDate()
+    return NextResponse.json({
+      period: { start: `${year}-${mm}-01`, end: `${year}-${mm}-${last}` },
+      flights: result.flights,
+      stats: { flights: result.flights.length, offDays: 0, standbyDays: 0 },
+      // 데드헤드는 편명이 없어 넣지 않았다 — 몇 건인지는 알려 준다
+      notes: result.deadheads
+        ? [`데드헤드(DH) ${result.deadheads}건은 편명이 없어 넣지 않았어요 — 필요하면 직접 넣어 주세요.`]
+        : undefined,
+    })
   }
 
   // Thai Airways는 가로 31일 달력 격자라 Lion 파서(세로 컬럼)로는 못 읽는다 → 전용 파서

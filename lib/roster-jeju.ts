@@ -90,17 +90,10 @@ const iso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`
 export async function parseJejuRoster(pdf: PdfLike): Promise<{
   period: { year: number; month: number } | null
   flights: JejuRosterFlight[]
-  /** 못 읽었을 때 라우트가 에러에 실어 보내는 진단 — 서버가 실제로 본 것.
-   *  로컬에 Node가 없어 unpdf를 못 돌리므로 이게 원인을 찾는 가장 빠른 길이다. */
-  debug?: string
 }> {
   // 쪽 → 줄(위에서 아래) → 토큰(왼쪽에서 오른쪽, 공백으로 쪼갬)
   const pages: string[][][] = []
   const fullParts: string[] = []
-  let rawCount = 0
-  let rawMinX = Infinity
-  let rawMaxX = -Infinity
-  const rawSample: string[] = []
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
@@ -109,14 +102,7 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
     for (const raw of tc.items as { str?: string; transform?: number[] }[]) {
       const t = (raw.str ?? '').replace(/\u200B/g, '').trim()
       if (!t || !raw.transform) continue
-      const x = raw.transform[4]
-      if (p === 1) {
-        rawCount++
-        if (x < rawMinX) rawMinX = x
-        if (x > rawMaxX) rawMaxX = x
-        if (rawSample.length < 12) rawSample.push(`${t}@${Math.round(x)},${Math.round(raw.transform[5])}`)
-      }
-      items.push({ t, x, y: raw.transform[5] })
+      items.push({ t, x: raw.transform[4], y: raw.transform[5] })
       fullParts.push(t)
     }
     // 같은 y = 한 줄 (0.5 단위로 흔들림 흡수)
@@ -140,12 +126,8 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
     )
   }
 
-  const dbg =
-    `쪽${pdf.numPages} 조각${rawCount} x${Math.round(rawMinX)}~${Math.round(rawMaxX)} | ` +
-    rawSample.join(' ')
-
   const p = period(fullParts.join(' '))
-  if (!p) return { period: null, flights: [], debug: `기간 못 읽음 · ${dbg}` }
+  if (!p) return { period: null, flights: [] }
 
   const lastDay = new Date(p.year, p.month, 0).getDate()
   const out: JejuRosterFlight[] = []
@@ -232,5 +214,5 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
 
   out.sort((a, b) =>
     a.flight_date.localeCompare(b.flight_date) || (a.std ?? '').localeCompare(b.std ?? ''))
-  return { period: p, flights: out, debug: out.length ? undefined : `비행 0편(v2) · ${dbg}` }
+  return { period: p, flights: out }
 }

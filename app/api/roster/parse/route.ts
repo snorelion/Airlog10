@@ -86,11 +86,7 @@ export async function POST(req: NextRequest) {
   if (pdfDoc && isJejuRoster(full)) {
     const result = await parseJejuRoster(pdfDoc as unknown as Parameters<typeof parseJejuRoster>[0])
     if (!result.period || !result.flights.length) {
-      // 진단을 함께 보낸다 — 로컬에 Node가 없어 unpdf를 못 돌리므로, 서버가 실제로 본 좌표를
-      // 화면에서 받아 보는 게 원인을 찾는 가장 빠른 길이다 (대한항공 때도 이 방법으로 잡았다)
-      return NextResponse.json(
-        { error: 'Jeju Air 로스터에서 비행을 찾지 못했어요. ' + (result.debug ?? '') },
-        { status: 422 })
+      return NextResponse.json({ error: 'Jeju Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
     }
     const { year, month } = result.period
     const mm = String(month).padStart(2, '0')

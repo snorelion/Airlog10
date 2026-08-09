@@ -110,9 +110,18 @@ const inCol = (items: Item[], c: readonly [number, number]) =>
 export async function parseJejuRoster(pdf: PdfLike): Promise<{
   period: { year: number; month: number } | null
   flights: JejuRosterFlight[]
+  /** 못 읽었을 때 라우트가 에러에 실어 보내는 진단 — 서버가 실제로 본 좌표다.
+   *  로컬에 Node가 없어 unpdf를 돌려볼 수 없으므로, 이게 원인을 알아내는 가장 빠른 길이다
+   *  (대한항공 때도 이 방법으로 한 번에 잡았다). 안정되면 지워도 된다. */
+  debug?: string
 }> {
   // 쪽별로 줄을 만든다 — 날짜를 몰아 주는 처리가 쪽을 넘어가면 안 되므로 쪽 단위로 둔다
   const pages: Row[][] = []
+  // 진단용 — 로컬에 Node가 없어 unpdf를 못 돌리므로 서버가 실제로 본 좌표를 담아 둔다
+  let rawCount = 0
+  let rawMinX = Infinity
+  let rawMaxX = -Infinity
+  const rawSample: string[] = []
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
     const tc = await page.getTextContent()
@@ -121,6 +130,12 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
       const t = (raw.str ?? '').replace(/\u200B/g, '').trim()
       if (!t || !raw.transform) continue
       const x = raw.transform[4]
+      if (p === 1) {
+        rawCount++
+        if (x < rawMinX) rawMinX = x
+        if (x > rawMaxX) rawMaxX = x
+        if (rawSample.length < 10) rawSample.push(`${t}@${Math.round(x)},${Math.round(raw.transform[5])}`)
+      }
       if (x >= CREW_X) continue                      // 크루 명단은 통째로 버린다
       items.push({ t, x, y: raw.transform[5] })
     }
@@ -142,8 +157,12 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
 
   const all: string[] = []
   for (const rows of pages) for (const r of rows) for (const it of r.items) all.push(it.t)
+  const dbg =
+    `쪽${pdf.numPages} 조각${rawCount} x${Math.round(rawMinX)}~${Math.round(rawMaxX)} | ` +
+    rawSample.join(' ')
+
   const p = period(all.join(' '))
-  if (!p) return { period: null, flights: [] }
+  if (!p) return { period: null, flights: [], debug: `기간 못 읽음 · ${dbg}` }
 
   const lastDay = new Date(p.year, p.month, 0).getDate()
   const out: JejuRosterFlight[] = []
@@ -205,7 +224,7 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
   // 화면에는 역순으로 놓여 있어 파싱 결과도 역순이다 — 날짜·시각 순으로 바로 세운다
   out.sort((a, b) =>
     a.flight_date.localeCompare(b.flight_date) || (a.std ?? '').localeCompare(b.std ?? ''))
-  return { period: p, flights: out }
+  return { period: p, flights: out, debug: out.length ? undefined : `비행 0편 · ${dbg}` }
 }
 
 function timeCellOf(cells: string[]): { hm: string; plus: number } | null {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentProxy } from 'unpdf'
 import { createApiSupabase } from '@/lib/supabase-server'
 import { isEastarRoster, parseEastarRoster } from '@/lib/roster-eastar'
+import { isJejuRoster, parseJejuRoster } from '@/lib/roster-jeju'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
 
@@ -78,6 +79,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Peach 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
     }
     return NextResponse.json(result)
+  }
+
+  // Jeju Air(CrewConnex)도 여러 쪽이라 문서를 통째로 넘긴다.
+  // 크루 명단이 편마다 딸려오고 로스터가 역순이라 전용 파서가 그걸 다 맡는다
+  if (pdfDoc && isJejuRoster(full)) {
+    const result = await parseJejuRoster(pdfDoc as unknown as Parameters<typeof parseJejuRoster>[0])
+    if (!result.period || !result.flights.length) {
+      return NextResponse.json({ error: 'Jeju Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    const { year, month } = result.period
+    const mm = String(month).padStart(2, '0')
+    const last = new Date(year, month, 0).getDate()
+    return NextResponse.json({
+      period: { start: `${year}-${mm}-01`, end: `${year}-${mm}-${last}` },
+      flights: result.flights,
+      stats: { flights: result.flights.length, offDays: 0, standbyDays: 0 },
+    })
   }
 
   // Eastar Jet은 "한 줄이 한 활동"인 표 형식이고 **여러 쪽**이다 —

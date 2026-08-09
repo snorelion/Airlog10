@@ -30,7 +30,7 @@
 //    (Lion·KAL 파서와 같은 정책: 회사 로그북이 공식 기록이다).
 
 import { getDocumentProxy } from 'unpdf'
-import type { ParsedFlight, ParseResult, ParsedAircraft } from './logten'
+import type { ParsedFlight, ParseResult } from './logten'
 import { blankFlight } from './company-log'
 
 /** "3h00" → 180 */
@@ -164,7 +164,6 @@ export function acExtractFromText(text: string): AcExtract | null {
 /** 추출 결과 → 앱이 먹는 ParseResult */
 export function acBuildFlights(ex: AcExtract, iataToIcao: Record<string, string>): ParseResult {
   const flights: ParsedFlight[] = []
-  const acMap = new Map<string, ParsedAircraft>()
   const warnings: string[] = []
   const seq = new Map<string, number>()
   const skipped = new Map<string, number>()   // 건너뛴 페어링 → 구간 수
@@ -198,10 +197,6 @@ export function acBuildFlights(ex: AcExtract, iataToIcao: Record<string, string>
     f.crew_pic = null
     f.source = 'aircanada'
     flights.push(f)
-
-    if (leg.acType && !acMap.has(leg.acType)) {
-      acMap.set(leg.acType, { registration: '', type: leg.acType })
-    }
   }
 
   if (skipped.size) {
@@ -226,7 +221,9 @@ export function acBuildFlights(ex: AcExtract, iataToIcao: Record<string, string>
 
   return {
     flights,
-    aircraft: Array.from(acMap.values()),
+    // Block Report엔 등록번호가 없다 — 항공기는 등록번호가 유일키라 넣지 않는다.
+    // 기종은 각 비행의 aircraft_type에 이미 들어간다. (Lion 파서와 같은 정책)
+    aircraft: [],
     notes: warnings,
     errors: flights.length ? [] : ['Air Canada Block Report에서 비행을 찾지 못했어요.'],
   }

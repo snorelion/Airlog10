@@ -4,6 +4,7 @@ import { createApiSupabase } from '@/lib/supabase-server'
 import { parseCompanyLog } from '@/lib/company-log'
 import { pdfToCompanyRows } from '@/lib/company-log-pdf'
 import { kalExtract, kalBuildFlights } from '@/lib/company-log-kal'
+import { acExtract, acBuildFlights } from '@/lib/company-log-ac'
 
 // Thai Lion Air 회사 로그북(PilotLogBookReport) 엑셀 파서
 // 확장자가 .csv로 내려오지만 실제 내용은 xlsx다 (파일 시그니처 'PK').
@@ -94,6 +95,19 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json(result)
     }
+    // Air Canada "Block Report" — 표 형식이라 좌표 없이 줄만 읽으면 된다.
+    // 이 양식은 크루 배정 줄에 **UTC**가 적혀 있어 시간대 변환이 아예 필요 없다.
+    const ac = await acExtract(new Uint8Array(buf)).catch(() => null)
+    if (ac) {
+      const codes = new Set<string>()
+      for (const l of ac.legs) { codes.add(l.dep); codes.add(l.arr) }
+      const result = acBuildFlights(ac, await lookupIcao(supabase, codes))
+      if (!result.flights.length) {
+        return NextResponse.json({ error: result.errors[0] }, { status: 422 })
+      }
+      return NextResponse.json(result)
+    }
+
     try {
       rows = await pdfToCompanyRows(new Uint8Array(buf))
     } catch (err) {

@@ -1,3 +1,5 @@
+import { importFormatsSentence } from '@/lib/import-formats'
+
 // /welcome 의 문구 전부 — 화면(WelcomeClient)에서 분리해 둔다.
 // 문구만 고칠 일이 훨씬 잦고, 세 언어를 나란히 두고 봐야 번역이 어긋나지 않는다.
 //
@@ -17,13 +19,13 @@ export const WELCOME_LANGS: { code: WelcomeLang; label: string }[] = [
   { code: 'th', label: 'ไทย' },
 ]
 
-/// 자동으로 알아보는 회사 양식 — **새 항공사를 지원하면 여기만 고친다.**
-/// 세 언어의 "지난 기록 가져오기" 문구가 이 값을 끼워 쓰므로, 문장을 세 번 찾아
-/// 고칠 필요가 없다 (2026-08-08 — 앞으로 계속 늘어날 목록이라 한 곳에 모았다).
+/// 자동으로 알아보는 회사 양식 — **새 항공사를 지원하면 lib/import-formats.ts 만 고친다.**
+/// (2026-08-10 승격: 문자열 상수 → lib/import-formats.ts 의 구조화 명단에서 파생.
+///  같은 명단을 /api/import-formats 로 iOS 앱도 읽는다 — 웹 문구·앱 화면이 함께 는다.)
 export const IMPORT_FORMATS = {
-  en: 'Air Canada, Eastar Jet, Jeju Air, Thai AirAsia, Thai Airways, Thai Lion Air, Korean Air, Peach Aviation and LogTen Pro',
-  ko: '에어캐나다 · 이스타항공 · 제주항공 · 타이에어아시아 · 타이항공 · 타이라이언에어 · 대한항공 · 피치항공 · LogTen Pro',
-  th: 'Air Canada, Eastar Jet, Jeju Air, Thai AirAsia, การบินไทย, Thai Lion Air, Korean Air, Peach Aviation และ LogTen Pro',
+  en: importFormatsSentence('en'),
+  ko: importFormatsSentence('ko'),
+  th: importFormatsSentence('th'),
 } as const
 
 type Pair = { t: string; d: string }

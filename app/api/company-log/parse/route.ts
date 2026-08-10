@@ -79,37 +79,51 @@ export async function POST(req: NextRequest) {
   const buf = await file.arrayBuffer()
   const head = new Uint8Array(buf.slice(0, 4))
   const isPdf = head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46 // %PDF
+  // ⚠️ pdf.js는 받은 버퍼를 파싱하면서 소비(detach)할 수 있다 — 파서마다 복사본을 준다.
+  //    (KAL 판별을 지나 AC 판별로 넘어갈 때 죽어 500이 나던 원인 — 2026-08-10 실기기 실측)
+  const pdfCopy = () => new Uint8Array(buf.slice(0))
   let rows: string[][] = []
   if (isPdf) {
     // 대한항공 "Flight Log Report"인지 먼저 자동 감지 — 맞으면 전용 파서로 끝낸다
-    const kal = await kalExtract(new Uint8Array(buf)).catch(() => null)
+    const kal = await kalExtract(pdfCopy()).catch(() => null)
     if (kal) {
-      const codes = new Set<string>()
-      for (const r of kal.rows) {
-        codes.add(r.dep.toUpperCase())
-        codes.add(r.arr.toUpperCase())
+      try {
+        const codes = new Set<string>()
+        for (const r of kal.rows) {
+          codes.add(r.dep.toUpperCase())
+          codes.add(r.arr.toUpperCase())
+        }
+        const result = kalBuildFlights(kal, await lookupIcao(supabase, codes))
+        if (!result.flights.length) {
+          return NextResponse.json({ error: result.errors[0] }, { status: 422 })
+        }
+        return NextResponse.json(result)
+      } catch (err) {
+        // 500으로 죽는 대신 원인을 실어 보낸다 — 재현하면 메시지로 바로 진단된다
+        return NextResponse.json(
+          { error: 'Korean Air 파일을 읽다가 문제가 났어요: ' + String(err) }, { status: 422 })
       }
-      const result = kalBuildFlights(kal, await lookupIcao(supabase, codes))
-      if (!result.flights.length) {
-        return NextResponse.json({ error: result.errors[0] }, { status: 422 })
-      }
-      return NextResponse.json(result)
     }
     // Air Canada "Block Report" — 표 형식이라 좌표 없이 줄만 읽으면 된다.
     // 이 양식은 크루 배정 줄에 **UTC**가 적혀 있어 시간대 변환이 아예 필요 없다.
-    const ac = await acExtract(new Uint8Array(buf)).catch(() => null)
+    const ac = await acExtract(pdfCopy()).catch(() => null)
     if (ac) {
-      const codes = new Set<string>()
-      for (const l of ac.legs) { codes.add(l.dep); codes.add(l.arr) }
-      const result = acBuildFlights(ac, await lookupIcao(supabase, codes))
-      if (!result.flights.length) {
-        return NextResponse.json({ error: result.errors[0] }, { status: 422 })
+      try {
+        const codes = new Set<string>()
+        for (const l of ac.legs) { codes.add(l.dep); codes.add(l.arr) }
+        const result = acBuildFlights(ac, await lookupIcao(supabase, codes))
+        if (!result.flights.length) {
+          return NextResponse.json({ error: result.errors[0] }, { status: 422 })
+        }
+        return NextResponse.json(result)
+      } catch (err) {
+        return NextResponse.json(
+          { error: 'Air Canada 파일을 읽다가 문제가 났어요: ' + String(err) }, { status: 422 })
       }
-      return NextResponse.json(result)
     }
 
     try {
-      rows = await pdfToCompanyRows(new Uint8Array(buf))
+      rows = await pdfToCompanyRows(pdfCopy())
     } catch (err) {
       return NextResponse.json(
         { error: 'PDF를 읽지 못했어요. 회사 시스템에서 받은 파일 그대로 올려주세요. (' + String(err) + ')' },

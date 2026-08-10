@@ -235,3 +235,72 @@ function addMin(hhmm: string, add: number): string {
   const t = (h * 60 + m + add) % (24 * 60)
   return `${String(Math.floor(t / 60)).padStart(2, '0')}${String(t % 60).padStart(2, '0')}`
 }
+
+// ── 로스터 변환 — 같은 Block Report가 로스터 역할도 한다 (2026-08-10 라이언님 확인:
+//    Air Canada는 로그북·로스터가 같은 형식. 미래 기간이면 로스터, 지난 기간이면 로그북) ──
+
+export type AcRosterFlight = {
+  flight_date: string
+  flight_number: string
+  origin: string | null
+  destination: string | null
+  std: string | null
+  sta: string | null
+  aircraft_type: string | null
+  overnight: boolean
+}
+
+/** 추출 결과 → 로스터(예정 비행). 시각은 크루 배정 줄의 **UTC 그대로** — notes로 안내한다.
+ *  (다른 항공사 로스터는 회사가 적은 로컬 시각을 그대로 두는데, 이 양식은 UTC가 원문이다) */
+export function acBuildRoster(ex: AcExtract): {
+  period: { start: string; end: string } | null
+  flights: AcRosterFlight[]
+  notes: string[]
+} {
+  const flights: AcRosterFlight[] = []
+  const notes: string[] = []
+  const seq = new Map<string, number>()
+  const skipped = new Map<string, number>()
+
+  for (const leg of ex.legs) {
+    const key0 = `${leg.pairing}|${leg.flightNo}`
+    const n = (seq.get(key0) ?? 0) + 1
+    seq.set(key0, n)
+    const u = ex.utc.get(`${key0}|${n}`)
+    if (!u) { // 날짜를 알 수 없는 페어링은 로그북 쪽과 같은 이유로 건너뛴다
+      skipped.set(leg.pairing, (skipped.get(leg.pairing) ?? 0) + 1)
+      continue
+    }
+    const [h, m] = u.time.split(':').map(Number)
+    const end = h * 60 + m + leg.blockMin
+    const sta = addMin(u.time, leg.blockMin)
+    flights.push({
+      flight_date: u.date,
+      flight_number: `AC${leg.flightNo}`,
+      origin: leg.dep,
+      destination: leg.arr,
+      std: u.time,
+      sta: `${sta.slice(0, 2)}:${sta.slice(2)}`,
+      aircraft_type: leg.acType,
+      overnight: end >= 24 * 60,
+    })
+  }
+  flights.sort((a, b) => (a.flight_date + (a.std ?? '')).localeCompare(b.flight_date + (b.std ?? '')))
+
+  // "Bid period 2026-04-02 – 2026-05-02" — 못 찾으면 비행 날짜의 처음~끝으로
+  const pm = /Bid period.{0,20}?(\d{4}-\d{2}-\d{2}).{0,10}?(\d{4}-\d{2}-\d{2})/s.exec(ex.reportText)
+  const period = pm
+    ? { start: pm[1], end: pm[2] }
+    : flights.length
+      ? { start: flights[0].flight_date, end: flights[flights.length - 1].flight_date }
+      : null
+
+  if (skipped.size) {
+    const list = Array.from(skipped.entries()).map(([p, c]) => `${p} (${c})`).join(', ')
+    notes.push(`Skipped ${list} — no crew assignment line in the file, so the date is unknown.`)
+  }
+  // AC 사용자는 영어권 — 이 양식만 노트를 영어로 쓴다
+  notes.push('Times are UTC, as printed in the Block Report. In Settings › Roster times, use a fixed offset of +0 so logged times stay exact.')
+
+  return { period, flights, notes }
+}

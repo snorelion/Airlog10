@@ -18,7 +18,7 @@ export type AirlineSupport = {
 }
 
 export const AIRLINES: AirlineSupport[] = [
-  { name: 'Air Canada', ko: '에어캐나다', logbook: true },
+  { name: 'Air Canada', ko: '에어캐나다', logbook: true, roster: true }, // 같은 Block Report가 로스터 겸용
   { name: 'Eastar Jet', ko: '이스타항공', roster: true },
   { name: 'Jeju Air', ko: '제주항공', roster: true, photo: true },
   { name: 'Thai AirAsia', ko: '타이에어아시아', roster: true }, // Lion과 같은 AIMS 양식 — Lion 파서가 읽는다

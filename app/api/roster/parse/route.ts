@@ -5,6 +5,7 @@ import { isEastarRoster, parseEastarRoster } from '@/lib/roster-eastar'
 import { isJejuRoster, parseJejuRoster } from '@/lib/roster-jeju'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
+import { isAirCanadaBlockReport, acExtract, acBuildRoster } from '@/lib/company-log-ac'
 
 // Lion Air "Personal Crew Schedule Report" PDF 파서
 // 방식: 1페이지 글자들의 좌표(x,y)를 읽어 날짜 컬럼(dd/mm 헤더의 x)별로 묶고,
@@ -116,6 +117,23 @@ export async function POST(req: NextRequest) {
       notes: result.deadheads
         ? [`데드헤드(DH) ${result.deadheads}건은 편명이 없어 넣지 않았어요 — 필요하면 직접 넣어 주세요.`]
         : undefined,
+    })
+  }
+
+  // Air Canada Block Report — 로그북과 **같은 파일**이 로스터 역할도 한다 (미래 기간이면
+  // 예정 비행). 파서는 로그북 쪽(company-log-ac)을 그대로 재사용한다. 줄 단위 파싱이
+  // 필요해 문서를 새 버퍼로 다시 연다 (여기 items는 1쪽 공백 조합이라 못 쓴다).
+  if (isAirCanadaBlockReport(full)) {
+    const ex = await acExtract(new Uint8Array(await file.arrayBuffer())).catch(() => null)
+    const r = ex ? acBuildRoster(ex) : null
+    if (!r || !r.flights.length || !r.period) {
+      return NextResponse.json({ error: 'Air Canada Block Report에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    return NextResponse.json({
+      period: r.period,
+      flights: r.flights,
+      stats: { flights: r.flights.length, offDays: 0, standbyDays: 0 },
+      notes: r.notes,
     })
   }
 

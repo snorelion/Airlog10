@@ -123,7 +123,10 @@ export async function POST(req: NextRequest) {
   // Air Canada Block Report — 로그북과 **같은 파일**이 로스터 역할도 한다 (미래 기간이면
   // 예정 비행). 파서는 로그북 쪽(company-log-ac)을 그대로 재사용한다. 줄 단위 파싱이
   // 필요해 문서를 새 버퍼로 다시 연다 (여기 items는 1쪽 공백 조합이라 못 쓴다).
-  if (isAirCanadaBlockReport(full)) {
+  // ⚠️ 판별도 isAirCanadaBlockReport("DAY FLT# From" 연속 매치)를 그대로 못 쓴다 —
+  //    여기 full은 좌표 정렬이 안 된 조각이라 헤더 낱말이 흩어져 있다 (2026-08-10 실측:
+  //    로그북 칸은 되는데 로스터 칸만 안 되던 원인). 흩어져도 남는 고유 문구로 판별한다.
+  if (/Bid period/i.test(full) && /FLT#/i.test(full)) {
     const ex = await acExtract(new Uint8Array(await file.arrayBuffer())).catch(() => null)
     const r = ex ? acBuildRoster(ex) : null
     if (!r || !r.flights.length || !r.period) {

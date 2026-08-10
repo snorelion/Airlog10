@@ -36,6 +36,18 @@ BJJ Log10과 같은 플레이북: Next.js 14 + Supabase + Vercel + PWA (+ 추후
 - **push 전 반드시** `python3 scripts/check_i18n.py` — 이 Mac엔 Node가 없어 타입 검사를
   미리 못 돌린다. 실제 배포 실패 3건(스코프 밖 참조·역할/기종 착각·`t[key]` 잔재)을 이 검사로 잡았다.
 
+## 파서(가져오기) 추가 절차 — 새 항공사 지원할 때마다 이대로
+
+1. **파서 작성** (`lib/company-log-*.ts` 또는 `lib/roster-*.ts`) + 라우트에 감지 분기.
+   - ⚠️ **PDF 버퍼는 파서마다 복사본** — pdf.js가 받은 버퍼를 파싱하며 소비(detach)한다.
+     한 라우트에서 판별을 이어 하면(예: KAL 시도 → AC 시도) 두 번째가 죽어 **500**이 된다
+     (2026-08-10 에어캐나다 실측). company-log 라우트의 `pdfCopy()` 패턴을 쓸 것.
+   - ⚠️ Build/변환 단계는 try/catch로 감싸 **원인이 실린 422**를 보낸다 — 500은 진단 불가.
+2. **명단 갱신**: `lib/import-formats.ts` 한 줄 (웹 문구·iOS 앱 화면이 여기서 파생).
+3. **종단 검증까지가 완료다** — 파서 단위(텍스트 → 편수 확인)로 끝내지 말 것.
+   배포 후 **앱/웹에서 실파일 업로드 1회**가 통과해야 "지원"이라 말한다
+   (에어캐나다: 파서는 8/8 검증됐지만 업로드 경로 버그가 8/10에야 드러났다).
+
 ## LogTen 임포트 파서 함정 (lib/logten.ts)
 - 내보내기 파일이 **UTF-16 LE** (BOM FF FE) — File.text() 금지, decodeLogbookFile 사용.
 - remarks/aircraft_notes 안 줄바꿈이 레코드를 쪼갬 → "YYYY-MM-DD\t" 시작 줄만 새 레코드.

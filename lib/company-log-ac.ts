@@ -287,8 +287,9 @@ export function acBuildRoster(ex: AcExtract): {
   }
   flights.sort((a, b) => (a.flight_date + (a.std ?? '')).localeCompare(b.flight_date + (b.std ?? '')))
 
-  // "Bid period 2026-04-02 – 2026-05-02" — 못 찾으면 비행 날짜의 처음~끝으로
-  const pm = /Bid period.{0,20}?(\d{4}-\d{2}-\d{2}).{0,10}?(\d{4}-\d{2}-\d{2})/s.exec(ex.reportText)
+  // "Bid period 2026-04-02 – 2026-05-02" — 못 찾으면 비행 날짜의 처음~끝으로.
+  // ⚠️ /s 플래그 금지 (tsconfig target이 낮아 빌드가 죽는다) — 개행까지 건너야 하면 [\s\S]로.
+  const pm = /Bid period[\s\S]{0,20}?(\d{4}-\d{2}-\d{2})[\s\S]{0,10}?(\d{4}-\d{2}-\d{2})/.exec(ex.reportText)
   const period = pm
     ? { start: pm[1], end: pm[2] }
     : flights.length

@@ -17,6 +17,7 @@ BJJ Log10과 같은 플레이북: Next.js 14 + Supabase + Vercel + PWA (+ 추후
 - **코드 수정 전 계획 설명 + 컨펌**, git push 전 컨펌 (커밋은 OK).
 - **집계는 DB에서** — Supabase select 기본 1,000행 한도 함정. 통계는 RPC(my_totals, my_stats).
 - Map/Set 이터레이터 spread 금지 → Array.from (빌드 실패 함정).
+- 정규식 `/s` 플래그 금지 (같은 뿌리 — target 낮음) → `[\s\S]`로 (2026-08-10 에어캐나다 빌드 실패).
 - 모바일 우선 UI, word-break: keep-all, iOS 입력 appearance-none.
 - 마이그레이션: migrations/*.sql — 라이언님이 Supabase SQL Editor에 붙여넣어 실행 (채팅에 전문 코드블록으로 전달).
 

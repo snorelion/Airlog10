@@ -120,26 +120,6 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Air Canada Block Report — 로그북과 **같은 파일**이 로스터 역할도 한다 (미래 기간이면
-  // 예정 비행). 파서는 로그북 쪽(company-log-ac)을 그대로 재사용한다. 줄 단위 파싱이
-  // 필요해 문서를 새 버퍼로 다시 연다 (여기 items는 1쪽 공백 조합이라 못 쓴다).
-  // ⚠️ 판별도 isAirCanadaBlockReport("DAY FLT# From" 연속 매치)를 그대로 못 쓴다 —
-  //    여기 full은 좌표 정렬이 안 된 조각이라 헤더 낱말이 흩어져 있다 (2026-08-10 실측:
-  //    로그북 칸은 되는데 로스터 칸만 안 되던 원인). 흩어져도 남는 고유 문구로 판별한다.
-  if (/Bid period/i.test(full) && /FLT#/i.test(full)) {
-    const ex = await acExtract(new Uint8Array(await file.arrayBuffer())).catch(() => null)
-    const r = ex ? acBuildRoster(ex) : null
-    if (!r || !r.flights.length || !r.period) {
-      return NextResponse.json({ error: 'Air Canada Block Report에서 비행을 찾지 못했어요.' }, { status: 422 })
-    }
-    return NextResponse.json({
-      period: r.period,
-      flights: r.flights,
-      stats: { flights: r.flights.length, offDays: 0, standbyDays: 0 },
-      notes: r.notes,
-    })
-  }
-
   // Thai Airways는 가로 31일 달력 격자라 Lion 파서(세로 컬럼)로는 못 읽는다 → 전용 파서
   if (isThaiRoster(full)) {
     const result = parseThaiRoster(items)
@@ -159,6 +139,20 @@ export async function POST(req: NextRequest) {
 
   const period = full.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2})\/(\d{2})\/(\d{4})/)
   if (!period) {
+    // Lion 기간 표기가 없다 — Air Canada Block Report일 수 있다 (로그북과 같은 파일이
+    // 로스터 겸용, 2026-08-10 라이언님 확인). 여기 1쪽짜리 무정렬 full로는 판별이 안 되는
+    // 구조라(헤더가 뒤쪽에 있다 — 문구 판별 두 번 실패한 실측), 전 페이지를 줄 단위로
+    // 읽는 AC 파서에 통째로 넘겨 판별과 파싱을 한 번에 한다. AC가 아니면 null이라 무해.
+    const ex = await acExtract(new Uint8Array(await file.arrayBuffer())).catch(() => null)
+    const r = ex ? acBuildRoster(ex) : null
+    if (r && r.flights.length && r.period) {
+      return NextResponse.json({
+        period: r.period,
+        flights: r.flights,
+        stats: { flights: r.flights.length, offDays: 0, standbyDays: 0 },
+        notes: r.notes,
+      })
+    }
     return NextResponse.json({ error: '로스터 형식이 아니에요. (기간 표기를 찾지 못함)' }, { status: 422 })
   }
   const year = period[3]

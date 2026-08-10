@@ -5,7 +5,7 @@ import { isEastarRoster, parseEastarRoster } from '@/lib/roster-eastar'
 import { isJejuRoster, parseJejuRoster } from '@/lib/roster-jeju'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
-import { isAirCanadaBlockReport, acExtract, acBuildRoster } from '@/lib/company-log-ac'
+import { acExtract, acBuildRoster } from '@/lib/company-log-ac'
 
 // Lion Air "Personal Crew Schedule Report" PDF 파서
 // 방식: 1페이지 글자들의 좌표(x,y)를 읽어 날짜 컬럼(dd/mm 헤더의 x)별로 묶고,

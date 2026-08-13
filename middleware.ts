@@ -8,6 +8,9 @@ const PUBLIC_PATHS = [
   '/login', '/privacy', '/terms', '/welcome',
   '/api/auth/callback', '/api/airports/seed', '/api/roster/parse',
   '/api/company-log/parse',
+  // 지원 항공사 명단 — 공개 정보. 여기 없으면 307→/login이라 앱 refresh가
+  // 조용히 실패해 내장 기본값만 보인다 (2026-08-13 실측 — company-log 때와 같은 함정)
+  '/api/import-formats',
 ]
 
 export async function middleware(request: NextRequest) {

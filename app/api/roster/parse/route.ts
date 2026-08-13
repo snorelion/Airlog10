@@ -6,6 +6,7 @@ import { isJejuRoster, parseJejuRoster } from '@/lib/roster-jeju'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
 import { acExtract, acBuildRoster } from '@/lib/company-log-ac'
+import { parseTwayRoster } from '@/lib/roster-tway'
 
 // Lion Air "Personal Crew Schedule Report" PDF 파서
 // 방식: 1페이지 글자들의 좌표(x,y)를 읽어 날짜 컬럼(dd/mm 헤더의 x)별로 묶고,
@@ -53,6 +54,23 @@ export async function POST(req: NextRequest) {
   const file = form.get('file')
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'PDF 파일을 올려주세요.' }, { status: 400 })
+  }
+
+  // 엑셀(.xlsx, zip이라 'PK'로 시작)이면 PDF 경로 대신 엑셀 로스터 파서로.
+  // 지금은 티웨이(MonthlySchedule)뿐 — 다음 엑셀 로스터도 이 분기에 추가한다
+  const head = new Uint8Array(await file.slice(0, 2).arrayBuffer())
+  if (head[0] === 0x50 && head[1] === 0x4b) {
+    const tway = await parseTwayRoster(await file.arrayBuffer()).catch(() => null)
+    if (tway) {
+      if (!tway.flights.length) {
+        return NextResponse.json({ error: 'T\'way 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      }
+      return NextResponse.json(tway)
+    }
+    return NextResponse.json(
+      { error: '엑셀 로스터 형식을 인식하지 못했어요. (지원: T\'way 월간 스케줄)' },
+      { status: 422 }
+    )
   }
 
   let items: Item[] = []

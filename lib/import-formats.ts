@@ -26,6 +26,8 @@ export const AIRLINES: AirlineSupport[] = [
   { name: 'Thai Lion Air', ko: '타이라이언에어', logbook: true, roster: true },
   { name: 'Korean Air', ko: '대한항공', logbook: true, photo: true },
   { name: 'Peach Aviation', ko: '피치항공', roster: true },
+  // photo(스크린샷 OCR)는 앱 코드라서, 티웨이 사진 파서가 실린 앱 업데이트가 나갈 때 true로
+  { name: "T'way Air", ko: '티웨이항공', roster: true }, // 로스터가 PDF가 아니라 엑셀(MonthlySchedule)
 ]
 
 /// 항공사는 아니지만 가져오기가 되는 것 (웹 전용)

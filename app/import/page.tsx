@@ -220,17 +220,17 @@ export default function ImportPage() {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="rounded-2xl border border-app-line bg-app-surface p-5">
-            <h2 className="font-semibold">✈️ 로스터 PDF (Lion Air)</h2>
+            <h2 className="font-semibold">✈️ 로스터 (스케줄 파일)</h2>
             <p className="mt-1 text-sm text-app-sub">
-              Personal Crew Schedule Report PDF를 올리면 한 달 비행이 예정으로 등록되고,
-              홈에서 원탭으로 기록할 수 있어요.
+              회사에서 받은 스케줄 파일(PDF, 티웨이는 엑셀)을 올리면 한 달 비행이 예정으로
+              등록되고, 홈에서 원탭으로 기록할 수 있어요. 항공사는 자동으로 알아봐요.
             </p>
             {!roster ? (
               <label className="mt-4 block">
                 <span className="inline-block cursor-pointer rounded-xl border border-app-accent-soft bg-app-accent-soft px-5 py-3 font-semibold text-app-accent">
-                  {rosterBusy ? '읽는 중…' : '로스터 PDF 선택'}
+                  {rosterBusy ? '읽는 중…' : '로스터 파일 선택'}
                 </span>
-                <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={onRosterFile} />
+                <input type="file" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={onRosterFile} />
               </label>
             ) : (
               <div className="mt-4 space-y-3">

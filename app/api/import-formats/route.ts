@@ -12,6 +12,8 @@ export function GET() {
     ok: true,
     airlines: AIRLINES.map((a) => ({
       name: a.name,
+      country: a.country,
+      flag: a.flag,
       logbook: !!a.logbook,
       roster: !!a.roster,
       photo: !!a.photo,

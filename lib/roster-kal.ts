@@ -343,6 +343,24 @@ function apTime(s: string): { ap: string; hm: string; plus: number } | null {
   return { ap: m[1], hm: t, plus: p ? Number(p[1]) : 0 }
 }
 
+/** 회사 로그북 엑셀을 로스터 칸에 올렸는지 가벼운 감지 — "다른 칸" 안내용.
+ *  회사 로그북 판별(isCompanyLog)과 같은 첫 줄 헤더 세 개를 본다 */
+export async function xlsxLooksLikeCompanyLog(buf: ArrayBuffer): Promise<boolean> {
+  try {
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(buf)
+    const ws = wb.worksheets[0]
+    if (!ws) return false
+    const names = new Set<string>()
+    ws.getRow(1).eachCell({ includeEmpty: false }, (cell) => {
+      names.add(cellText(cell.value).trim())
+    })
+    return names.has('DepPlace') && names.has('FltTime') && names.has('ACType')
+  } catch {
+    return false
+  }
+}
+
 /** 대한항공 달력형 엑셀이 아니면 null (그래야 라우트가 "지원 안 함"을 구분해 알린다) */
 export async function parseKalRosterXlsx(buf: ArrayBuffer): Promise<KalRosterResult | null> {
   const wb = new ExcelJS.Workbook()

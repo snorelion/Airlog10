@@ -176,6 +176,16 @@ export async function POST(req: NextRequest) {
   // 3) 파싱
   const result = parseCompanyLog(rows, { iataToIcao })
   if (!result.flights.length && result.errors.length) {
+    // 로스터 엑셀을 회사 로그북 칸에 올린 실수 (2026-08-20 실측, KE 달력형) —
+    // "형식이 아니에요"보다 어느 칸에 올릴지 알려주는 게 훨씬 빠르다
+    const isRosterXlsx = !isPdf &&
+      rows.slice(0, 5).some((r) => r.some((c) => (c ?? '').trim() === 'Pairing/Activity'))
+    if (isRosterXlsx) {
+      return NextResponse.json(
+        { error: '이건 로스터(스케줄) 파일이에요 — 아래 Roster 칸에 올려주세요.' },
+        { status: 422 }
+      )
+    }
     return NextResponse.json({ error: result.errors[0] }, { status: 422 })
   }
   if (isPdf) {

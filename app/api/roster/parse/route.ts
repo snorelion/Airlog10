@@ -6,7 +6,7 @@ import { isJejuRoster, parseJejuRoster } from '@/lib/roster-jeju'
 import {
   isKalCwpRoster, parseKalCwpRoster,
   isKalCalendarRoster, parseKalCalendarRoster,
-  parseKalRosterXlsx, type KalRosterResult,
+  parseKalRosterXlsx, xlsxLooksLikeCompanyLog, type KalRosterResult,
 } from '@/lib/roster-kal'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
@@ -73,6 +73,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '엑셀을 읽지 못했어요: ' + String(err) }, { status: 422 })
     }
     if (!kx) {
+      // 회사 로그북 엑셀을 로스터 칸에 올린 실수면 어느 칸인지 알려준다 (회사 로그북 쪽과 대칭)
+      if (await xlsxLooksLikeCompanyLog(buf)) {
+        return NextResponse.json(
+          { error: '이건 회사 로그북 파일이에요 — 위 Company logbook 칸에 올려주세요.' },
+          { status: 422 }
+        )
+      }
       return NextResponse.json(
         { error: '아직 지원하지 않는 엑셀 로스터 양식이에요. PDF로 뽑아서 올려보세요.' }, { status: 422 })
     }

@@ -3,6 +3,11 @@ import { getDocumentProxy } from 'unpdf'
 import { createApiSupabase } from '@/lib/supabase-server'
 import { isEastarRoster, parseEastarRoster } from '@/lib/roster-eastar'
 import { isJejuRoster, parseJejuRoster } from '@/lib/roster-jeju'
+import {
+  isKalCwpRoster, parseKalCwpRoster,
+  isKalCalendarRoster, parseKalCalendarRoster,
+  parseKalRosterXlsx, type KalRosterResult,
+} from '@/lib/roster-kal'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
 import { acExtract, acBuildRoster } from '@/lib/company-log-ac'
@@ -55,10 +60,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'PDF 파일을 올려주세요.' }, { status: 400 })
   }
 
+  const buf = await file.arrayBuffer()
+
+  // 엑셀(.xlsx)은 zip이라 'PK'로 시작 — 대한항공 달력형 로스터의 엑셀 내보내기.
+  // 카톡을 거쳐 파일명이 바뀌어도 내용으로 판별한다. (지금 로스터 엑셀 양식은 이것뿐)
+  const sig = new Uint8Array(buf.slice(0, 2))
+  if (sig[0] === 0x50 && sig[1] === 0x4b) {
+    let kx: KalRosterResult | null = null
+    try {
+      kx = await parseKalRosterXlsx(buf)
+    } catch (err) {
+      return NextResponse.json({ error: '엑셀을 읽지 못했어요: ' + String(err) }, { status: 422 })
+    }
+    if (!kx) {
+      return NextResponse.json(
+        { error: '아직 지원하지 않는 엑셀 로스터 양식이에요. PDF로 뽑아서 올려보세요.' }, { status: 422 })
+    }
+    if (!kx.flights.length) {
+      return NextResponse.json({ error: 'Korean Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    return NextResponse.json(kx)
+  }
+
   let items: Item[] = []
   let pdfDoc: Awaited<ReturnType<typeof getDocumentProxy>> | null = null
   try {
-    const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()))
+    const pdf = await getDocumentProxy(new Uint8Array(buf.slice(0)))
     pdfDoc = pdf
     const page = await pdf.getPage(1)
     const tc = await page.getTextContent()
@@ -118,6 +145,24 @@ export async function POST(req: NextRequest) {
         ? [`데드헤드(DH) ${result.deadheads}건은 편명이 없어 넣지 않았어요 — 필요하면 직접 넣어 주세요.`]
         : undefined,
     })
+  }
+
+  // Korean Air 로스터 2종 (2026-08-20) — 크루넷 어디서 뽑느냐에 따라 양식이 다르다.
+  //  ① "Crew Roster Report"(cwp…): 비행+승무원 명단, STD/STA에 날짜까지 온다
+  //  ② "Roster Report" 달력형: DO·RESERVE 포함 (같은 표의 엑셀은 위 PK 분기가 받는다)
+  if (pdfDoc && isKalCwpRoster(full)) {
+    const result = await parseKalCwpRoster(pdfDoc as unknown as Parameters<typeof parseKalCwpRoster>[0])
+    if (!result || !result.flights.length) {
+      return NextResponse.json({ error: 'Korean Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    return NextResponse.json(result)
+  }
+  if (pdfDoc && isKalCalendarRoster(full)) {
+    const result = await parseKalCalendarRoster(pdfDoc as unknown as Parameters<typeof parseKalCalendarRoster>[0])
+    if (!result || !result.flights.length) {
+      return NextResponse.json({ error: 'Korean Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    return NextResponse.json(result)
   }
 
   // Thai Airways는 가로 31일 달력 격자라 Lion 파서(세로 컬럼)로는 못 읽는다 → 전용 파서

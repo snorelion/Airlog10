@@ -50,7 +50,8 @@ export type KalExtract = {
 
 // 대한항공 기종 코드 → 표준 표기 (실파일 등록번호로 확인된 것만).
 // 모르는 코드는 원문 그대로 두고 warning으로 알린다.
-const KAL_TYPE_MAP: Record<string, string> = {
+// 로스터 파서(roster-kal)도 이 맵을 물려받아 쓴다
+export const KAL_TYPE_MAP: Record<string, string> = {
   '74I': 'B747-8I',
   '74N': 'B747-8F',
   '74F': 'B747-400F',

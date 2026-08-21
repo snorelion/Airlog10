@@ -8,6 +8,7 @@ import {
   isKalCalendarRoster, parseKalCalendarRoster,
   parseKalRosterXlsx, xlsxLooksLikeCompanyLog, type KalRosterResult,
 } from '@/lib/roster-kal'
+import { isPremiaRoster, parsePremiaRoster } from '@/lib/roster-premia'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
 import { acExtract, acBuildRoster } from '@/lib/company-log-ac'
@@ -168,6 +169,16 @@ export async function POST(req: NextRequest) {
     const result = await parseKalCalendarRoster(pdfDoc as unknown as Parameters<typeof parseKalCalendarRoster>[0])
     if (!result || !result.flights.length) {
       return NextResponse.json({ error: 'Korean Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    return NextResponse.json(result)
+  }
+
+  // Air Premia "Crew Roster Report" (PDC, 2026-08-21) — 이스타도 같은 제목을 쓰지만
+  // 이스타 지문은 ZE 편명을 요구해 충돌 없다 (여기는 YP 편명 + STD(L)/(Z) 두 벌 헤더)
+  if (pdfDoc && isPremiaRoster(full)) {
+    const result = await parsePremiaRoster(pdfDoc as unknown as Parameters<typeof parsePremiaRoster>[0])
+    if (!result || !result.flights.length) {
+      return NextResponse.json({ error: 'Air Premia 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
     }
     return NextResponse.json(result)
   }

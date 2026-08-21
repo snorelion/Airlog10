@@ -22,6 +22,7 @@ export type AirlineSupport = {
 export const AIRLINES: AirlineSupport[] = [
   { name: 'Air Canada', ko: '에어캐나다', country: 'Canada', flag: '🇨🇦', logbook: true, roster: true }, // 같은 Block Report가 로스터 겸용
   { name: 'Peach Aviation', ko: '피치항공', country: 'Japan', flag: '🇯🇵', roster: true },
+  { name: 'Air Premia', ko: '에어프레미아', country: 'South Korea', flag: '🇰🇷', roster: true }, // PDC Crew Roster Report
   { name: 'Eastar Jet', ko: '이스타항공', country: 'South Korea', flag: '🇰🇷', roster: true },
   { name: 'Jeju Air', ko: '제주항공', country: 'South Korea', flag: '🇰🇷', roster: true, photo: true },
   // 로스터는 크루넷 양식 2종(Crew Roster Report·달력형)+달력형 엑셀 (2026-08-20)

@@ -230,7 +230,7 @@ export default function ImportPage() {
                 <span className="inline-block cursor-pointer rounded-xl border border-app-accent-soft bg-app-accent-soft px-5 py-3 font-semibold text-app-accent">
                   {rosterBusy ? '읽는 중…' : '로스터 파일 선택'}
                 </span>
-                <input type="file" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={onRosterFile} />
+                <input type="file" accept=".pdf,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" className="hidden" onChange={onRosterFile} />
               </label>
             ) : (
               <div className="mt-4 space-y-3">

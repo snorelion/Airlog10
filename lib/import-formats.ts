@@ -25,6 +25,7 @@ export const AIRLINES: AirlineSupport[] = [
   { name: 'Air Premia', ko: '에어프레미아', country: 'South Korea', flag: '🇰🇷', roster: true }, // PDC Crew Roster Report
   { name: 'Eastar Jet', ko: '이스타항공', country: 'South Korea', flag: '🇰🇷', roster: true },
   { name: 'Jeju Air', ko: '제주항공', country: 'South Korea', flag: '🇰🇷', roster: true, photo: true },
+  { name: 'Jin Air', ko: '진에어', country: 'South Korea', flag: '🇰🇷', roster: true }, // Crew Daily Roster (.xls로 오는 HTML)
   // 로스터는 크루넷 양식 2종(Crew Roster Report·달력형)+달력형 엑셀 (2026-08-20)
   { name: 'Korean Air', ko: '대한항공', country: 'South Korea', flag: '🇰🇷', logbook: true, roster: true, photo: true },
   // 사진(승무원 앱 Monthly Schedule 스크린샷) 온디바이스 OCR — 공항 체인까지 읽는다.

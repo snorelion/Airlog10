@@ -9,6 +9,7 @@ import {
   parseKalRosterXlsx, xlsxLooksLikeCompanyLog, type KalRosterResult,
 } from '@/lib/roster-kal'
 import { isPremiaRoster, parsePremiaRoster } from '@/lib/roster-premia'
+import { isJinairRoster, parseJinairRoster } from '@/lib/roster-jinair'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
 import { acExtract, acBuildRoster } from '@/lib/company-log-ac'
@@ -88,6 +89,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Korean Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
     }
     return NextResponse.json(kx)
+  }
+
+  // 이름만 .xls이고 실제는 HTML 표 — 진에어 "Crew Daily Roster" (2026-08-21).
+  // 옛 웹 시스템들이 HTML을 .xls로 내보낸다. 첫 글자 '<'로 판별한다
+  const textHead = new TextDecoder().decode(buf.slice(0, 64)).replace(/^\uFEFF/, '').trimStart()
+  if (textHead.startsWith('<')) {
+    const html = new TextDecoder().decode(buf)
+    if (isJinairRoster(html)) {
+      const result = parseJinairRoster(html)
+      if (!result || !result.flights.length) {
+        return NextResponse.json({ error: 'Jin Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      }
+      return NextResponse.json(result)
+    }
+    return NextResponse.json({ error: '아직 지원하지 않는 로스터 형식이에요.' }, { status: 422 })
   }
 
   let items: Item[] = []

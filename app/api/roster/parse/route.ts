@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
       stats: { flights: result.flights.length, offDays: 0, standbyDays: 0 },
       // 데드헤드는 편명이 없어 넣지 않았다 — 몇 건인지는 알려 준다
       notes: result.deadheads
-        ? [`데드헤드(DH) ${result.deadheads}건은 편명이 없어 넣지 않았어요 — 필요하면 직접 넣어 주세요.`]
+        ? [`${result.deadheads} deadhead (DH) legs have no flight number and weren't added — add them by hand if you need them.`]
         : undefined,
     })
   }
@@ -350,8 +350,9 @@ export async function POST(req: NextRequest) {
     period: { start: `${period[3]}-${period[2]}-${period[1]}`, end: `${period[6]}-${period[5]}-${period[4]}` },
     flights,
     stats: { flights: flights.length, offDays, standbyDays },
+    // notes는 웹 미리보기와 **앱 미리보기(영어 UI)** 양쪽에 그대로 보인다 — 영어로 쓴다 (AC와 동일)
     notes: bare
-      ? [`${bare}줄은 편명만 읽히고 구간·시각을 못 읽어 건너뛰었어요 — 파일을 확인해 주세요.`]
+      ? [`${bare} rows had only a flight number (no route or time) and were skipped — check the file.`]
       : undefined,
   })
 }

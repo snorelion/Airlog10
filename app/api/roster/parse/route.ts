@@ -269,6 +269,7 @@ export async function POST(req: NextRequest) {
   const flights: ParsedRosterFlight[] = []
   let offDays = 0
   let standbyDays = 0
+  let bare = 0   // 편명만 읽히고 구간·시각이 하나도 없는 줄 — 넣지 않는다 (아래 참고)
 
   for (let ci = 0; ci < cols.length; ci++) {
     const [dd, mm] = cols[ci].t.split('/')
@@ -329,7 +330,11 @@ export async function POST(req: NextRequest) {
         }
         f.origin = aps[0] ?? null
         f.destination = aps[1] ?? null
-        flights.push(f)
+        // 편명 뒤에 시각·공항이 하나도 안 따라온 줄 — 표기가 달라 못 읽은 것이다. 이런 행을 넣으면
+        // 앱 홈·스케줄에 "? → ?  --:-- – --:--"로 남고, STD가 NULL이라 서버 키가 안 겹쳐 정리도 안 된다
+        // (2026-08-23 라이언님 실측: 8/1~9 12편). 넣지 않고 몇 줄인지 notes로 알린다.
+        if (!f.origin && !f.destination && !f.std && !f.sta) bare++
+        else flights.push(f)
       } else {
         i++ // 듀티 시작/종료 시각 등은 건너뜀
       }
@@ -345,5 +350,8 @@ export async function POST(req: NextRequest) {
     period: { start: `${period[3]}-${period[2]}-${period[1]}`, end: `${period[6]}-${period[5]}-${period[4]}` },
     flights,
     stats: { flights: flights.length, offDays, standbyDays },
+    notes: bare
+      ? [`${bare}줄은 편명만 읽히고 구간·시각을 못 읽어 건너뛰었어요 — 파일을 확인해 주세요.`]
+      : undefined,
   })
 }

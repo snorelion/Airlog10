@@ -169,8 +169,10 @@ export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult 
       }
       const duties = colText['Duties'] ?? ''
       const details = colText['Details'] ?? ''
-      if (/\bOFF\b/.test(duties)) { offDays++; continue }
-      if (/\bSB\d?\b/.test(duties)) { standbyDays++; continue }
+      // 휴무·스탠바이 코드는 격자 파서(route.ts)와 같은 분류 — 8월 실파일에서 RERP(회복 휴식)·
+      // PHDO(대체 휴무)·RFD(리저브)가 나왔다 (2026-08-25 더블체크). 비행은 아니지만 통계에 센다.
+      if (/\b(OFF|RERP|RFD|PHDO|DO|AL|VAC)\b/.test(duties)) { offDays++; continue }
+      if (/\b(SB\d?|SMS)\b/.test(duties)) { standbyDays++; continue }
       if (/\bFTL\b/.test(duties) || /Training/.test(details)) continue
 
       // 편명 [기종] 목록 — 기종 괄호가 딴 조각으로 왔으면 순서로 다시 짝짓는다

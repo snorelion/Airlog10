@@ -58,7 +58,7 @@ function addDays(day: string, n: number): string {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
 }
 
-/** 지난달 로스터의 실적 표기 정리 — "A03:04 - A07:32/00:19"의 **/지연시간**을 벗긴다.
+/** 지난달 로스터의 실적 표기 정리 — "A03:04 - A07:32/00:19"에서 슬래시 뒤 지연시간을 벗긴다.
  *  안 벗기면 지연(00:19)이 시각으로 잡혀 짝이 밀린다 (2026-08-25 8월 실파일에서 실측:
  *  SL390 출발이 리포트 시각으로 들어갔다). 'A' 접두사는 시각 추출에 무해라 그대로 둔다. */
 function stripDelays(s: string): string {

@@ -8,6 +8,9 @@ const PUBLIC_PATHS = [
   '/login', '/privacy', '/terms', '/welcome',
   '/api/auth/callback', '/api/airports/seed', '/api/roster/parse',
   '/api/company-log/parse',
+  // 통합 파서(1.5.5) — 위 두 파스 라우트에 위임해 같은 방식으로 자체 인증한다.
+  // 여기 없으면 앱의 Bearer 요청이 307→/login (2026-08-25 배포 직후 실측)
+  '/api/import/parse',
   // 지원 항공사 명단 — 공개 정보. 여기 없으면 307→/login이라 앱 refresh가
   // 조용히 실패해 내장 기본값만 보인다 (2026-08-13 실측 — company-log 때와 같은 함정)
   '/api/import-formats',

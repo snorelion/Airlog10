@@ -35,6 +35,7 @@ export default function ImportPage() {
   const [progress, setProgress] = useState('')
   const [imported, setImported] = useState(0)
   const [skipped, setSkipped] = useState(0)
+  const [futureSkipped, setFutureSkipped] = useState(0)   // 오늘 이후 행 — 기록이 아니라 스케줄
   const [error, setError] = useState('')
   const [fileBusy, setFileBusy] = useState(false)
   const [roster, setRoster] = useState<RosterParse | null>(null)
@@ -148,8 +149,16 @@ export default function ImportPage() {
         if (!data || data.length < 1000) break
       }
 
-      const fresh = result.flights.filter((f) => !existing.has(dupKey(f)))
-      const skippedCount = result.flights.length - fresh.length
+      // 미래 날짜 행은 기록이 아니라 **스케줄**이다 — 앱(1.5.1)과 같은 원칙. 웹은 로스터
+      // 업로드 통로가 따로 있으므로 여기선 넣지 않고 알려만 준다. 안 거르면 안 탄 비행이
+      // 통계에 부풀고, 홈·위젯엔 안 뜨며, 실제 비행 뒤 중복이 된다
+      // (2026-08-25 라이언님 9월 엑셀 실측 — 웹으로 넣어 셋 다 겪음).
+      const todayUTC = new Date().toISOString().slice(0, 10)
+      const pastRows = result.flights.filter((f) => f.flight_date <= todayUTC)
+      setFutureSkipped(result.flights.length - pastRows.length)
+
+      const fresh = pastRows.filter((f) => !existing.has(dupKey(f)))
+      const skippedCount = pastRows.length - fresh.length
       setSkipped(skippedCount)
 
       // 2) 내 항공기 upsert
@@ -340,6 +349,13 @@ export default function ImportPage() {
             <p className="text-3xl">🎉</p>
             <p className="mt-2 text-lg font-bold">{imported.toLocaleString()}편 가져왔어요</p>
             {skipped > 0 && <p className="mt-1 text-sm text-app-sub">이미 있던 {skipped.toLocaleString()}편은 건너뛰었어요.</p>}
+            {futureSkipped > 0 && (
+              <p className="mt-1 text-sm text-app-sub">
+                오늘 이후 {futureSkipped.toLocaleString()}편은 아직 기록이 아니라 넣지 않았어요 —
+                스케줄로 쓰려면 로스터 파일을 위 로스터 칸에 올리세요. (아이폰 앱에서 가져오면
+                자동으로 스케줄에 들어가요)
+              </p>
+            )}
           </div>
           <Link href="/" className="block rounded-xl bg-app-btn py-3 text-center font-semibold text-white">
             홈에서 확인하기

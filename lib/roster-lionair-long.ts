@@ -28,6 +28,7 @@ export type LionLongResult = {
   period: { start: string; end: string }
   flights: LionLongFlight[]
   stats: { flights: number; offDays: number; standbyDays: number }
+  notes?: string[]
 }
 
 /** unpdf 문서에서 우리가 쓰는 부분만 (다른 로스터 파서들과 같은 형태) */
@@ -55,6 +56,13 @@ function addDays(day: string, n: number): string {
   const d = new Date(Date.UTC(
     Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)) + n))
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
+
+/** 지난달 로스터의 실적 표기 정리 — "A03:04 - A07:32/00:19"의 **/지연시간**을 벗긴다.
+ *  안 벗기면 지연(00:19)이 시각으로 잡혀 짝이 밀린다 (2026-08-25 8월 실파일에서 실측:
+ *  SL390 출발이 리포트 시각으로 들어갔다). 'A' 접두사는 시각 추출에 무해라 그대로 둔다. */
+function stripDelays(s: string): string {
+  return s.replace(/\/\s*\d{1,2}:\d{2}/g, ' ')
 }
 
 /** 위첨자 ⁺¹/⁺²(또는 '+1' 조각)를 시각에 붙여 "HH:MM+N"으로 정규화 */
@@ -88,6 +96,7 @@ export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult 
   const flights: LionLongFlight[] = []
   let offDays = 0
   let standbyDays = 0
+  let deadheads = 0
   let period: { start: string; end: string } | null = null
 
   for (let p = 1; p <= pdf.numPages; p++) {
@@ -161,7 +170,12 @@ export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult 
     }
 
     for (const row of rows) {
-      row.items.sort((a, b) => (b.y - a.y) || (a.x - b.x))
+      // 같은 시각 줄(±3pt)은 x순으로 — 위첨자 ⁺¹이 살짝 위 baseline의 **별도 조각**으로 오면
+      // 순수 y 정렬이 그걸 줄 맨 앞으로 보내 "⁺¹ 00:15"가 되어 normSup이 못 붙인다
+      row.items.sort((a, b) => {
+        const dy = b.y - a.y
+        return Math.abs(dy) > 3 ? dy : a.x - b.x
+      })
       const colText: Record<string, string> = {}
       for (const it of row.items) {
         const c = colOf(it.x)
@@ -189,29 +203,32 @@ export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult 
         let m: RegExpExecArray | null
         while ((m = re.exec(duties))) typeList.push(m[1])
       }
-      const routes: [string, string][] = []
+      // 구간 — 앞뒤 별표(*)는 **편승(pax transfer)** 표시다: 6쪽 "Pax Transfer Information"과
+      // 별표 레그가 1:1로 맞고, 문서 통계 Landings에도 안 세어진다 (2026-08-25 8월 실파일).
+      const routes: { o: string; d: string; dh: boolean }[] = []
       {
-        const re = /\b([A-Z]{3})\s{0,4}-\s{0,4}([A-Z]{3})\b/g
+        const re = /(\*?)([A-Z]{3})\s{0,4}-\s{0,4}(\*?)([A-Z]{3})\b/g
         let m: RegExpExecArray | null
-        while ((m = re.exec(details))) routes.push([m[1], m[2]])
+        while ((m = re.exec(details))) routes.push({ o: m[2], d: m[4], dh: !!(m[1] || m[3]) })
       }
 
-      const times = timesOf(normSup((colText['Report'] ?? '') + ' ' + (colText['Actual'] ?? '')))
+      const times = timesOf(normSup(stripDelays((colText['Report'] ?? '') + ' ' + (colText['Actual'] ?? ''))))
       const report = times.length === 1 + legs.length * 2 ? times[0] : null
       const legTimes = report ? times.slice(1) : times
-      const debTimes = timesOf(normSup(colText['Debrief'] ?? ''))
+      const debTimes = timesOf(normSup(stripDelays(colText['Debrief'] ?? '')))
       const debrief = debTimes.length ? debTimes[debTimes.length - 1].hm : null
 
       const firstIdx = flights.length
       for (let i = 0; i < legs.length; i++) {
         const std = legTimes[2 * i] ?? null
         const sta = legTimes[2 * i + 1] ?? null
+        if (routes[i] && routes[i].dh) { deadheads++; continue }   // 편승 — 비행 아님 (시각 짝은 소비)
         const typ = legs[i].type ?? typeList[i] ?? null
         const f: LionLongFlight = {
           flight_date: addDays(row.date, std ? std.plus : 0),
           flight_number: legs[i].num,
-          origin: routes[i] ? routes[i][0] : null,
-          destination: routes[i] ? routes[i][1] : null,
+          origin: routes[i] ? routes[i].o : null,
+          destination: routes[i] ? routes[i].d : null,
           std: std ? std.hm : null,
           sta: sta ? sta.hm : null,
           aircraft_type: typ ? (TYPE_MAP[typ] ?? typ) : null,
@@ -233,5 +250,13 @@ export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult 
     const ds = flights.map((f) => f.flight_date).sort()
     period = { start: ds[0], end: ds[ds.length - 1] }
   }
-  return { period, flights, stats: { flights: flights.length, offDays, standbyDays } }
+  return {
+    period, flights,
+    stats: { flights: flights.length, offDays, standbyDays },
+    // 미리보기(웹·앱 공용)에 그대로 보인다 — 영어로 (다른 파서들과 동일)
+    notes: deadheads
+      ? [`${deadheads} pax-transfer (deadhead) leg${deadheads > 1 ? 's' : ''} marked with * ` +
+         'on the roster weren\'t added — add them by hand if you need them.']
+      : undefined,
+  }
 }

@@ -46,8 +46,18 @@ export async function POST(req: NextRequest) {
   if (logbook && roster) return NextResponse.json({ kind: 'both', logbook, roster })
   if (logbook) return NextResponse.json({ kind: 'logbook', logbook })
   if (roster) return NextResponse.json({ kind: 'roster', roster })
+
+  // 둘 다 실패 — 지문이 맞았던 파서의 구체적 메시지("No flights found in this X roster",
+  // "File too large" 등)가 있으면 그걸 살린다. 로스터 쪽이 더 구체적인 경우가 많아 먼저.
+  // 칸 안내("…section…")와 종류 추측 문구("This doesn't look like…")는 통합 UI에 칸이 없어 거른다.
+  const errOf = async (r: Response) => {
+    try { return String(((await r.json()) as { error?: string }).error ?? '') } catch { return '' }
+  }
+  const candidates = [await errOf(rosterRes), await errOf(logRes)].filter(
+    (e) => e && !e.includes('section') && !e.startsWith("This doesn't look like")
+  )
   return NextResponse.json(
-    { error: "This file doesn't match any supported logbook or roster format." },
+    { error: candidates[0] || "This file doesn't match any supported logbook or roster format." },
     { status: 422 }
   )
 }

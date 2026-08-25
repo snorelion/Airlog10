@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { createApiSupabase } from '@/lib/supabase-server'
 import { parseCompanyLog } from '@/lib/company-log'
+import { isJejuCompanyLog, parseJejuCompanyLog } from '@/lib/company-log-jeju'
 import { pdfToCompanyRows } from '@/lib/company-log-pdf'
 import { kalExtract, kalBuildFlights } from '@/lib/company-log-kal'
 import { acExtract, acBuildFlights } from '@/lib/company-log-ac'
@@ -36,6 +37,21 @@ function cellText(v: unknown): string {
   return String(v).trim()
 }
 
+// 파일에 나온 3글자 공항 코드(IATA)만 모은다 — 헤더 이름으로 출발·도착 컬럼을 찾는다
+function collectIata(rows: string[][], depName: string, arrName: string): Set<string> {
+  const header = rows[0].map((s) => s.trim())
+  const depIdx = header.indexOf(depName)
+  const arrIdx = header.indexOf(arrName)
+  const codes = new Set<string>()
+  for (let r = 1; r < rows.length; r++) {
+    for (const i of [depIdx, arrIdx]) {
+      const v = (i >= 0 ? rows[r][i] : '')?.trim().toUpperCase()
+      if (v && v.length === 3) codes.add(v)
+    }
+  }
+  return codes
+}
+
 // 파일에 나온 IATA 코드들 → ICAO. 같은 IATA가 여러 공항이면 큰 공항 우선.
 async function lookupIcao(
   supabase: ReturnType<typeof createApiSupabase>['supabase'],
@@ -64,15 +80,15 @@ export async function POST(req: NextRequest) {
   // 쿠키 세션(웹) 또는 Bearer 토큰(iOS 앱) 둘 다 허용
   const { supabase, getUser } = createApiSupabase(req)
   const user = await getUser()
-  if (!user) return NextResponse.json({ error: '로그인이 필요해요.' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 })
 
   const form = await req.formData()
   const file = form.get('file')
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: '엑셀 파일을 올려주세요.' }, { status: 400 })
+    return NextResponse.json({ error: 'Please upload an Excel or PDF file.' }, { status: 400 })
   }
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: '파일이 너무 커요 (10MB까지).' }, { status: 400 })
+    return NextResponse.json({ error: 'File too large (max 10MB).' }, { status: 400 })
   }
 
   // 1) 파일 → 문자열 행 배열 (엑셀 또는 같은 로그의 PDF 출력본 — 값이 1:1 동일)
@@ -101,7 +117,7 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         // 500으로 죽는 대신 원인을 실어 보낸다 — 재현하면 메시지로 바로 진단된다
         return NextResponse.json(
-          { error: 'Korean Air 파일을 읽다가 문제가 났어요: ' + String(err) }, { status: 422 })
+          { error: 'Something went wrong while reading the Korean Air file: ' + String(err) }, { status: 422 })
       }
     }
     // Air Canada "Block Report" — 표 형식이라 좌표 없이 줄만 읽으면 된다.
@@ -118,7 +134,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(result)
       } catch (err) {
         return NextResponse.json(
-          { error: 'Air Canada 파일을 읽다가 문제가 났어요: ' + String(err) }, { status: 422 })
+          { error: 'Something went wrong while reading the Air Canada file: ' + String(err) }, { status: 422 })
       }
     }
 
@@ -126,13 +142,13 @@ export async function POST(req: NextRequest) {
       rows = await pdfToCompanyRows(pdfCopy())
     } catch (err) {
       return NextResponse.json(
-        { error: 'PDF를 읽지 못했어요. 회사 시스템에서 받은 파일 그대로 올려주세요. (' + String(err) + ')' },
+        { error: "Couldn't read this PDF. Please upload the file from your company system as-is. (" + String(err) + ')' },
         { status: 422 }
       )
     }
     if (rows.length < 2) {
       return NextResponse.json(
-        { error: '회사 로그북 PDF 형식이 아니에요. (비행 줄을 찾지 못함 — 로스터 PDF는 로스터 칸에 올려주세요)' },
+        { error: "This doesn't look like a company logbook PDF. (No flight lines found — for a roster PDF, use the Roster section.)" },
         { status: 422 }
       )
     }
@@ -140,7 +156,7 @@ export async function POST(req: NextRequest) {
     const wb = new ExcelJS.Workbook()
     await wb.xlsx.load(buf)
     const ws = wb.worksheets[0]
-    if (!ws) throw new Error('시트가 없어요')
+    if (!ws) throw new Error('no worksheet found')
     ws.eachRow({ includeEmpty: false }, (row) => {
       const cells: string[] = []
       // row.eachCell은 빈 칸을 건너뛰므로 열 번호로 직접 채운다
@@ -152,28 +168,29 @@ export async function POST(req: NextRequest) {
     })
   } catch (err) {
     return NextResponse.json(
-      { error: '엑셀을 읽지 못했어요. 회사 시스템에서 받은 파일 그대로 올려주세요. (' + String(err) + ')' },
+      { error: "Couldn't read this Excel file. Please upload the file from your company system as-is. (" + String(err) + ')' },
       { status: 422 }
     )
   }
   if (rows.length < 2) {
-    return NextResponse.json({ error: '비행 기록이 없는 파일이에요.' }, { status: 422 })
+    return NextResponse.json({ error: 'No flight records found in this file.' }, { status: 422 })
   }
 
-  // 2) 파일에 나온 IATA 코드만 모아 ICAO 조회
-  const header = rows[0].map((s) => s.trim())
-  const depIdx = header.indexOf('DepPlace')
-  const arrIdx = header.indexOf('ArrPlace')
-  const codes = new Set<string>()
-  for (let r = 1; r < rows.length; r++) {
-    for (const i of [depIdx, arrIdx]) {
-      const v = (i >= 0 ? rows[r][i] : '')?.trim().toUpperCase()
-      if (v && v.length === 3) codes.add(v)
+  // 2) 제주항공 flightHistory 엑셀 — 첫 줄 헤더(camelCase)로 자동 감지, 전용 파서로 끝낸다
+  if (isJejuCompanyLog(rows[0])) {
+    const result = parseJejuCompanyLog(rows, {
+      iataToIcao: await lookupIcao(supabase, collectIata(rows, 'stFr', 'stTo')),
+    })
+    if (!result.flights.length) {
+      return NextResponse.json(
+        { error: result.errors[0] ?? 'No flights found in this file.' }, { status: 422 })
     }
+    return NextResponse.json(result)
   }
-  const iataToIcao = await lookupIcao(supabase, codes)
 
-  // 3) 파싱
+  // 3) 파일에 나온 IATA 코드만 모아 ICAO 조회 → Lion 파서
+  const iataToIcao = await lookupIcao(supabase, collectIata(rows, 'DepPlace', 'ArrPlace'))
+
   const result = parseCompanyLog(rows, { iataToIcao })
   if (!result.flights.length && result.errors.length) {
     // 로스터 엑셀을 회사 로그북 칸에 올린 실수 (2026-08-20 실측, KE 달력형) —
@@ -182,14 +199,14 @@ export async function POST(req: NextRequest) {
       rows.slice(0, 5).some((r) => r.some((c) => (c ?? '').trim() === 'Pairing/Activity'))
     if (isRosterXlsx) {
       return NextResponse.json(
-        { error: '이건 로스터(스케줄) 파일이에요 — 아래 Roster 칸에 올려주세요.' },
+        { error: 'This is a roster (schedule) file — please upload it in the Roster section below.' },
         { status: 422 }
       )
     }
     return NextResponse.json({ error: result.errors[0] }, { status: 422 })
   }
   if (isPdf) {
-    result.notes = ['회사 로그북 PDF 출력본으로 읽었어요 — 엑셀 파일과 같은 값이에요.', ...(result.notes ?? [])]
+    result.notes = ['Read from the company logbook PDF printout — same values as the Excel file.', ...(result.notes ?? [])]
   }
   return NextResponse.json(result)
 }

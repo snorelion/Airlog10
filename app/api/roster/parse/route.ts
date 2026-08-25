@@ -54,13 +54,13 @@ export async function POST(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get('secret')
   if (!process.env.SEED_SECRET || secret !== process.env.SEED_SECRET) {
     const user = await createApiSupabase(req).getUser()
-    if (!user) return NextResponse.json({ error: '로그인이 필요해요.' }, { status: 401 })
+    if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 })
   }
 
   const form = await req.formData()
   const file = form.get('file')
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'PDF 파일을 올려주세요.' }, { status: 400 })
+    return NextResponse.json({ error: 'Please upload a roster file (PDF or Excel).' }, { status: 400 })
   }
 
   const buf = await file.arrayBuffer()
@@ -73,21 +73,21 @@ export async function POST(req: NextRequest) {
     try {
       kx = await parseKalRosterXlsx(buf)
     } catch (err) {
-      return NextResponse.json({ error: '엑셀을 읽지 못했어요: ' + String(err) }, { status: 422 })
+      return NextResponse.json({ error: "Couldn't read this Excel file: " + String(err) }, { status: 422 })
     }
     if (!kx) {
       // 회사 로그북 엑셀을 로스터 칸에 올린 실수면 어느 칸인지 알려준다 (회사 로그북 쪽과 대칭)
       if (await xlsxLooksLikeCompanyLog(buf)) {
         return NextResponse.json(
-          { error: '이건 회사 로그북 파일이에요 — 위 Company logbook 칸에 올려주세요.' },
+          { error: 'This is a company logbook file — please upload it in the Company logbook section above.' },
           { status: 422 }
         )
       }
       return NextResponse.json(
-        { error: '아직 지원하지 않는 엑셀 로스터 양식이에요. PDF로 뽑아서 올려보세요.' }, { status: 422 })
+        { error: "This Excel roster format isn't supported yet. Try exporting the roster as a PDF instead." }, { status: 422 })
     }
     if (!kx.flights.length) {
-      return NextResponse.json({ error: 'Korean Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Korean Air roster.' }, { status: 422 })
     }
     return NextResponse.json(kx)
   }
@@ -100,11 +100,11 @@ export async function POST(req: NextRequest) {
     if (isJinairRoster(html)) {
       const result = parseJinairRoster(html)
       if (!result || !result.flights.length) {
-        return NextResponse.json({ error: 'Jin Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+        return NextResponse.json({ error: 'No flights found in this Jin Air roster.' }, { status: 422 })
       }
       return NextResponse.json(result)
     }
-    return NextResponse.json({ error: '아직 지원하지 않는 로스터 형식이에요.' }, { status: 422 })
+    return NextResponse.json({ error: "This roster format isn't supported yet." }, { status: 422 })
   }
 
   let items: Item[] = []
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       if (t && raw.transform) items.push({ t, x: raw.transform[4], y: raw.transform[5], w: raw.width })
     }
   } catch (err) {
-    return NextResponse.json({ error: 'PDF를 읽지 못했어요: ' + String(err) }, { status: 422 })
+    return NextResponse.json({ error: "Couldn't read this PDF: " + String(err) }, { status: 422 })
   }
 
   // 기간(연도)
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
   if (pdfDoc && isPeachRoster(full)) {
     const result = await parsePeachRoster(pdfDoc as unknown as Parameters<typeof parsePeachRoster>[0])
     if (!result.period || !result.flights.length) {
-      return NextResponse.json({ error: 'Peach 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Peach roster.' }, { status: 422 })
     }
     return NextResponse.json(result)
   }
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
   if (pdfDoc && isJejuRoster(full)) {
     const result = await parseJejuRoster(pdfDoc as unknown as Parameters<typeof parseJejuRoster>[0])
     if (!result.period || !result.flights.length) {
-      return NextResponse.json({ error: 'Jeju Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Jeju Air roster.' }, { status: 422 })
     }
     const { year, month } = result.period
     const mm = String(month).padStart(2, '0')
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
   if (pdfDoc && isEastarRoster(full)) {
     const result = await parseEastarRoster(pdfDoc as unknown as Parameters<typeof parseEastarRoster>[0])
     if (!result.period || !result.flights.length) {
-      return NextResponse.json({ error: 'Eastar Jet 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Eastar Jet roster.' }, { status: 422 })
     }
     const { year, month } = result.period
     const mm = String(month).padStart(2, '0')
@@ -178,14 +178,14 @@ export async function POST(req: NextRequest) {
   if (pdfDoc && isKalCwpRoster(full)) {
     const result = await parseKalCwpRoster(pdfDoc as unknown as Parameters<typeof parseKalCwpRoster>[0])
     if (!result || !result.flights.length) {
-      return NextResponse.json({ error: 'Korean Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Korean Air roster.' }, { status: 422 })
     }
     return NextResponse.json(result)
   }
   if (pdfDoc && isKalCalendarRoster(full)) {
     const result = await parseKalCalendarRoster(pdfDoc as unknown as Parameters<typeof parseKalCalendarRoster>[0])
     if (!result || !result.flights.length) {
-      return NextResponse.json({ error: 'Korean Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Korean Air roster.' }, { status: 422 })
     }
     return NextResponse.json(result)
   }
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
   if (pdfDoc && isPremiaRoster(full)) {
     const result = await parsePremiaRoster(pdfDoc as unknown as Parameters<typeof parsePremiaRoster>[0])
     if (!result || !result.flights.length) {
-      return NextResponse.json({ error: 'Air Premia 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Air Premia roster.' }, { status: 422 })
     }
     return NextResponse.json(result)
   }
@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
   if (pdfDoc && isLionLongRoster(full)) {
     const result = await parseLionLongRoster(pdfDoc as unknown as Parameters<typeof parseLionLongRoster>[0])
     if (!result || !result.flights.length) {
-      return NextResponse.json({ error: 'Lion Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Lion Air roster.' }, { status: 422 })
     }
     return NextResponse.json(result)
   }
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
   if (isThaiRoster(full)) {
     const result = parseThaiRoster(items)
     if (!result.period || !result.flights.length) {
-      return NextResponse.json({ error: 'Thai Airways 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+      return NextResponse.json({ error: 'No flights found in this Thai Airways roster.' }, { status: 422 })
     }
     const { year, month } = result.period
     const mm = String(month).padStart(2, '0')
@@ -244,14 +244,14 @@ export async function POST(req: NextRequest) {
         notes: r.notes,
       })
     }
-    return NextResponse.json({ error: '로스터 형식이 아니에요. (기간 표기를 찾지 못함)' }, { status: 422 })
+    return NextResponse.json({ error: "This doesn't look like a roster. (No period line found.)" }, { status: 422 })
   }
   const year = period[3]
 
   // 날짜 헤더 → 컬럼
   const headerItems = items.filter((i) => /^\d{2}\/\d{2}$/.test(i.t))
   if (headerItems.length < 25) {
-    return NextResponse.json({ error: '날짜 컬럼을 찾지 못했어요.' }, { status: 422 })
+    return NextResponse.json({ error: "Couldn't find the date columns." }, { status: 422 })
   }
   const headerY = Math.max(...headerItems.map((i) => i.y))
   const cols = headerItems

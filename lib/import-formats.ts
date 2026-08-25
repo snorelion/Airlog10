@@ -24,7 +24,7 @@ export const AIRLINES: AirlineSupport[] = [
   { name: 'Peach Aviation', ko: '피치항공', country: 'Japan', flag: '🇯🇵', roster: true },
   { name: 'Air Premia', ko: '에어프레미아', country: 'South Korea', flag: '🇰🇷', roster: true }, // PDC Crew Roster Report
   { name: 'Eastar Jet', ko: '이스타항공', country: 'South Korea', flag: '🇰🇷', roster: true },
-  { name: 'Jeju Air', ko: '제주항공', country: 'South Korea', flag: '🇰🇷', roster: true, photo: true },
+  { name: 'Jeju Air', ko: '제주항공', country: 'South Korea', flag: '🇰🇷', logbook: true, roster: true, photo: true }, // 로그북 = flightHistory 엑셀 (2026-08-25)
   { name: 'Jin Air', ko: '진에어', country: 'South Korea', flag: '🇰🇷', roster: true }, // Crew Daily Roster (.xls로 오는 HTML)
   // 로스터는 크루넷 양식 2종(Crew Roster Report·달력형)+달력형 엑셀 (2026-08-20)
   { name: 'Korean Air', ko: '대한항공', country: 'South Korea', flag: '🇰🇷', logbook: true, roster: true, photo: true },

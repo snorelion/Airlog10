@@ -108,14 +108,14 @@ export function parseCompanyLog(rows: string[][], opts: CompanyParseOptions = {}
   const iataMap = opts.iataToIcao ?? {}
 
   if (!rows.length) {
-    return { flights: [], aircraft: [], errors: ['빈 파일이에요.'] }
+    return { flights: [], aircraft: [], errors: ['The file is empty.'] }
   }
   const header = rows[0].map((s) => (s ?? '').trim())
   if (!isCompanyLog(header)) {
     return {
       flights: [],
       aircraft: [],
-      errors: ['회사 로그북 형식이 아니에요. 첫 줄에 Date·DepPlace·FltTime 같은 컬럼 이름이 있어야 해요.'],
+      errors: ["This doesn't look like a company logbook. The first row should have column names like Date, DepPlace and FltTime."],
     }
   }
   const idx: Record<string, number> = {}
@@ -140,7 +140,7 @@ export function parseCompanyLog(rows: string[][], opts: CompanyParseOptions = {}
     const rawDate = col(c, 'Date')
     const date = toISODate(rawDate)
     if (!date) {
-      errors.push(`${r + 1}번째 줄: 날짜를 읽을 수 없어 건너뜀 ("${rawDate}")`)
+      errors.push(`Row ${r + 1}: skipped — couldn't read the date ("${rawDate}")`)
       continue
     }
 
@@ -191,7 +191,7 @@ export function parseCompanyLog(rows: string[][], opts: CompanyParseOptions = {}
       seen.add(simKey)
       simCount++
       const kind = col(c, 'SimType') || 'SIM'
-      const marks: string[] = [`시뮬 세션 (${kind})`]
+      const marks: string[] = [`Sim session (${kind})`]
       if (dayTO + nightTO > 0) marks.push(`T/O ${dayTO + nightTO}`)
       if (dayLdg + nightLdg > 0) marks.push(`LDG ${dayLdg + nightLdg}`)
       flights.push({
@@ -262,25 +262,25 @@ export function parseCompanyLog(rows: string[][], opts: CompanyParseOptions = {}
 
   if (unknownTypes.size) {
     warnings.push(
-      `처음 보는 기종 코드: ${Array.from(unknownTypes).join(', ')} — 코드 그대로 저장했어요. 알려주시면 정식 기종명으로 바꿔드릴게요.`
+      `Unfamiliar aircraft type codes kept as-is: ${Array.from(unknownTypes).join(', ')}`
     )
   }
   if (unknownAirports.size) {
     const list = Array.from(unknownAirports)
     warnings.push(
-      `공항 코드 ${list.length}개는 ICAO로 못 바꿔서 그대로 뒀어요: ${list.slice(0, 10).join(', ')}${list.length > 10 ? ' 외' : ''}`
+      `${list.length} airport code(s) couldn't be matched to ICAO and were kept as-is: ${list.slice(0, 10).join(', ')}${list.length > 10 ? '…' : ''}`
     )
   }
   if (dupInFile) {
-    warnings.push(`파일 안에서 똑같은 기록 ${dupInFile}편이 중복돼 있어 한 번만 남겼어요.`)
+    warnings.push(`Skipped ${dupInFile} duplicate rows in the file.`)
   }
 
   const notes = [
-    '시간은 회사 로그북 그대로 넣었어요 — 비행시간 = 회사 FltTime(블록), 보정 없음.',
-    '야간시간도 컬럼이 없어 태국 기준 야간(19:00~06:00)과 겹치는 만큼으로 계산했어요.',
-    '계기시간·접근(approach)은 회사 파일에 아예 없어서 빈칸이에요 — 앱에서 직접 채우시면 돼요.',
+    'Times are imported as-is from the company logbook — flight time = company FltTime (block), no adjustments.',
+    "Night time isn't in the file — calculated as the overlap with Thai night hours (19:00–06:00 local).",
+    "Instrument time and approaches aren't in the company file — left blank; you can fill them in the app.",
   ]
-  if (simCount) notes.push(`시뮬 ${simCount}건은 시뮬시간으로만 넣고 비행시간에는 넣지 않았어요.`)
+  if (simCount) notes.push(`${simCount} sim session(s) went into sim time only, not flight time.`)
 
   return { flights, aircraft: Array.from(acMap.values()), errors, warnings, notes }
 }

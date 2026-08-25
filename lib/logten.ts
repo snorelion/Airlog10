@@ -125,7 +125,7 @@ export function parseLogTen(text: string): ParseResult {
   const errors: string[] = []
   const lines = text.replace(/^﻿/, '').split(/\r?\n/)
   if (!lines.length || !lines[0].includes('flight_flightDate')) {
-    return { flights: [], aircraft: [], errors: ['LogTen 내보내기 형식이 아니에요. 첫 줄에 컬럼 이름(flight_flightDate…)이 있어야 해요.'] }
+    return { flights: [], aircraft: [], errors: ["This doesn't look like a LogTen export. The first row should have column names (flight_flightDate…)."] }
   }
   const header = lines[0].split('\t').map((h) => h.trim())
   const idx: Record<string, number> = {}
@@ -150,7 +150,7 @@ export function parseLogTen(text: string): ParseResult {
     const c = rec.split('\t')
     const date = col(c, 'flight_flightDate')
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      errors.push(`날짜를 읽을 수 없어 건너뜀: "${date}"`)
+      errors.push(`Skipped a row — couldn't read the date: "${date}"`)
       continue
     }
 
@@ -367,6 +367,6 @@ export function parseLogbook(text: string): ParseResult {
   return {
     flights: [],
     aircraft: [],
-    errors: ['알아볼 수 없는 형식이에요. LogTen 내보내기(.txt) 또는 Dynamic Export 파일을 올려주세요. 다른 앱 파일이면 그대로 Claude에게 보내주세요 — 형식을 추가할게요.'],
+    errors: ["Unrecognized format. Please upload a LogTen export (.txt) or Dynamic Export file. If it's from another app, send us the file — we'll add the format."],
   }
 }

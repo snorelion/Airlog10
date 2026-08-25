@@ -101,7 +101,7 @@ function periodFromFlights(flights: KalRosterFlight[]): { start: string; end: st
 
 /** 편승 안내문 — 두 양식 공용 */
 function tvlNote(n: number): string[] | undefined {
-  return n > 0 ? [`편승(TVL) ${n}건은 예정에 넣지 않았어요 — 직접 운항하는 편만 등록해요.`] : undefined
+  return n > 0 ? [`Skipped ${n} positioning (TVL) leg(s) — only flights you operate are added.`] : undefined
 }
 
 /** 문서 전체를 "단어 스트림"으로 — 항목이 어떻게 조각나든 공백으로 쪼개면 같아진다 */
@@ -344,7 +344,7 @@ function apTime(s: string): { ap: string; hm: string; plus: number } | null {
 }
 
 /** 회사 로그북 엑셀을 로스터 칸에 올렸는지 가벼운 감지 — "다른 칸" 안내용.
- *  회사 로그북 판별(isCompanyLog)과 같은 첫 줄 헤더 세 개를 본다 */
+ *  회사 로그북 판별(Lion isCompanyLog · 제주 isJejuCompanyLog)과 같은 첫 줄 헤더를 본다 */
 export async function xlsxLooksLikeCompanyLog(buf: ArrayBuffer): Promise<boolean> {
   try {
     const wb = new ExcelJS.Workbook()
@@ -355,7 +355,8 @@ export async function xlsxLooksLikeCompanyLog(buf: ArrayBuffer): Promise<boolean
     ws.getRow(1).eachCell({ includeEmpty: false }, (cell) => {
       names.add(cellText(cell.value).trim())
     })
-    return names.has('DepPlace') && names.has('FltTime') && names.has('ACType')
+    return (names.has('DepPlace') && names.has('FltTime') && names.has('ACType'))
+      || (names.has('fltDat') && names.has('stFr') && names.has('stTo'))
   } catch {
     return false
   }

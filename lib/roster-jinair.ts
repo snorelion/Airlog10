@@ -155,7 +155,7 @@ export function parseJinairRoster(html: string): JinairRosterResult | null {
     flights,
     stats: { flights: flights.length, offDays, standbyDays },
     notes: deadheads
-      ? [`데드헤드(DH) ${deadheads}건은 넣지 않았어요 — 필요하면 직접 넣어 주세요.`]
+      ? [`Skipped ${deadheads} deadhead (DH) leg(s) — add them manually if you need them.`]
       : undefined,
   }
 }

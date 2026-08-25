@@ -200,9 +200,9 @@ export function acBuildFlights(ex: AcExtract, iataToIcao: Record<string, string>
   }
 
   if (skipped.size) {
-    const list = Array.from(skipped.entries()).map(([p, n]) => `${p}(${n}편)`).join(', ')
+    const list = Array.from(skipped.entries()).map(([p, n]) => `${p} (${n} legs)`).join(', ')
     warnings.push(
-      `${list}은 파일에 크루 배정 줄이 없어 날짜를 알 수 없었어요 — 건너뛰었습니다. 직접 넣어 주세요.`
+      `${list} had no crew-assignment line in the file, so their dates are unknown — skipped. Please add them manually.`
     )
   }
   // 회사가 적어 둔 블록 합계와 대조해 준다 — 빠진 게 있으면 여기서 바로 보인다
@@ -212,12 +212,12 @@ export function acBuildFlights(ex: AcExtract, iataToIcao: Record<string, string>
     const fmt = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`
     warnings.push(
       want === takenMin
-        ? `블록 합계 ${fmt(takenMin)} — 회사 파일 표기와 일치해요.`
-        : `블록 합계 ${fmt(takenMin)} (회사 파일 표기는 ${fmt(want)}) — 위에 건너뛴 구간만큼 차이가 나요.`
+        ? `Block total ${fmt(takenMin)} — matches the company file.`
+        : `Block total ${fmt(takenMin)} (company file says ${fmt(want)}) — the difference is the skipped legs above.`
     )
   }
-  warnings.push('직책이 파일에 없어 SIC로 넣었어요 — 기장이시면 가져온 뒤 한 번에 바꿀 수 있어요.')
-  warnings.push('시각은 회사 파일의 UTC를 그대로 썼어요. 도착은 출발 + 회사가 적은 비행시간이에요.')
+  warnings.push("Rank isn't in the file, so flights were imported as SIC — if you're a captain, you can change them all after import.")
+  warnings.push('Times are the UTC values from the company file. Arrival = departure + the flight time in the file.')
 
   return {
     flights,
@@ -225,7 +225,7 @@ export function acBuildFlights(ex: AcExtract, iataToIcao: Record<string, string>
     // 기종은 각 비행의 aircraft_type에 이미 들어간다. (Lion 파서와 같은 정책)
     aircraft: [],
     notes: warnings,
-    errors: flights.length ? [] : ['Air Canada Block Report에서 비행을 찾지 못했어요.'],
+    errors: flights.length ? [] : ['No flights found in this Air Canada Block Report.'],
   }
 }
 
@@ -300,7 +300,6 @@ export function acBuildRoster(ex: AcExtract): {
     const list = Array.from(skipped.entries()).map(([p, c]) => `${p} (${c})`).join(', ')
     notes.push(`Skipped ${list} — no crew assignment line in the file, so the date is unknown.`)
   }
-  // AC 사용자는 영어권 — 이 양식만 노트를 영어로 쓴다
   notes.push('Times are UTC, as printed in the Block Report. In Settings › Roster times, use a fixed offset of +0 so logged times stay exact.')
 
   return { period, flights, notes }

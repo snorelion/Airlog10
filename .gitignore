@@ -7,3 +7,7 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+node_modules.nosync
+/node_modules
+# 로컬 tsc 검증용 설치 — Vercel은 기존처럼 lock 없이 빌드
+package-lock.json

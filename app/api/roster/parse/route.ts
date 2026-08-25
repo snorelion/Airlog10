@@ -12,6 +12,7 @@ import { isPremiaRoster, parsePremiaRoster } from '@/lib/roster-premia'
 import { isJinairRoster, parseJinairRoster } from '@/lib/roster-jinair'
 import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
+import { isLionLongRoster, parseLionLongRoster } from '@/lib/roster-lionair-long'
 import { acExtract, acBuildRoster } from '@/lib/company-log-ac'
 
 // Lion Air "Personal Crew Schedule Report" PDF 파서
@@ -195,6 +196,17 @@ export async function POST(req: NextRequest) {
     const result = await parsePremiaRoster(pdfDoc as unknown as Parameters<typeof parsePremiaRoster>[0])
     if (!result || !result.flights.length) {
       return NextResponse.json({ error: 'Air Premia 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
+    }
+    return NextResponse.json(result)
+  }
+
+  // Thai Lion Air "Personal Crew Schedule Report" **목록형(long)** — 아래 기본(격자형) 파서와
+  // 제목이 같지만 여러 쪽 세로 목록이라 전용 파서로 (2026-08-25 실파일 검증).
+  // 격자형 PDF에는 'Schedule Details'/'Debrief times' 헤더가 없어 지문이 겹치지 않는다.
+  if (pdfDoc && isLionLongRoster(full)) {
+    const result = await parseLionLongRoster(pdfDoc as unknown as Parameters<typeof parseLionLongRoster>[0])
+    if (!result || !result.flights.length) {
+      return NextResponse.json({ error: 'Lion Air 로스터에서 비행을 찾지 못했어요.' }, { status: 422 })
     }
     return NextResponse.json(result)
   }

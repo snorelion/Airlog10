@@ -14,6 +14,8 @@ import { isPeachRoster, parsePeachRoster } from '@/lib/roster-peach'
 import { isThaiRoster, parseThaiRoster } from '@/lib/roster-thai'
 import { isLionLongRoster, parseLionLongRoster } from '@/lib/roster-lionair-long'
 import { acExtract, acBuildRoster } from '@/lib/company-log-ac'
+import { kalExtract } from '@/lib/company-log-kal'
+import { pdfToCompanyRows } from '@/lib/company-log-pdf'
 
 // Lion Air "Personal Crew Schedule Report" PDF 파서
 // 방식: 1페이지 글자들의 좌표(x,y)를 읽어 날짜 컬럼(dd/mm 헤더의 x)별로 묶고,
@@ -243,6 +245,19 @@ export async function POST(req: NextRequest) {
         stats: { flights: r.flights.length, offDays: 0, standbyDays: 0 },
         notes: r.notes,
       })
+    }
+    // 회사 로그북 PDF(KAL Flight Log·Lion 인쇄본)를 로스터 칸에 올린 실수면 어느 칸인지
+    // 알려준다 — 엑셀 쪽(xlsxLooksLikeCompanyLog)과 대칭. 새 지문을 발명하지 않고
+    // 회사 로그북 라우트의 실제 파서를 판별기로 재사용한다(수락 조건 드리프트 방지).
+    // pdf.js가 버퍼를 소비(detach)할 수 있어 시도마다 새 복사본을 준다(로그북 라우트와 같은 이유).
+    const kal = await kalExtract(new Uint8Array(await file.arrayBuffer())).catch(() => null)
+    const logRows = kal ? null
+      : await pdfToCompanyRows(new Uint8Array(await file.arrayBuffer())).catch(() => null)
+    if (kal || (logRows && logRows.length >= 2)) {
+      return NextResponse.json(
+        { error: 'This is a company logbook file — please upload it in the Company logbook section above.' },
+        { status: 422 }
+      )
     }
     return NextResponse.json({ error: "This doesn't look like a roster. (No period line found.)" }, { status: 422 })
   }

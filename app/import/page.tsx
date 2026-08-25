@@ -22,6 +22,26 @@ type Step = 'pick' | 'preview' | 'importing' | 'done'
 // 중복 판정 키.
 // 출발시각까지 넣는 이유: 회사(라이언에어) 로그북엔 편명이 없어서
 // 같은 날 같은 구간을 왕복 두 번 하면 날짜+구간만으로는 한 편으로 뭉개진다.
+// UTC "HH:MM" → 공항 현지 {day, hm}. tz를 모르면 UTC 그대로 —
+// "몇 시간 어긋난 표기라도 스케줄에 있다는 사실이 더 중요하다" (앱 addUpcoming과 같은 원칙)
+function utcToLocal(day: string, hm: string, tz: string | null): { day: string; hm: string } {
+  if (!tz) return { day, hm }
+  try {
+    const d = new Date(`${day}T${hm}:00Z`)
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(d)
+    const get = (t: string) => parts.find((x) => x.type === t)?.value ?? ''
+    const yy = get('year'); const mo = get('month'); const dd = get('day')
+    const hh = get('hour'); const mi = get('minute')
+    if (!yy || !mo || !dd || !hh || !mi) return { day, hm }
+    return { day: `${yy}-${mo}-${dd}`, hm: `${hh}:${mi}` }
+  } catch {
+    return { day, hm }
+  }
+}
+
 function dupKey(f: {
   flight_date: string; flight_number: string | null
   origin: string | null; destination: string | null; out_time: string | null
@@ -35,7 +55,8 @@ export default function ImportPage() {
   const [progress, setProgress] = useState('')
   const [imported, setImported] = useState(0)
   const [skipped, setSkipped] = useState(0)
-  const [futureSkipped, setFutureSkipped] = useState(0)   // 오늘 이후 행 — 기록이 아니라 스케줄
+  const [upcoming, setUpcoming] = useState(0)             // 오늘 이후 행 → 스케줄로 등록한 수
+  const [futureHeld, setFutureHeld] = useState(0)         // 오늘 이후인데 못 넣은 수(이미 로스터 있는 날짜 등)
   const [error, setError] = useState('')
   const [fileBusy, setFileBusy] = useState(false)
   const [roster, setRoster] = useState<RosterParse | null>(null)
@@ -149,13 +170,13 @@ export default function ImportPage() {
         if (!data || data.length < 1000) break
       }
 
-      // 미래 날짜 행은 기록이 아니라 **스케줄**이다 — 앱(1.5.1)과 같은 원칙. 웹은 로스터
-      // 업로드 통로가 따로 있으므로 여기선 넣지 않고 알려만 준다. 안 거르면 안 탄 비행이
-      // 통계에 부풀고, 홈·위젯엔 안 뜨며, 실제 비행 뒤 중복이 된다
-      // (2026-08-25 라이언님 9월 엑셀 실측 — 웹으로 넣어 셋 다 겪음).
+      // 미래 날짜 행은 기록이 아니라 **스케줄**이다 — 앱 1.5.1 addUpcoming과 같은 규칙.
+      // 기록으로 넣으면 통계가 부풀고, 홈·위젯(로스터만 본다)엔 안 뜨며, 실제 비행 뒤
+      // 중복이 된다 (2026-08-25 라이언님 9월 엑셀 실측 — 웹으로 넣어 셋 다 겪음.
+      // "웹으로 넣어도 next flight에 자동으로 떠야 한다"로 확정).
       const todayUTC = new Date().toISOString().slice(0, 10)
       const pastRows = result.flights.filter((f) => f.flight_date <= todayUTC)
-      setFutureSkipped(result.flights.length - pastRows.length)
+      const futureRows = result.flights.filter((f) => f.flight_date > todayUTC)
 
       const fresh = pastRows.filter((f) => !existing.has(dupKey(f)))
       const skippedCount = pastRows.length - fresh.length
@@ -180,6 +201,63 @@ export default function ImportPage() {
         done += chunk.length
         setProgress(`비행 기록 저장 중… ${done}/${fresh.length}`)
       }
+      // 4) 미래 행 → 예정 편 (홈 "오늘의 비행"·앱 위젯에 바로 등장)
+      //  · 이미 예정 편이 있는 **날짜**는 건드리지 않는다 — 로스터가 아는 날은 로스터가 진실
+      //  · 편명은 회사 로그북에 없다 → ''(빈 문자열): upsert 키(user,날짜,편명,std)가
+      //    NULL끼리는 안 겹쳐 재업로드마다 행이 늘 수 있는데 ''는 정상으로 겹쳐 멱등
+      //  · 회사 로그북 시각은 UTC → 공항 현지(airports.tz)로. OUT 없는 행은 멱등이 안 돼 제외
+      let added = 0
+      let held = 0
+      if (futureRows.length) {
+        setProgress('다가오는 비행을 스케줄에 넣는 중…')
+        const { data: ex } = await supabase.from('roster_flights').select('flight_date,status')
+        const taken = new Set((ex ?? []).filter((r) => r.status !== 'cancelled').map((r) => r.flight_date))
+        const idents = new Set<string>()
+        for (const f of futureRows) {
+          if (f.origin) idents.add(f.origin)
+          if (f.destination) idents.add(f.destination)
+        }
+        const tzMap = new Map<string, string | null>()
+        if (idents.size) {
+          const { data: aps } = await supabase
+            .from('airports').select('ident,iata,tz').in('ident', Array.from(idents))
+          for (const a of aps ?? []) {
+            tzMap.set(a.ident, a.tz ?? null)
+            if (a.iata) tzMap.set(a.iata, a.tz ?? null)
+          }
+        }
+        const rows: {
+          user_id: string; flight_date: string; flight_number: string
+          origin: string; destination: string; std: string; sta: string | null
+          aircraft_type: string | null; report_time: null; duty_end_time: null; status: string
+        }[] = []
+        const seen = new Set<string>()
+        for (const f of futureRows) {
+          if (!f.origin || !f.destination || !f.out_time) { held++; continue }
+          const dep = utcToLocal(f.flight_date, f.out_time, tzMap.get(f.origin) ?? null)
+          const arr = f.in_time ? utcToLocal(f.flight_date, f.in_time, tzMap.get(f.destination) ?? null).hm : null
+          if (taken.has(dep.day)) { held++; continue }
+          const key = `${dep.day}|${dep.hm}`
+          if (seen.has(key)) { held++; continue }
+          seen.add(key)
+          rows.push({
+            user_id: user.id, flight_date: dep.day, flight_number: '',
+            origin: f.origin, destination: f.destination,
+            std: dep.hm, sta: arr, aircraft_type: f.aircraft_type ?? null,
+            report_time: null, duty_end_time: null, status: 'planned',
+          })
+        }
+        if (rows.length) {
+          const { error: roErr } = await supabase
+            .from('roster_flights')
+            .upsert(rows, { onConflict: 'user_id,flight_date,flight_number,std' })
+          if (roErr) throw new Error('스케줄 등록 실패: ' + roErr.message)
+          added = rows.length
+        }
+      }
+      setUpcoming(added)
+      setFutureHeld(held)
+
       setImported(done)
       setStep('done')
     } catch (err) {
@@ -349,11 +427,14 @@ export default function ImportPage() {
             <p className="text-3xl">🎉</p>
             <p className="mt-2 text-lg font-bold">{imported.toLocaleString()}편 가져왔어요</p>
             {skipped > 0 && <p className="mt-1 text-sm text-app-sub">이미 있던 {skipped.toLocaleString()}편은 건너뛰었어요.</p>}
-            {futureSkipped > 0 && (
+            {upcoming > 0 && (
               <p className="mt-1 text-sm text-app-sub">
-                오늘 이후 {futureSkipped.toLocaleString()}편은 아직 기록이 아니라 넣지 않았어요 —
-                스케줄로 쓰려면 로스터 파일을 위 로스터 칸에 올리세요. (아이폰 앱에서 가져오면
-                자동으로 스케줄에 들어가요)
+                오늘 이후 {upcoming.toLocaleString()}편은 스케줄로 등록했어요 — 홈 화면과 앱 위젯에 떠요.
+              </p>
+            )}
+            {futureHeld > 0 && (
+              <p className="mt-1 text-sm text-app-sub">
+                오늘 이후 {futureHeld.toLocaleString()}편은 이미 스케줄이 있는 날짜라 그대로 뒀어요.
               </p>
             )}
           </div>

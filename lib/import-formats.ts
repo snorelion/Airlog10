@@ -22,6 +22,7 @@ export type AirlineSupport = {
 export const AIRLINES: AirlineSupport[] = [
   { name: 'Air Canada', ko: '에어캐나다', country: 'Canada', flag: '🇨🇦', logbook: true, roster: true }, // 같은 Block Report가 로스터 겸용
   { name: 'Peach Aviation', ko: '피치항공', country: 'Japan', flag: '🇯🇵', roster: true },
+  { name: 'Air Busan', ko: '에어부산', country: 'South Korea', flag: '🇰🇷', photo: true }, // 크루 포털 달력 사진 — 앱 1.5.7부터 (출시 확인 후 추가, 2026-08-30)
   { name: 'Air Premia', ko: '에어프레미아', country: 'South Korea', flag: '🇰🇷', roster: true }, // PDC Crew Roster Report
   { name: 'Eastar Jet', ko: '이스타항공', country: 'South Korea', flag: '🇰🇷', roster: true },
   { name: 'Jeju Air', ko: '제주항공', country: 'South Korea', flag: '🇰🇷', logbook: true, roster: true, photo: true }, // 로그북 = flightHistory 엑셀 (2026-08-25)

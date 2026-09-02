@@ -56,8 +56,11 @@ const TYPE_MAP: Record<string, string> = {
 const TIME = /^\d{2}:\d{2}$/
 const FLT = /^[A-Z]{2,3}\d{2,4}[A-Z]?$/
 const AP = /^\*?[A-Z]{3,4}$/
-const OFF = new Set(['RERP', 'RFD', 'PHDO', 'DO', 'AL', 'VAC'])
-const SBY = new Set(['SB', 'SB1', 'SB2', 'SB3', 'SMS'])
+// 2026-09-02 라이언님 9월 실로스터에서 수집(미인식 코드 notes 경로): OFF가 세트에
+// 정작 없었다 + XSB1/XSB2(스탠바이 변형) + SEP(지상 안전훈련) 추가
+const OFF = new Set(['OFF', 'RERP', 'RFD', 'PHDO', 'DO', 'AL', 'VAC'])
+const SBY = new Set(['SB', 'SB1', 'SB2', 'SB3', 'SMS', 'XSB1', 'XSB2', 'XSB3'])
+const GND = new Set(['SEP'])   // 지상 훈련·교육 — 달력엔 ground(회색)
 const DOW = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
 
 export async function POST(req: NextRequest) {
@@ -322,12 +325,13 @@ export async function POST(req: NextRequest) {
     const reportTime = toks.length && TIME.test(toks[0]) ? toks[0] : null
     const dutyEndTime = toks.length && TIME.test(toks[toks.length - 1]) ? toks[toks.length - 1] : null
     const firstFlightIdx = flights.length
-    const dayCodes: { kind: 'off' | 'standby'; label: string }[] = []
+    const dayCodes: { kind: 'off' | 'standby' | 'ground'; label: string }[] = []
     let i = 0
     while (i < toks.length) {
       const t = toks[i]
       if (OFF.has(t)) { offDays++; dayCodes.push({ kind: 'off', label: t }); i++ }
       else if (SBY.has(t)) { standbyDays++; dayCodes.push({ kind: 'standby', label: t }); i++ }
+      else if (GND.has(t)) { standbyDays++; dayCodes.push({ kind: 'ground', label: t }); i++ }
       else if (t === '↓') {
         // 전날 자정 넘김 비행의 도착 부분: ↓ [공항] [시간]
         let ap: string | null = null
@@ -388,8 +392,10 @@ export async function POST(req: NextRequest) {
       flights[firstFlightIdx].report_time = reportTime
       flights[firstFlightIdx].duty_end_time = dutyEndTime
     } else if (dayCodes.length) {
-      // 비행 없는 날만 day 행 — 대표 kind는 standby 우선(코드가 겹치는 날은 대기가 실질)
-      const kind = dayCodes.some((c) => c.kind === 'standby') ? 'standby' as const : 'off' as const
+      // 비행 없는 날만 day 행 — 대표 kind는 standby > ground > off (겹치면 대기·훈련이 실질)
+      const kind = dayCodes.some((c) => c.kind === 'standby') ? 'standby' as const
+        : dayCodes.some((c) => c.kind === 'ground') ? 'ground' as const
+        : 'off' as const
       days.push({ date, kind, label: dayCodes.map((c) => c.label).join('/') })
     }
   }

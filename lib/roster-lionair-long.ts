@@ -193,9 +193,15 @@ export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult 
         days.push({ date: row.date, kind: 'off', label: duties.match(/\b(OFF|RERP|RFD|PHDO|DO|AL|VAC)\b/)?.[1] ?? null })
         continue
       }
-      if (/\b(SB\d?|SMS)\b/.test(duties)) {
+      if (/\b(X?SB\d?|SMS)\b/.test(duties)) {
         standbyDays++
-        days.push({ date: row.date, kind: 'standby', label: duties.match(/\b(SB\d?|SMS)\b/)?.[1] ?? null })
+        days.push({ date: row.date, kind: 'standby', label: duties.match(/\b(X?SB\d?|SMS)\b/)?.[1] ?? null })
+        continue
+      }
+      if (/\bSEP\b/.test(duties)) {
+        // 지상 안전훈련 (2026-09-02 격자 실로스터에서 수집 — 대칭 유지)
+        standbyDays++
+        days.push({ date: row.date, kind: 'ground', label: 'SEP' })
         continue
       }
       if (/\bFTL\b/.test(duties) || /Training/.test(details)) {

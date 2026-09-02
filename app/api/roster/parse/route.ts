@@ -39,6 +39,15 @@ type ParsedRosterFlight = {
   duty_end_time?: string | null // 그날 첫 비행에만: 듀티 종료 시각
 }
 
+// "비행 없는 날" — 오프·스탠바이·SIM·지상 (2026-09-02, 앱 스케줄 달력용).
+// 옵셔널 응답 필드라 구버전 앱은 몰라도 안전하다 (앱 디코더가 명시 키만 읽음).
+// 하루 = 최대 한 행: 비행이 있는 날은 비행이 주인이라 day 행을 만들지 않는다.
+export type ParsedRosterDay = {
+  date: string                                    // "2026-09-05"
+  kind: 'off' | 'standby' | 'sim' | 'ground'
+  label: string | null                            // 회사 코드 원문 (DO, SB1…)
+}
+
 const TYPE_MAP: Record<string, string> = {
   T738: 'B737-800',
   T739: 'B737-900',
@@ -294,6 +303,11 @@ export async function POST(req: NextRequest) {
   }
 
   const flights: ParsedRosterFlight[] = []
+  const days: ParsedRosterDay[] = []
+  // 격자에서 OFF·SBY 외의 순수 알파벳 듀티 코드(SIM·훈련 등)는 아직 표본이 없어
+  // days에 넣지 않는다 — 대신 notes로 원문을 보고해 다음 업로드에서 코드를 수집한다
+  // (서버 배포만으로 세트에 추가 가능, 2026-09-02)
+  const unknownCodes = new Set<string>()
   let offDays = 0
   let standbyDays = 0
   let bare = 0   // 편명만 읽히고 구간·시각이 하나도 없는 줄 — 넣지 않는다 (아래 참고)
@@ -308,11 +322,12 @@ export async function POST(req: NextRequest) {
     const reportTime = toks.length && TIME.test(toks[0]) ? toks[0] : null
     const dutyEndTime = toks.length && TIME.test(toks[toks.length - 1]) ? toks[toks.length - 1] : null
     const firstFlightIdx = flights.length
+    const dayCodes: { kind: 'off' | 'standby'; label: string }[] = []
     let i = 0
     while (i < toks.length) {
       const t = toks[i]
-      if (OFF.has(t)) { offDays++; i++ }
-      else if (SBY.has(t)) { standbyDays++; i++ }
+      if (OFF.has(t)) { offDays++; dayCodes.push({ kind: 'off', label: t }); i++ }
+      else if (SBY.has(t)) { standbyDays++; dayCodes.push({ kind: 'standby', label: t }); i++ }
       else if (t === '↓') {
         // 전날 자정 넘김 비행의 도착 부분: ↓ [공항] [시간]
         let ap: string | null = null
@@ -363,6 +378,8 @@ export async function POST(req: NextRequest) {
         if (!f.origin && !f.destination && !f.std && !f.sta) bare++
         else flights.push(f)
       } else {
+        // 미지의 순수 알파벳 코드(SIM·훈련 후보)는 수집만 — 위 unknownCodes 주석 참고
+        if (/^[A-Z]{2,6}\d?$/.test(t) && !TIME.test(t) && !DOW.has(t)) unknownCodes.add(t)
         i++ // 듀티 시작/종료 시각 등은 건너뜀
       }
     }
@@ -370,16 +387,24 @@ export async function POST(req: NextRequest) {
     if (flights.length > firstFlightIdx) {
       flights[firstFlightIdx].report_time = reportTime
       flights[firstFlightIdx].duty_end_time = dutyEndTime
+    } else if (dayCodes.length) {
+      // 비행 없는 날만 day 행 — 대표 kind는 standby 우선(코드가 겹치는 날은 대기가 실질)
+      const kind = dayCodes.some((c) => c.kind === 'standby') ? 'standby' as const : 'off' as const
+      days.push({ date, kind, label: dayCodes.map((c) => c.label).join('/') })
     }
   }
+
+  const notes: string[] = []
+  if (bare) notes.push(`${bare} rows had only a flight number (no route or time) and were skipped — check the file.`)
+  if (unknownCodes.size)
+    notes.push(`Duty codes not yet recognized: ${Array.from(unknownCodes).sort().join(', ')} — send this roster to support and we'll add them to the calendar.`)
 
   return NextResponse.json({
     period: { start: `${period[3]}-${period[2]}-${period[1]}`, end: `${period[6]}-${period[5]}-${period[4]}` },
     flights,
+    days: days.length ? days : undefined,
     stats: { flights: flights.length, offDays, standbyDays },
     // notes는 웹 미리보기와 **앱 미리보기(영어 UI)** 양쪽에 그대로 보인다 — 영어로 쓴다 (AC와 동일)
-    notes: bare
-      ? [`${bare} rows had only a flight number (no route or time) and were skipped — check the file.`]
-      : undefined,
+    notes: notes.length ? notes : undefined,
   })
 }

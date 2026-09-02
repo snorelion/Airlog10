@@ -27,6 +27,7 @@ export type LionLongFlight = {
 export type LionLongResult = {
   period: { start: string; end: string }
   flights: LionLongFlight[]
+  days?: { date: string; kind: 'off' | 'standby' | 'sim' | 'ground'; label: string | null }[]
   stats: { flights: number; offDays: number; standbyDays: number }
   notes?: string[]
 }
@@ -95,6 +96,8 @@ export function isLionLongRoster(text: string): boolean {
 export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult | null> {
   const flights: LionLongFlight[] = []
   let offDays = 0
+  // 날짜별 "비행 없는 날" (2026-09-02, 앱 스케줄 달력용) — route.ts의 ParsedRosterDay와 동일 모양
+  const days: { date: string; kind: 'off' | 'standby' | 'sim' | 'ground'; label: string | null }[] = []
   let standbyDays = 0
   let deadheads = 0
   let period: { start: string; end: string } | null = null
@@ -185,9 +188,23 @@ export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult 
       const details = colText['Details'] ?? ''
       // 휴무·스탠바이 코드는 격자 파서(route.ts)와 같은 분류 — 8월 실파일에서 RERP(회복 휴식)·
       // PHDO(대체 휴무)·RFD(리저브)가 나왔다 (2026-08-25 더블체크). 비행은 아니지만 통계에 센다.
-      if (/\b(OFF|RERP|RFD|PHDO|DO|AL|VAC)\b/.test(duties)) { offDays++; continue }
-      if (/\b(SB\d?|SMS)\b/.test(duties)) { standbyDays++; continue }
-      if (/\bFTL\b/.test(duties) || /Training/.test(details)) continue
+      if (/\b(OFF|RERP|RFD|PHDO|DO|AL|VAC)\b/.test(duties)) {
+        offDays++
+        days.push({ date: row.date, kind: 'off', label: duties.match(/\b(OFF|RERP|RFD|PHDO|DO|AL|VAC)\b/)?.[1] ?? null })
+        continue
+      }
+      if (/\b(SB\d?|SMS)\b/.test(duties)) {
+        standbyDays++
+        days.push({ date: row.date, kind: 'standby', label: duties.match(/\b(SB\d?|SMS)\b/)?.[1] ?? null })
+        continue
+      }
+      if (/\bFTL\b/.test(duties) || /Training/.test(details)) {
+        // 훈련·SIM 날 — 예전엔 카운트도 없이 버렸다. SIM 언급이 있으면 sim, 아니면 ground
+        const sim = /\bSIM\b/i.test(duties) || /\bSIM\b/i.test(details)
+        days.push({ date: row.date, kind: sim ? 'sim' : 'ground',
+                    label: duties.match(/\b[A-Z]{2,6}\d?\b/)?.[0] ?? (sim ? 'SIM' : 'TRNG') })
+        continue
+      }
 
       // 편명 [기종] 목록 — 기종 괄호가 딴 조각으로 왔으면 순서로 다시 짝짓는다
       const legs: { num: string; type: string | null }[] = []
@@ -252,6 +269,7 @@ export async function parseLionLongRoster(pdf: PdfLike): Promise<LionLongResult 
   }
   return {
     period, flights,
+    days: days.length ? days : undefined,
     stats: { flights: flights.length, offDays, standbyDays },
     // 미리보기(웹·앱 공용)에 그대로 보인다 — 영어로 (다른 파서들과 동일)
     notes: deadheads

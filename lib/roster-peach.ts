@@ -83,6 +83,8 @@ export async function parsePeachRoster(pdf: PdfLike) {
   const report: Record<string, string> = {}
   const dutyEnd: Record<string, string> = {}
   let offDays = 0
+  // 날짜별 "비행 없는 날" (2026-09-02) — H/HQ는 파싱상 비행일과 겹치지 않는다 (한 날 한 rest)
+  const days: { date: string; kind: 'off' | 'standby' | 'sim' | 'ground'; label: string | null }[] = []
   let standbyDays = 0
   let pending: PeachFlight | null = null   // 자정 넘긴 출발 (다음 날 도착 줄 대기)
 
@@ -153,9 +155,13 @@ export async function parsePeachRoster(pdf: PdfLike) {
     lastDay = d
     curDate = `${curY}-${String(curM).padStart(2, '0')}-${String(d).padStart(2, '0')}`
     const rest = dm[3].trim()
-    if (rest === 'H' || rest === 'HQ') offDays += 1
-    else if (rest.startsWith('SB')) standbyDays += 1
-    else if (rest) parseActivity(rest, curDate)
+    if (rest === 'H' || rest === 'HQ') {
+      offDays += 1
+      days.push({ date: curDate, kind: 'off', label: rest })
+    } else if (rest.startsWith('SB')) {
+      standbyDays += 1
+      days.push({ date: curDate, kind: 'standby', label: rest.split(/\s+/)[0] })
+    } else if (rest) parseActivity(rest, curDate)
   }
 
   // 리포트/듀티 종료를 그날 첫 비행에 (Lion 응답과 같은 규칙)
@@ -170,6 +176,7 @@ export async function parsePeachRoster(pdf: PdfLike) {
   return {
     period: { start, end },
     flights,
+    days: days.length ? days : undefined,
     stats: { flights: flights.length, offDays, standbyDays },
   }
 }

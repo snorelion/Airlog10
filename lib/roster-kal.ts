@@ -34,6 +34,8 @@ export type KalRosterFlight = {
 export type KalRosterResult = {
   period: { start: string; end: string }
   flights: KalRosterFlight[]
+  /// 날짜별 "비행 없는 날" — 앱 스케줄 달력용 (2026-09-02, route.ts ParsedRosterDay와 동일 모양)
+  days?: { date: string; kind: 'off' | 'standby' | 'sim' | 'ground'; label: string | null }[]
   stats: { flights: number; offDays: number; standbyDays: number }
   notes?: string[]
 }
@@ -260,6 +262,7 @@ function calendarResult(
   period: { start: string; end: string } | null
 ): KalRosterResult | null {
   const flights: KalRosterFlight[] = []
+  const codeByDate: { date: string; kind: 'off' | 'standby'; label: string }[] = []
   let offDays = 0
   let standbyDays = 0
   let skippedTvl = 0
@@ -269,14 +272,23 @@ function calendarResult(
       if (parsed.wt === 'TVL') skippedTvl++
       else flights.push(parsed.flight)
     } else if (parsed.code) {
-      if (OFF_CODES.has(parsed.code)) offDays++
-      else if (isStandbyCode(parsed.code)) standbyDays++
+      if (OFF_CODES.has(parsed.code)) {
+        offDays++
+        codeByDate.push({ date: r.date, kind: 'off', label: parsed.code })
+      } else if (isStandbyCode(parsed.code)) {
+        standbyDays++
+        codeByDate.push({ date: r.date, kind: 'standby', label: parsed.code })
+      }
     }
   }
   if (!flights.length) return null
+  // 비행 없는 날만 day 행 — TVL(편승)만 있는 날도 코드가 함께 오면 여기 남는다
+  const flightDates = new Set(flights.map((f) => f.flight_date))
+  const days = codeByDate.filter((d) => !flightDates.has(d.date))
   return {
     period: period ?? periodFromFlights(flights),
     flights,
+    days: days.length ? days : undefined,
     stats: { flights: flights.length, offDays, standbyDays },
     notes: tvlNote(skippedTvl),
   }

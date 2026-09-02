@@ -96,6 +96,8 @@ export async function parseEastarRoster(pdf: PdfLike): Promise<{
   period: { year: number; month: number } | null
   flights: EastarRosterFlight[]
   deadheads: number
+  days?: { date: string; kind: 'off' | 'standby' | 'sim' | 'ground'; label: string | null }[]
+  unknownCodes?: string[]
 }> {
   // 쪽별로 좌표와 함께 조각을 모은다 — 날짜 물려받기가 쪽을 넘어가면 안 되므로 쪽 단위로 둔다
   const pages: Item[][] = []
@@ -118,6 +120,11 @@ export async function parseEastarRoster(pdf: PdfLike): Promise<{
   const lastDay = new Date(p.year, p.month, 0).getDate()
   const out: EastarRosterFlight[] = []
   let deadheads = 0
+  // "비행 없는 날" (2026-09-02 실측 표본): DO·RDO(휴무) → off, OFP-Z(0900–1800 사무·교육) → ground.
+  // NS(나이트스톱)는 체류라 넣지 않는다. 스탠바이는 아직 표본이 없다 — 그 밖의 활동 코드는
+  // unknownCodes로 보고해 다음 로스터에서 수집한다 (Lion 격자와 같은 정책, 서버 배포만으로 추가 가능)
+  const dayCodes = new Map<string, { kind: 'off' | 'ground'; label: string }>()
+  const unknownCodes = new Set<string>()
 
   for (const items of pages) {
     // 같은 y = 한 줄. 소수점 흔들림을 흡수하려고 0.5 단위로 묶는다
@@ -158,7 +165,19 @@ export async function parseEastarRoster(pdf: PdfLike): Promise<{
       // 'OFP-Z'처럼 한 칸이 조각나서 오는 경우가 있어 이어 붙인다
       const act = pick(C_ACT).join('').toUpperCase()
       if (act === 'DH') { deadheads++; continue }
-      if (!FLIGHT_RE.test(act)) continue                 // DO·RDO·OFP-Z·NS 등은 비행이 아니다
+      if (!FLIGHT_RE.test(act)) {                        // DO·RDO·OFP-Z·NS 등은 비행이 아니다
+        const date = iso(p.year, p.month, curDay)
+        if (act === 'DO' || act === 'RDO') {
+          if (!dayCodes.has(date)) dayCodes.set(date, { kind: 'off', label: act })
+        } else if (act === 'OFP-Z') {
+          // 교육이 휴무를 이긴다 — 실질은 출근이라 (같은 날 겹친 표본은 없지만 안전하게)
+          const ex = dayCodes.get(date)
+          if (!ex || ex.kind === 'off') dayCodes.set(date, { kind: 'ground', label: act })
+        } else if (act !== 'NS' && /^[A-Z]{2,6}\d?(-[A-Z0-9]{1,3})?$/.test(act)) {
+          unknownCodes.add(act)
+        }
+        continue
+      }
 
       const from = pick(C_FROM).find((t) => AIRPORT_RE.test(t)) ?? null
       const to = pick(C_TO).find((t) => AIRPORT_RE.test(t)) ?? null
@@ -180,5 +199,17 @@ export async function parseEastarRoster(pdf: PdfLike): Promise<{
     }
   }
 
-  return { period: p, flights: out, deadheads }
+  // 하루 = 최대 한 행, 비행이 있는 날은 비행이 주인 (route.ts ParsedRosterDay 규칙)
+  // ⚠️ Map 을 직접 for…of 로 돌리면 이 레포 빌드 타깃에서 깨진다 → Array.from
+  const flightDates = new Set(out.map((f) => f.flight_date))
+  const days = Array.from(dayCodes.entries())
+    .filter((e) => !flightDates.has(e[0]))
+    .map((e) => ({ date: e[0], kind: e[1].kind as 'off' | 'standby' | 'sim' | 'ground', label: e[1].label as string | null }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  return {
+    period: p, flights: out, deadheads,
+    days: days.length ? days : undefined,
+    unknownCodes: unknownCodes.size ? Array.from(unknownCodes).sort() : undefined,
+  }
 }

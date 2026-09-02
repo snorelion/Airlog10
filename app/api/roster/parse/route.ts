@@ -63,6 +63,12 @@ const SBY = new Set(['SB', 'SB1', 'SB2', 'SB3', 'SMS', 'XSB1', 'XSB2', 'XSB3'])
 const GND = new Set(['SEP'])   // 지상 훈련·교육 — 달력엔 ground(회색)
 const DOW = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
 
+// stats의 오프·스탠바이 집계 — Lion 격자와 같은 셈법 (off 외 전부 standbyDays)
+const dayStats = (days?: ParsedRosterDay[]) => ({
+  offDays: days ? days.filter((d) => d.kind === 'off').length : 0,
+  standbyDays: days ? days.filter((d) => d.kind !== 'off').length : 0,
+})
+
 export async function POST(req: NextRequest) {
   // 세션(쿠키 또는 Bearer 토큰) 또는 시크릿(관리 테스트용)으로 인증
   const secret = req.nextUrl.searchParams.get('secret')
@@ -161,7 +167,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       period: { start: `${year}-${mm}-01`, end: `${year}-${mm}-${last}` },
       flights: result.flights,
-      stats: { flights: result.flights.length, offDays: 0, standbyDays: 0 },
+      days: result.days,
+      stats: { flights: result.flights.length, ...dayStats(result.days) },
     })
   }
 
@@ -175,14 +182,18 @@ export async function POST(req: NextRequest) {
     const { year, month } = result.period
     const mm = String(month).padStart(2, '0')
     const last = new Date(year, month, 0).getDate()
+    const eastarNotes: string[] = []
+    // 데드헤드는 편명이 없어 넣지 않았다 — 몇 건인지는 알려 준다
+    if (result.deadheads)
+      eastarNotes.push(`${result.deadheads} deadhead (DH) legs have no flight number and weren't added — add them by hand if you need them.`)
+    if (result.unknownCodes?.length)
+      eastarNotes.push(`Duty codes not yet recognized: ${result.unknownCodes.join(', ')} — send this roster to support and we'll add them to the calendar.`)
     return NextResponse.json({
       period: { start: `${year}-${mm}-01`, end: `${year}-${mm}-${last}` },
       flights: result.flights,
-      stats: { flights: result.flights.length, offDays: 0, standbyDays: 0 },
-      // 데드헤드는 편명이 없어 넣지 않았다 — 몇 건인지는 알려 준다
-      notes: result.deadheads
-        ? [`${result.deadheads} deadhead (DH) legs have no flight number and weren't added — add them by hand if you need them.`]
-        : undefined,
+      days: result.days,
+      stats: { flights: result.flights.length, ...dayStats(result.days) },
+      notes: eastarNotes.length ? eastarNotes : undefined,
     })
   }
 
@@ -238,7 +249,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       period: { start: `${year}-${mm}-01`, end: `${year}-${mm}-${last}` },
       flights: result.flights,
-      stats: { flights: result.flights.length, offDays: 0, standbyDays: 0 },
+      days: result.days,
+      stats: { flights: result.flights.length, ...dayStats(result.days) },
     })
   }
 

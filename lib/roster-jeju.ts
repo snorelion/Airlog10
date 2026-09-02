@@ -90,6 +90,7 @@ const iso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`
 export async function parseJejuRoster(pdf: PdfLike): Promise<{
   period: { year: number; month: number } | null
   flights: JejuRosterFlight[]
+  days?: { date: string; kind: 'off' | 'standby' | 'sim' | 'ground'; label: string | null }[]
 }> {
   // 쪽 → 줄(위에서 아래) → 토큰(왼쪽에서 오른쪽, 공백으로 쪼갬)
   const pages: string[][][] = []
@@ -131,6 +132,11 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
 
   const lastDay = new Date(p.year, p.month, 0).getDate()
   const out: JejuRosterFlight[] = []
+  // "비행 없는 날" (2026-09-02 실측) — OFF·스탠바이도 같은 여섯 토큰으로 오되 기종·등록번호가
+  // 없어 아래에서 걸러진다. 그 자리에서 코드를 줍는다:
+  //   "OFF GMP 0000 0000 GMP 2359 2359" → off · "0001 1200 SA1 GMP 0001 0001 GMP 1200 1200" → standby
+  // 하단 범례("OFF DAY OFF"·"SA1 Early standby")는 여섯 토큰이 없어 여기 못 들어온다.
+  const dayCodes = new Map<string, { kind: 'off' | 'standby'; label: string }>()
 
   /** "번호만 있는 줄"의 번호 — 3~4자리 숫자 토큰이 정확히 하나일 때만.
    *  비행 줄은 시각(4자리)이 여럿이라 절대 걸리지 않고, 크루 사번은 7자리라 안 걸린다. */
@@ -173,7 +179,19 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
       const tail = toks.slice(core + 6)
       const type = tail.find((t) => TYPE_RE.test(t))
       const hasReg = tail.some((t) => /^HL/.test(t))     // 게이트와 붙어 "HL808920-54"로 올 수 있다
-      if (!type && !hasReg) continue
+      if (!type && !hasReg) {
+        // 비행이 아닌 여섯 토큰 줄 — OFF·SA# 코드가 있으면 day 행으로. LAYOV·INST는 코드가
+        // 없어 그냥 지나간다. 겹치면 standby가 off를 이긴다 (Lion 격자와 같은 우선순위)
+        const date = iso(p.year, p.month, curDay)
+        const sa = toks.find((t) => /^SA\d$/.test(t))
+        if (sa) {
+          const ex = dayCodes.get(date)
+          if (!ex || ex.kind === 'off') dayCodes.set(date, { kind: 'standby', label: sa })
+        } else if (toks.includes('OFF') && !dayCodes.has(date)) {
+          dayCodes.set(date, { kind: 'off', label: 'OFF' })
+        }
+        continue
+      }
 
       // 편명 번호
       let num: string | null = null
@@ -214,5 +232,14 @@ export async function parseJejuRoster(pdf: PdfLike): Promise<{
 
   out.sort((a, b) =>
     a.flight_date.localeCompare(b.flight_date) || (a.std ?? '').localeCompare(b.std ?? ''))
-  return { period: p, flights: out }
+
+  // 하루 = 최대 한 행, 비행이 있는 날은 비행이 주인 (route.ts ParsedRosterDay 규칙)
+  // ⚠️ Map 을 직접 for…of 로 돌리면 이 레포 빌드 타깃에서 깨진다 → Array.from
+  const flightDates = new Set(out.map((f) => f.flight_date))
+  const days = Array.from(dayCodes.entries())
+    .filter((e) => !flightDates.has(e[0]))
+    .map((e) => ({ date: e[0], kind: e[1].kind, label: e[1].label as string | null }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  return { period: p, flights: out, days: days.length ? days : undefined }
 }

@@ -130,6 +130,7 @@ const iso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`
 export function parseThaiRoster(items: ThaiItem[]): {
   period: { year: number; month: number } | null
   flights: ThaiRosterFlight[]
+  days?: { date: string; kind: 'off' | 'standby' | 'sim' | 'ground'; label: string | null }[]
 } {
   const full = items.map((i) => i.t).join(' ')
   const p = period(full)
@@ -141,14 +142,18 @@ export function parseThaiRoster(items: ThaiItem[]): {
   if (!flt.length) return { period: p, flights: [] }
 
   const body = items.filter((i) => i.x >= 70)
-  type Cell = { day: number; t: string }
+  type Cell = { day: number; t: string; x: number; w?: number }
   const cellsOf = (y: number): Cell[] =>
-    rowAt(body, y).map((i) => ({ day: dayAt(cols, i.x) ?? 0, t: i.t })).filter((c) => c.day > 0)
+    rowAt(body, y).map((i) => ({ day: dayAt(cols, i.x) ?? 0, t: i.t, x: i.x, w: i.w })).filter((c) => c.day > 0)
 
   // 날짜별 도착 후보 — 자정 넘김 편이 다음 날 칸에 남긴 "공항+시각"을 여기서 찾는다
   const arrivals = new Map<number, { ap: string; time: string }>()
   type Leg = { day: number; num: string; dep?: string; std?: string; arr?: string; sta?: string }
   const legs: Leg[] = []
+  // 편명 자리에 오는 훈련·지상 코드 (2026-09-02 실측: CHMSBA350·CHMSBB350 = 시뮬 훈련 추정) —
+  // 뜻이 확실치 않아 전부 회색(ground)으로 넣고 label에 원문을 보존한다.
+  // 이 양식엔 오프 표기가 아예 없다(빈 칸 = 쉬는 날) — 명시된 코드만 줍고 빈 날은 건드리지 않는다
+  const groundByDay = new Map<number, string>()
 
   for (const label of flt) {
     // 이 레그의 다섯 줄을 라벨 y 주변에서 클러스터로 집는다
@@ -161,7 +166,16 @@ export function parseThaiRoster(items: ThaiItem[]): {
     const num = new Map<number, string>(), depAp = new Map<number, string>(),
           depT = new Map<number, string>(), arrAp = new Map<number, string>(),
           arrT = new Map<number, string>()
-    for (const c of cellsOf(yFlt)) num.set(c.day, c.t)
+    for (const c of cellsOf(yFlt)) {
+      num.set(c.day, c.t)
+      // 훈련·지상 코드는 글자가 넓어 시작 x가 **전날 칸을 침범**한다 (실측: CHMSBA350 w=32.7,
+      // 시작 기준 10일 ↔ 실제 11일) → 중심점(x+w/2)으로 날짜를 다시 정한다.
+      // 편명·공항 등 좁은 토큰은 시작=중심(실측 58/58)이라 비행 경로는 손대지 않는다
+      if (!FLIGHT_RE.test(c.t) && /^[A-Z]{3,8}\d{0,4}$/.test(c.t)) {
+        const mid = dayAt(cols, c.x + (c.w ?? 0) / 2)
+        if (mid !== null && !groundByDay.has(mid)) groundByDay.set(mid, c.t)
+      }
+    }
     for (const c of cellsOf(yDepAp)) depAp.set(c.day, c.t)
     for (const c of cellsOf(yDepT)) depT.set(c.day, c.t)
     for (const c of cellsOf(yArrAp)) arrAp.set(c.day, c.t)
@@ -177,7 +191,7 @@ export function parseThaiRoster(items: ThaiItem[]): {
     }
 
     for (const [day, n] of Array.from(num.entries())) {
-      if (!FLIGHT_RE.test(n)) continue        // CHMSBA350 등 훈련 코드는 비행이 아니다
+      if (!FLIGHT_RE.test(n)) continue        // 훈련 코드는 비행이 아니다 (위에서 중심점으로 수집)
       const leg: Leg = { day, num: n }
       const da = depAp.get(day), dt = depT.get(day)
       if (da && AIRPORT_RE.test(da)) leg.dep = da
@@ -218,5 +232,14 @@ export function parseThaiRoster(items: ThaiItem[]): {
     })
   }
 
-  return { period: p, flights: out }
+  // 하루 = 최대 한 행, 비행이 있는 날은 비행이 주인 (route.ts ParsedRosterDay 규칙)
+  // ⚠️ Map 을 직접 for…of 로 돌리면 이 레포 빌드 타깃에서 깨진다 → Array.from
+  const flightDates = new Set(out.map((f) => f.flight_date))
+  const dayRows = Array.from(groundByDay.entries())
+    .filter((e) => e[0] >= 1 && e[0] <= days)
+    .map((e) => ({ date: iso(p.year, p.month, e[0]), kind: 'ground' as const, label: e[1] as string | null }))
+    .filter((d) => !flightDates.has(d.date))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  return { period: p, flights: out, days: dayRows.length ? dayRows : undefined }
 }

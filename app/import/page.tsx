@@ -14,6 +14,8 @@ type RosterParse = {
     std: string | null; sta: string | null; aircraft_type: string | null; overnight: boolean
     report_time?: string | null; duty_end_time?: string | null
   }[]
+  // "비행 없는 날"(오프·스탠바이·SIM·지상) — days를 아직 안 주는 파서면 없다 (앱과 같은 계약)
+  days?: { date: string; kind: 'off' | 'standby' | 'sim' | 'ground'; label: string | null }[]
   stats: { flights: number; offDays: number; standbyDays: number }
 }
 
@@ -99,7 +101,33 @@ export default function ImportPage() {
           duty_end_time: f.duty_end_time ?? null,
         }))
       )
-      setRosterMsg(`✅ ${n}편 등록! 홈 화면에 "오늘의 비행"으로 떠요.`)
+      // "비행 없는 날"도 서버에 — 앱과 같은 규칙(로스터 기간 내 전량교체 → 삽입).
+      // 웹에는 달력 화면이 없어 IDB에는 안 담는다 — 앱이 다음 동기화 때 읽어 달력을 채운다.
+      // 실패해도 비행 등록은 이미 끝났으니 메시지에서 일수만 빠진다 (다음 앱 업로드가 채움)
+      let daysSaved = 0
+      if (roster.days?.length) {
+        try {
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            await supabase.from('roster_days').delete()
+              .gte('day_date', roster.period.start)
+              .lte('day_date', roster.period.end)
+            const { error: dayErr } = await supabase.from('roster_days').upsert(
+              roster.days.map((d) => ({
+                user_id: user.id, day_date: d.date, kind: d.kind, label: d.label,
+              })),
+              { onConflict: 'user_id,day_date' }
+            )
+            if (!dayErr) daysSaved = roster.days.length
+          }
+        } catch {}
+      }
+      setRosterMsg(
+        `✅ ${n}편 등록!` +
+        (daysSaved ? ` 쉬는 날·스탠바이 ${daysSaved}일도 함께 저장했어요.` : '') +
+        ' 홈 화면에 "오늘의 비행"으로 떠요.'
+      )
       setRoster(null)
     } catch (err) {
       setRosterMsg('⚠️ ' + String(err))

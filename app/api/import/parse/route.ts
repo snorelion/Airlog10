@@ -38,6 +38,11 @@ export async function POST(req: NextRequest) {
   }
 
   const [logRes, rosterRes] = await Promise.all([call(parseLogbook), call(parseRoster)])
+  // 3.0 앱(거래 서명 헤더)은 인증 결과를 그대로 돌려준다 — 401(서명 무효)·402(구독 만료)·429(하루 한도)의
+  // 문구가 그대로 앱에 보여야 한다. 두 핸들러가 같은 lib/app-auth.ts를 쓰므로 어느 쪽이든 같다.
+  if (req.headers.get('x-airlog10-transaction') && [401, 402, 429].includes(logRes.status)) {
+    return NextResponse.json(await logRes.json().catch(() => ({ error: 'Please sign in.' })), { status: logRes.status })
+  }
   if (logRes.status === 401 && rosterRes.status === 401) {
     return NextResponse.json({ error: 'Please sign in.' }, { status: 401 })
   }

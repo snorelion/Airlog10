@@ -65,7 +65,11 @@ export type ParseResult = {
 
 // 업로드 파일 → 문자열 (UTF-16 LE/BE BOM, UTF-8 자동 감지)
 export async function decodeLogbookFile(file: File): Promise<string> {
-  const buf = await file.arrayBuffer()
+  return decodeLogbookBuffer(await file.arrayBuffer())
+}
+
+// 서버 라우트(/api/company-log/parse)도 같은 디코딩을 쓴다 — 앱은 파일을 서버로 보낸다
+export function decodeLogbookBuffer(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf)
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
     return new TextDecoder('utf-16le').decode(buf)
@@ -243,21 +247,42 @@ export function parseLogTen(text: string): ParseResult {
 
 // ─────────────────────────────────────────────────────────────
 // LogTen "Dynamic Export Flights (Tab)" 형식 — 사람이 읽는 컬럼 이름
-// (Aircraft Type / Aircraft ID / Date / Flight # / From / To / Out / In …)
-// 실파일 함정: Out·In이 "0340" 형식, Approach가 "1;ILS;19R;VTBS" 형식,
-// remarks 줄바꿈으로 행이 쪼개짐(3번째 필드가 날짜인 줄만 새 레코드)
+// (Date / Flight # / Aircraft ID / Aircraft Type / From / To / Out / In …)
+// 실파일 함정:
+//   * Out·In이 "0340" 형식(UTC), Approach가 "1;ILS;19R;VTBS" 형식
+//   * remarks 줄바꿈으로 행이 쪼개짐 → **Date 열**이 날짜인 줄만 새 레코드
+//   * 열 순서가 내보내기마다 다르다(2020년 파일은 Date가 3번째, 2026년 파일은 1번째)
+//     → 위치가 아니라 헤더 이름으로만 찾는다 (2026-09-04, 라이언님 4,637행 파일)
+//   * 내보내기 설정에 따라 **SIC 열이 없을 수 있다** — PIC도 P1u/s도 없는 시간은
+//     훈련기면 Dual received, 그 밖(737 등 다중 조종사 기종)은 SIC로 넣는다.
+//     NZ CAA 장부 PDF(같은 로그의 인쇄본)와 4,604행 대조로 검증: P-68은 쌍발이지만 훈련 Dual.
+//   * 오늘 이후 행은 시각 없는 스케줄 — 기록에 넣지 않고 notes로 알린다.
 // ─────────────────────────────────────────────────────────────
+
+/// 훈련기(단일 조종사) — SIC 없는 행의 갈래(Dual vs SIC)와 multi-pilot 판정에 쓴다
+const TRAINING_TYPE = /^(C-?(150|152|172|182|206|210)\b|P-?68|PA-?\d|DA-?\d|SR-?2|R-?22|R-?44)/i
+function isTrainingType(t: string | null): boolean {
+  return !!t && TRAINING_TYPE.test(t.trim())
+}
+
 export function parseDynamic(text: string): ParseResult {
   const errors: string[] = []
+  const notes: string[] = []
   const lines = text.replace(/^﻿/, '').split(/\r?\n/)
   const header = lines[0].split('\t').map((h) => h.trim())
   const idx: Record<string, number> = {}
-  header.forEach((h, i) => { idx[h] = i })
+  header.forEach((h, i) => { if (h) idx[h] = i })
+  const has = (name: string) => idx[name] !== undefined
+  const dateIdx = idx['Date']
+  if (dateIdx === undefined) {
+    return { flights: [], aircraft: [], errors: ["This doesn't look like a LogTen Dynamic Export — no \"Date\" column in the first row."] }
+  }
 
+  // 줄바꿈으로 쪼개진 레코드 복원 — Date 열이 날짜인 줄만 새 레코드
   const records: string[][] = []
   for (const line of lines.slice(1)) {
     const c = line.split('\t')
-    if (c.length > 2 && /^\d{4}-\d{2}-\d{2}$/.test(c[2].trim())) {
+    if (c.length > dateIdx && /^\d{4}-\d{2}-\d{2}$/.test(clean(c[dateIdx]))) {
       records.push(c)
     } else if (records.length && line.trim()) {
       const last = records[records.length - 1]
@@ -270,21 +295,38 @@ export function parseDynamic(text: string): ParseResult {
     return i === undefined ? '' : clean(cells[i])
   }
 
+  const today = new Date().toISOString().slice(0, 10)
   const flights: ParsedFlight[] = []
   const acMap = new Map<string, ParsedAircraft>()
+  let skippedUpcoming = 0
+  let inferredSic = 0
+  let inferredDual = 0
 
   for (const c of records) {
     const date = col(c, 'Date')
+    const totalMin = hmToMin(col(c, 'Total Time'))
+    // 오늘 이후 + 시간 없음 = 로스터에서 온 예정 편. 기록이 아니다.
+    if (date > today && totalMin === 0) { skippedUpcoming++; continue }
+
+    const typeRaw = textOrNull(col(c, 'Aircraft Type'))
+    const training = isTrainingType(typeRaw)
     const picMin = hmToMin(col(c, 'PIC'))
-    const sicMin = hmToMin(col(c, 'SIC'))
-    const stuMin = hmToMin(col(c, 'STUDENT'))
+    const picusMin = hmToMin(col(c, 'P1u/s'))
+    let sicMin = has('SIC') ? hmToMin(col(c, 'SIC')) : 0
+    let dualMin = has('Dual Received') ? hmToMin(col(c, 'Dual Received'))
+      : has('STUDENT') ? hmToMin(col(c, 'STUDENT')) : 0
+    // SIC 열이 없는 내보내기: 역할이 안 잡힌 시간을 기종으로 가른다 (머리말)
+    if (!has('SIC') && totalMin > 0 && picMin === 0 && picusMin === 0 && sicMin === 0 && dualMin === 0) {
+      if (training) { dualMin = totalMin; inferredDual++ } else { sicMin = totalMin; inferredSic++ }
+    }
 
     let capacity: string | null = null
     if (picMin > 0) capacity = 'PIC'
+    else if (picusMin > 0) capacity = 'PICUS'
     else if (sicMin > 0) capacity = 'SIC'
-    else if (stuMin > 0) capacity = 'STUDENT'
+    else if (dualMin > 0) capacity = 'STUDENT'
 
-    // "1;ILS;19R;VTBS" → "ILS 19R VTBS"
+    // "1;ILS;19R;VTBS" → "ILS 19R VTBS" · "1;WIII" → 그대로
     const apRaw = col(c, 'Approach 1')
     let approaches: string[] | null = null
     if (apRaw) {
@@ -306,12 +348,15 @@ export function parseDynamic(text: string): ParseResult {
     }
 
     const reg = textOrNull(col(c, 'Aircraft ID'))
-    const typeCode = normType(textOrNull(col(c, 'Aircraft Type')))
+    const typeCode = normType(typeRaw)
     if (reg && !acMap.has(reg)) {
       acMap.set(reg, { registration: reg, type_code: typeCode, make: null, model: null, notes: null })
     }
 
     const pfRaw = col(c, 'Pilot Flying')
+    const remarkParts = [textOrNull(col(c, 'Remarks'))]
+    if (col(c, 'IPC/ICC') === '1') remarkParts.push('IPC/ICC')   // 계기 자격 점검 — 표기만 남긴다
+    const remarks = remarkParts.filter(Boolean).join(' · ') || null
 
     flights.push({
       flight_date: date,
@@ -322,25 +367,27 @@ export function parseDynamic(text: string): ParseResult {
       in_time: timeOrNull(col(c, 'In')),
       aircraft_reg: reg,
       aircraft_type: typeCode,
-      total_min: hmToMin(col(c, 'Total Time')),
+      total_min: totalMin,
       pic_min: picMin,
       sic_min: sicMin,
-      picus_min: 0,
+      picus_min: picusMin,
       night_min: hmToMin(col(c, 'Night')),
       inst_actual_min: hmToMin(col(c, 'Actual Inst')),
-      inst_sim_min: 0,
-      xc_min: 0,
-      multi_pilot_min: hmToMin(col(c, 'Total Time')),
-      dual_received_min: stuMin,
-      dual_given_min: 0,
-      sim_min: 0,
+      inst_sim_min: hmToMin(col(c, 'Simulated Inst')),
+      xc_min: hmToMin(col(c, 'XC')),
+      // 다중 조종사 시간은 훈련기(단일 조종사)엔 없다 — 예전엔 모든 행에 총시간을 넣어
+      // C-152 훈련까지 MP로 잡혔다
+      multi_pilot_min: training ? 0 : totalMin,
+      dual_received_min: dualMin,
+      dual_given_min: hmToMin(col(c, 'Dual Given')),
+      sim_min: hmToMin(col(c, 'Simulator')),
       day_takeoffs: toInt(col(c, 'Day T/O')),
       day_landings: toInt(col(c, 'Day Ldg')),
       night_takeoffs: toInt(col(c, 'Night T/O')),
       night_landings: toInt(col(c, 'Night Ldg')),
       autolands: toInt(col(c, 'Autolands')),
       go_arounds: toInt(col(c, 'Go Arounds')),
-      holds: 0,
+      holds: toInt(col(c, 'Holds')),
       approaches,
       capacity,
       is_pf: pfRaw === '' ? null : pfRaw === '1',
@@ -349,12 +396,21 @@ export function parseDynamic(text: string): ParseResult {
       crew_other: others.length ? others.join(', ') : null,
       pax_count: null,
       distance_nm: null,
-      remarks: textOrNull(col(c, 'Remarks')),
+      remarks,
       source: 'logten',
     })
   }
 
-  return { flights, aircraft: Array.from(acMap.values()), errors }
+  if (inferredSic || inferredDual) {
+    notes.push(`This export has no SIC column — ${inferredSic} flights without PIC or P1u/s time were logged as SIC` +
+      (inferredDual ? `, and ${inferredDual} on training aircraft as dual received.` : '.'))
+  }
+  if (skippedUpcoming) {
+    notes.push(`${skippedUpcoming} upcoming rows (after today, no times) were skipped — they come from your roster, not your logbook.`)
+  }
+  notes.push('Out/In times are taken as UTC, as exported by LogTen. Multi-pilot time is filled for airline types only.')
+
+  return { flights, aircraft: Array.from(acMap.values()), errors, notes }
 }
 
 // 형식 자동 감지 — 임포트 화면은 이 함수 하나만 쓰면 됨

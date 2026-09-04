@@ -6,6 +6,7 @@ import { isJejuCompanyLog, parseJejuCompanyLog } from '@/lib/company-log-jeju'
 import { pdfToCompanyRows } from '@/lib/company-log-pdf'
 import { kalExtract, kalBuildFlights } from '@/lib/company-log-kal'
 import { acExtract, acBuildFlights } from '@/lib/company-log-ac'
+import { decodeLogbookBuffer, parseLogbook } from '@/lib/logten'
 
 // Thai Lion Air 회사 로그북(PilotLogBookReport) 엑셀 파서
 // 확장자가 .csv로 내려오지만 실제 내용은 xlsx다 (파일 시그니처 'PK').
@@ -95,6 +96,18 @@ export async function POST(req: NextRequest) {
   const buf = await file.arrayBuffer()
   const head = new Uint8Array(buf.slice(0, 4))
   const isPdf = head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46 // %PDF
+  const isZip = head[0] === 0x50 && head[1] === 0x4b // "PK" — xlsx(회사 엑셀 · .csv 확장자여도 실제는 xlsx)
+
+  // 0) 텍스트 파일 = LogTen 내보내기(원시 필드명 · Dynamic Export) — 앱의 통합 업로드가 여기로
+  //    보낸다 (2026-09-04). 예전엔 웹 import 페이지가 브라우저에서만 파싱해서 앱에선 .txt가
+  //    "엑셀·PDF만"으로 거절됐다. PDF도 zip도 아니면 텍스트로 읽어 지문을 본다.
+  if (!isPdf && !isZip) {
+    const result = parseLogbook(decodeLogbookBuffer(buf))
+    if (!result.flights.length) {
+      return NextResponse.json({ error: result.errors[0] ?? 'No flight records found in this file.' }, { status: 422 })
+    }
+    return NextResponse.json(result)
+  }
   // ⚠️ pdf.js는 받은 버퍼를 파싱하면서 소비(detach)할 수 있다 — 파서마다 복사본을 준다.
   //    (KAL 판별을 지나 AC 판별로 넘어갈 때 죽어 500이 나던 원인 — 2026-08-10 실기기 실측)
   const pdfCopy = () => new Uint8Array(buf.slice(0))

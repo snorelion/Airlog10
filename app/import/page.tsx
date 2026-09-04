@@ -44,11 +44,15 @@ function utcToLocal(day: string, hm: string, tz: string | null): { day: string; 
   }
 }
 
+// 중복 판정 키 — 앱 ImportView.dupKey와 **같은 규칙**이어야 한다.
+// OUT 시각이 없는 행(훈련 비행·시각 없는 LogTen 행)은 같은 날 같은 노선을 여러 번 타는 게
+// 흔해서(2007년 NZPM 서킷 46쌍, 2026-09-04) 총시간까지 본다. 시각 있는 행은 예전과 같다.
 function dupKey(f: {
   flight_date: string; flight_number: string | null
-  origin: string | null; destination: string | null; out_time: string | null
+  origin: string | null; destination: string | null; out_time: string | null; total_min?: number | null
 }): string {
-  return `${f.flight_date}|${f.flight_number ?? ''}|${f.origin ?? ''}|${f.destination ?? ''}|${f.out_time ?? ''}`
+  const tail = f.out_time || (f.total_min ? `t${f.total_min}` : '')
+  return `${f.flight_date}|${f.flight_number ?? ''}|${f.origin ?? ''}|${f.destination ?? ''}|${tail}`
 }
 
 export default function ImportPage() {
@@ -189,7 +193,7 @@ export default function ImportPage() {
       for (let fromRow = 0; ; fromRow += 1000) {
         const { data, error: qErr } = await supabase
           .from('flights')
-          .select('flight_date, flight_number, origin, destination, out_time')
+          .select('flight_date, flight_number, origin, destination, out_time, total_min')
           .eq('deleted', false)
           .order('id') // 정렬 없는 range 페이징은 경계에서 행이 샐 수 있음
           .range(fromRow, fromRow + 999)

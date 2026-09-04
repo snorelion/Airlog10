@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
-import { createApiSupabase } from '@/lib/supabase-server'
+import { authenticateParse } from '@/lib/app-auth'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { parseCompanyLog } from '@/lib/company-log'
 import { isJejuCompanyLog, parseJejuCompanyLog } from '@/lib/company-log-jeju'
 import { pdfToCompanyRows } from '@/lib/company-log-pdf'
@@ -55,7 +56,7 @@ function collectIata(rows: string[][], depName: string, arrName: string): Set<st
 
 // 파일에 나온 IATA 코드들 → ICAO. 같은 IATA가 여러 공항이면 큰 공항 우선.
 async function lookupIcao(
-  supabase: ReturnType<typeof createApiSupabase>['supabase'],
+  supabase: SupabaseClient,
   codes: Set<string>
 ): Promise<Record<string, string>> {
   const iataToIcao: Record<string, string> = {}
@@ -78,10 +79,10 @@ async function lookupIcao(
 }
 
 export async function POST(req: NextRequest) {
-  // 쿠키 세션(웹) 또는 Bearer 토큰(iOS 앱) 둘 다 허용
-  const { supabase, getUser } = createApiSupabase(req)
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 })
+  // 쿠키 세션(웹)·Bearer 토큰(2.5.x 앱)·StoreKit 거래 서명(3.0 앱) — lib/app-auth.ts
+  const auth = await authenticateParse(req)
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const supabase = auth.supabase
 
   const form = await req.formData()
   const file = form.get('file')

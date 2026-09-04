@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDocumentProxy } from 'unpdf'
-import { createApiSupabase } from '@/lib/supabase-server'
+import { authenticateParse } from '@/lib/app-auth'
 import { isEastarRoster, parseEastarRoster } from '@/lib/roster-eastar'
 import { isJejuRoster, parseJejuRoster } from '@/lib/roster-jeju'
 import {
@@ -73,8 +73,9 @@ export async function POST(req: NextRequest) {
   // 세션(쿠키 또는 Bearer 토큰) 또는 시크릿(관리 테스트용)으로 인증
   const secret = req.nextUrl.searchParams.get('secret')
   if (!process.env.SEED_SECRET || secret !== process.env.SEED_SECRET) {
-    const user = await createApiSupabase(req).getUser()
-    if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 })
+    // 세션·Bearer(2.5.x) 또는 StoreKit 거래 서명(3.0 앱) — lib/app-auth.ts
+    const auth = await authenticateParse(req)
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
 
   const form = await req.formData()

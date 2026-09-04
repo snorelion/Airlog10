@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "^3.1.0",
     "@photostructure/tz-lookup": "^11.6.0",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.0",

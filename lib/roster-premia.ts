@@ -13,6 +13,10 @@
 //    옮겨야 알림·홈 카드가 맞는다. overnight은 (도착 +N > 출발 +N).
 //  · 미주 노선은 도착이 +2일 (LAX 2330 → ICN 0430+2) — legEnd가 공항 시간대로 맞춘다.
 //  · 비행은 **YP#### 활동뿐**. OFF·RDO(휴무), REC*(훈련), BTRIP·REST는 비행이 아니다.
+//  · "비행 없는 날"(days, 2026-09-05 — 앱 스케줄 달력용): 비행이 없는 행의 활동 코드를 날짜별 한 행으로.
+//    OFF·RDO·ANLV(연차)→off · RSV(리저브)→standby · SIM*→sim · 훈련(REC*·RT*·EEGS·CBT)·사무(OFC*)→ground.
+//    REST(레이오버 휴식)·BTRIP은 날이 아니라 건너뛴다. 한 날에 여러 코드면 sim>standby>ground>off 우선,
+//    label에 원문 코드를 '/'로 이어 남긴다 (route.ts ParsedRosterDay·다른 파서와 같은 규칙).
 //  · 로스터에 기종 칸이 없다 — 에어프레미아는 787-9 단일 기단이라 'B787-9' 고정.
 //  · C/I(L)이 행 맨 앞에 오면 그 행 첫 비행의 리포트 시각. C/O는 +N이 붙거나 이어지는
 //    행 중간에 끼어 칸 구분이 안 되므로 듀티 종료는 넣지 않는다.
@@ -29,9 +33,16 @@ export type PremiaRosterFlight = {
   report_time?: string | null
 }
 
+export type PremiaRosterDay = {
+  date: string
+  kind: 'off' | 'standby' | 'sim' | 'ground'
+  label: string | null
+}
+
 export type PremiaRosterResult = {
   period: { start: string; end: string }
   flights: PremiaRosterFlight[]
+  days?: PremiaRosterDay[]
   stats: { flights: number; offDays: number; standbyDays: number }
 }
 
@@ -52,7 +63,21 @@ const T4 = /^(\d{4})([+-]\d)?$/ // 2235 · 0048+1 · 1500-1
 const BLK = /^\d{1,2}:\d{2}$/ // 블록타임 8:45 — 구조 판독에서 건너뛴다
 const RDATE = /^(\d{2})([A-Za-z]{3})(\d{2})$/ // 01Aug26
 // 휴무·훈련 코드 — OFF·RDO는 세 글자라 공항 꼴과 겹치므로 목록으로 먼저 본다
-const OFF_CODES = new Set(['OFF', 'RDO', 'DO', 'ALV', 'AL', 'VAC'])
+const OFF_CODES = new Set(['OFF', 'RDO', 'DO', 'ALV', 'AL', 'VAC', 'ANLV'])
+const SBY_CODES = new Set(['RSV', 'SBY', 'STBY', 'SB'])
+// 날이 아닌 활동 — 레이오버 휴식·출장 이동은 달력 칸을 차지하지 않는다
+const SKIP_CODES = new Set(['REST', 'BTRIP'])
+const KIND_RANK = { sim: 0, standby: 1, ground: 2, off: 3 } as const
+
+/** 활동 코드 → 달력 종류. 모르는 코드는 null (비행 없는 날에 낯선 코드만 있으면 그 날은 비워 둔다) */
+function dayKind(code: string): PremiaRosterDay['kind'] | null {
+  if (OFF_CODES.has(code)) return 'off'
+  if (SBY_CODES.has(code)) return 'standby'
+  if (code.startsWith('SIM')) return 'sim'
+  // 훈련(REC*·RT2CBT·EEGS·*CBT)·사무(OFC*)·지상(GS*) — 달력엔 회색 ground
+  if (/^(REC|RT|EEGS|OFC|GS|GND)/.test(code) || code.endsWith('CBT')) return 'ground'
+  return null
+}
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -128,15 +153,23 @@ export async function parsePremiaRoster(pdf: PdfLike): Promise<PremiaRosterResul
   if (cur) rows.push(cur)
 
   const flights: PremiaRosterFlight[] = []
-  let offDays = 0
-  let standbyDays = 0
+  const days: PremiaRosterDay[] = []
   for (const r of rows) {
-    // 활동 코드: OFF·RDO는 공항 꼴(3대문자)이라 목록을 먼저 보고,
-    // 나머지는 "시각도 공항도 블록타임도 아닌 첫 단어" (YP151·RECSM·BTRIP…)
-    const act = r.body.find((x) =>
-      OFF_CODES.has(x) || (!T4.test(x) && !AP.test(x) && !BLK.test(x))) ?? ''
-    if (OFF_CODES.has(act)) offDays++
-    else if (act.startsWith('REC')) standbyDays++ // 훈련 — 앱 통계 칸이 "Standby / training"
+    // 활동 코드 전부: OFF·RDO는 공항 꼴(3대문자)이라 목록을 먼저 보고,
+    // 나머지는 "시각도 공항도 블록타임도 아닌 단어" (YP151·RECSM·BTRIP·RT2CBT…). T*(훈련 표시)는 뺀다.
+    const acts = r.body.filter((x) =>
+      OFF_CODES.has(x) || SBY_CODES.has(x) ||
+      (!T4.test(x) && !AP.test(x) && !BLK.test(x) && x !== 'T*'))
+    // 비행 없는 행만 "비행 없는 날" 후보 — 비행 행은 아래 루프가 flights로 가져간다
+    if (!acts.some((a) => FLT.test(a))) {
+      const kinds = acts.filter((a) => !SKIP_CODES.has(a)).map((a) => ({ code: a, kind: dayKind(a) }))
+      const known = kinds.filter((k) => k.kind)
+      if (known.length) {
+        const best = known.reduce((a, b) => (KIND_RANK[b.kind!] < KIND_RANK[a.kind!] ? b : a))
+        days.push({ date: r.date, kind: best.kind!,
+                    label: Array.from(new Set(kinds.map((k) => k.code))).join('/') })
+      }
+    }
 
     // 행 맨 앞 시각(C/I) = 그 행 첫 비행의 리포트 시각 (+N 붙은 건 C/O이므로 제외)
     const lead = r.body.length ? hmPlus(r.body[0]) : null
@@ -173,9 +206,18 @@ export async function parsePremiaRoster(pdf: PdfLike): Promise<PremiaRosterResul
     const dates = flights.map((f) => f.flight_date).sort()
     period = { start: dates[0], end: dates[dates.length - 1] }
   }
+  // 비행이 있는 날(출발 +N으로 옮겨진 날짜 포함)은 비행이 주인 — 그 날의 day 행은 뺀다
+  const flightDates = new Set(flights.map((f) => f.flight_date))
+  const cleanDays = days.filter((d) => !flightDates.has(d.date))
   return {
     period,
     flights,
-    stats: { flights: flights.length, offDays, standbyDays },
+    days: cleanDays.length ? cleanDays : undefined,
+    // stats는 route.ts dayStats와 같은 셈법 (off 외 전부 standbyDays)
+    stats: {
+      flights: flights.length,
+      offDays: cleanDays.filter((d) => d.kind === 'off').length,
+      standbyDays: cleanDays.filter((d) => d.kind !== 'off').length,
+    },
   }
 }
